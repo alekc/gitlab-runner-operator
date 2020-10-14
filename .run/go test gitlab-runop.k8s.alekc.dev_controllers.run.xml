@@ -1,0 +1,14 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="go test gitlab.k8s.alekc.dev/controllers" type="GoTestRunConfiguration" factoryName="Go Test" nameIsGenerated="true">
+    <module name="gitlab-runop" />
+    <working_directory value="$PROJECT_DIR$/controllers" />
+    <framework value="gotest" />
+    <kind value="PACKAGE" />
+    <package value="gitlab.k8s.alekc.dev/controllers" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$" />
+    <method v="2">
+      <option name="ToolBeforeRunTask" enabled="true" actionId="Tool_External Tools_make" />
+    </method>
+  </configuration>
+</component>

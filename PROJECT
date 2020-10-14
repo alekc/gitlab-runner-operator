@@ -1,0 +1,7 @@
+domain: k8s.alekc.dev
+repo: gitlab.k8s.alekc.dev
+resources:
+- group: gitlab
+  kind: Runner
+  version: v1alpha1
+version: "2"
