@@ -114,7 +114,6 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		}
 	}
 
-	configMapName := "test-config-map"
 	var cm *corev1.ConfigMap
 	var configMaps corev1.ConfigMapList
 
@@ -133,7 +132,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// try to find one with the same name (in which case save it), and delete everything else (in case we have renamed)
 	// our name in the config
 	for _, k8Cm := range configMaps.Items {
-		if k8Cm.Name == configMapName {
+		if k8Cm.Name == runnerObj.ChildName() {
 			// we found our dependent config map, save it
 			tmp := k8Cm
 			cm = &tmp
@@ -143,7 +142,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		err = r.Delete(ctx, k8Cm.DeepCopy())
 		if err != nil {
 			// log the error but pretty much ignore it for now.
-			logger.Error(err, "cannot delete zombie config map", "zombie-name", k8Cm.Name)
+			logger.Error(err, "cannot delete obsolete config map", "zombie-name", k8Cm.Name)
 		}
 	}
 
@@ -152,8 +151,8 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		cm = &corev1.ConfigMap{
 			TypeMeta: metav1.TypeMeta{},
 			ObjectMeta: metav1.ObjectMeta{
-				Name:            configMapName,       // todo: param
-				Namespace:       runnerObj.Namespace, // todo: fetch from the spec
+				Name:            runnerObj.ChildName(),
+				Namespace:       runnerObj.Namespace,
 				Annotations:     nil,
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
 				ClusterName:     "",
@@ -244,7 +243,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
 							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{Name: configMapName},
+								LocalObjectReference: corev1.LocalObjectReference{Name: runnerObj.ChildName()},
 							},
 						},
 					}},

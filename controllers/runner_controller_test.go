@@ -56,9 +56,12 @@ var _ = Describe("Runner controller", func() {
 
 	Context("When creating a runner type crd", func() {
 		ctx := context.Background()
-		runner := &gitlabRunOp.Runner{}
-		It("should create a runner instance without any error", func() {
-			cronJob := &gitlabRunOp.Runner{
+		runner := &gitlabRunOp.Runner{
+			ObjectMeta: metav1.ObjectMeta{Name: RunnerName},
+		}
+		namespacedDependencyName := types.NamespacedName{Name: runner.ChildName(), Namespace: RunnerNamespace}
+		It("should create a runner instance", func() {
+			newRunner := &gitlabRunOp.Runner{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: gitlabRunOp.GroupVersion.String(),
 					Kind:       "CronJob",
@@ -74,11 +77,18 @@ var _ = Describe("Runner controller", func() {
 					},
 				},
 			}
-			Expect(k8sClient.Create(ctx, cronJob)).Should(Succeed())
+			Expect(k8sClient.Create(ctx, newRunner)).Should(Succeed())
 
 			// fetch the runner crd entity
 			Eventually(func() bool {
 				return k8sClient.Get(ctx, types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}, runner) == nil
+			}, timeout, interval).Should(BeTrue())
+		})
+
+		It("should have generated config map", func() {
+			var configMap corev1.ConfigMap
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, namespacedDependencyName, &configMap) == nil
 			}, timeout, interval).Should(BeTrue())
 		})
 
@@ -87,14 +97,12 @@ var _ = Describe("Runner controller", func() {
 			By("By creating a new CronJob")
 
 			// there should be required rbac created
-			rbacName := types.NamespacedName{Name: runner.ChildName(), Namespace: RunnerNamespace}
-
 			// sa first
 			sa := corev1.ServiceAccount{}
 			Eventually(func() bool {
 				return k8sClient.Get(
 					ctx,
-					rbacName,
+					namespacedDependencyName,
 					&sa,
 				) == nil
 			}, timeout, interval).Should(BeTrue())
@@ -104,7 +112,7 @@ var _ = Describe("Runner controller", func() {
 			// fetch the role and validate it's values
 			var role v1.Role
 			Eventually(func() bool {
-				return k8sClient.Get(ctx, rbacName, &role) == nil
+				return k8sClient.Get(ctx, namespacedDependencyName, &role) == nil
 			}, timeout, interval).Should(BeTrue())
 			Expect(role.OwnerReferences).NotTo(BeEmpty())
 			Expect(role.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
@@ -116,20 +124,20 @@ var _ = Describe("Runner controller", func() {
 			// and finally, check the actual role binding
 			var roleBinding v1.RoleBinding
 			Eventually(func() bool {
-				return k8sClient.Get(ctx, rbacName, &roleBinding) == nil
+				return k8sClient.Get(ctx, namespacedDependencyName, &roleBinding) == nil
 			}, timeout, interval).Should(BeTrue())
 			Expect(roleBinding.OwnerReferences).NotTo(BeEmpty())
 			Expect(roleBinding.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 			Expect(roleBinding.Subjects).NotTo(BeEmpty())
 			Expect(roleBinding.Subjects[0]).To(BeEquivalentTo(v1.Subject{
 				Kind:      "ServiceAccount",
-				Name:      rbacName.Name,
-				Namespace: rbacName.Namespace,
+				Name:      namespacedDependencyName.Name,
+				Namespace: namespacedDependencyName.Namespace,
 			}))
 			Expect(roleBinding.RoleRef).To(BeEquivalentTo(v1.RoleRef{
 				APIGroup: "rbac.authorization.k8s.io",
 				Kind:     "Role",
-				Name:     rbacName.Name,
+				Name:     namespacedDependencyName.Name,
 			}))
 		})
 		It("should authenticate against the gitlab server and obtain the auth token", func() {
@@ -149,6 +157,13 @@ var _ = Describe("Runner controller", func() {
 					return true
 				}
 				return false
+			}, timeout, interval).Should(BeTrue())
+			// todo: check for annotations as well
+		})
+		It("should have generated config map", func() {
+			var configMap corev1.ConfigMap
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, namespacedDependencyName, &configMap) == nil
 			}, timeout, interval).Should(BeTrue())
 		})
 	})
