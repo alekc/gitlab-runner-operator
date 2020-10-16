@@ -2,12 +2,16 @@ package generate
 
 import (
 	"bytes"
+	"fmt"
 
 	"github.com/BurntSushi/toml"
 	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
 	"go.alekc.dev/gitlab-runner-operator/config"
 )
 
+func RbacName(runnerObject *gitlabRunOp.Runner) string {
+	return fmt.Sprintf("gitlab-runner-%s", runnerObject.Name)
+}
 func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
 	// define sensible config for some of the configuration values
 	instanceUrl := runnerObject.Spec.GitlabInstanceURL

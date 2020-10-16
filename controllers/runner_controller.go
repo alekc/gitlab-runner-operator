@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -264,7 +263,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					ActiveDeadlineSeconds:         nil,
 					DNSPolicy:                     "",
 					NodeSelector:                  nil,
-					ServiceAccountName:            fmt.Sprintf("gitlab-runner-%s", runnerObj.Name),
+					ServiceAccountName:            generate.RbacName(runnerObj),
 					AutomountServiceAccountToken:  nil,
 					NodeName:                      "",
 					HostNetwork:                   false,
@@ -329,7 +328,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabRunOp.Runner, log logr.Logger) error {
 	// create default service account
 	// todo: deal with renames of the runner
-	runnerName := fmt.Sprintf("gitlab-runner-%s", runnerObject.Name)
+	runnerName := generate.RbacName(runnerObject)
 	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerName}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
 	if err != nil {
@@ -380,7 +379,7 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 		}
 		err = r.Client.Create(ctx, role)
 		if err != nil {
-			log.Error(err, "cannot create service-account")
+			log.Error(err, "cannot create role")
 			return err
 		}
 	}
@@ -415,7 +414,7 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 		}
 		err = r.Client.Create(ctx, role)
 		if err != nil {
-			log.Error(err, "cannot create service-account")
+			log.Error(err, "cannot create rolebinding")
 			return err
 		}
 	}
