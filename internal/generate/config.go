@@ -4,11 +4,11 @@ import (
 	"bytes"
 
 	"github.com/BurntSushi/toml"
-	gitlabv1alpha1 "gitlabrunnerop.k8s.alekc.dev/api/v1alpha1"
-	"gitlabrunnerop.k8s.alekc.dev/config"
+	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	"go.alekc.dev/gitlab-runner-operator/config"
 )
 
-func ConfigText(runnerObject *gitlabv1alpha1.Runner) (string, error) {
+func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
 	// define sensible config for some of the configuration values
 	instanceUrl := runnerObject.Spec.GitlabInstanceURL
 	if instanceUrl == "" {

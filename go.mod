@@ -1,4 +1,4 @@
-module gitlabrunnerop.k8s.alekc.dev
+module go.alekc.dev/gitlab-runner-operator
 
 go 1.13
 

@@ -25,14 +25,12 @@ import (
 	"context"
 	"time"
 
-	"k8s.io/utils/pointer"
-
-	"gitlabrunnerop.k8s.alekc.dev/api/v1alpha1"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/pointer"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
@@ -61,17 +59,17 @@ var _ = Describe("CronJob controller", func() {
 		It("should spin a gitlab runner pod", func() {
 			By("By creating a new CronJob")
 			ctx := context.Background()
-			cronJob := &v1alpha1.Runner{
+			cronJob := &gitlabRunOp.Runner{
 				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1alpha1.GroupVersion.String(),
+					APIVersion: gitlabRunOp.GroupVersion.String(),
 					Kind:       "CronJob",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      RunnerName,
 					Namespace: RunnerNamespace,
 				},
-				Spec: v1alpha1.RunnerSpec{
-					RegistrationConfig: v1alpha1.RegisterNewRunnerOptions{
+				Spec: gitlabRunOp.RunnerSpec{
+					RegistrationConfig: gitlabRunOp.RegisterNewRunnerOptions{
 						Token:   pointer.StringPtr("12345"),
 						TagList: []string{"testing-runner-operator"},
 					},
@@ -80,7 +78,7 @@ var _ = Describe("CronJob controller", func() {
 			Expect(k8sClient.Create(ctx, cronJob)).Should(Succeed())
 
 			lookupKey := types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}
-			runner := &v1alpha1.Runner{}
+			runner := &gitlabRunOp.Runner{}
 
 			// We'll need to retry getting this newly created CronJob, given that creation may not immediately happen.
 			Eventually(func() bool {

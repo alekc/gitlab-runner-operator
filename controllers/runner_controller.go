@@ -26,11 +26,11 @@ import (
 
 	"k8s.io/apimachinery/pkg/api/errors"
 
-	"gitlabrunnerop.k8s.alekc.dev/internal/generate"
+	"go.alekc.dev/gitlab-runner-operator/internal/generate"
 
 	"github.com/go-logr/logr"
-	"gitlabrunnerop.k8s.alekc.dev/api"
-	"gitlabrunnerop.k8s.alekc.dev/internal/crypto"
+	"go.alekc.dev/gitlab-runner-operator/api"
+	"go.alekc.dev/gitlab-runner-operator/internal/crypto"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -40,7 +40,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	gitlabv1alpha1 "gitlabrunnerop.k8s.alekc.dev/api/v1alpha1"
+	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
 )
 
 const ownerCmKey = ".metadata.cm.controller"
@@ -71,7 +71,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	resultRequeueAfterDefaultTimeout := ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
 
 	// find the object, in case we cannot find it just return.
-	runnerObj := &gitlabv1alpha1.Runner{}
+	runnerObj := &gitlabRunOp.Runner{}
 	err := r.Client.Get(ctx, req.NamespacedName, runnerObj)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
@@ -326,7 +326,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	return ctrl.Result{}, nil
 }
 
-func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabv1alpha1.Runner, log logr.Logger) error {
+func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabRunOp.Runner, log logr.Logger) error {
 	// create default service account
 	// todo: deal with renames of the runner
 	runnerName := fmt.Sprintf("gitlab-runner-%s", runnerObject.Name)
@@ -421,7 +421,7 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 	}
 	return nil
 }
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1alpha1.Runner, log logr.Logger) (ctrl.Result, error) {
+func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabRunOp.Runner, log logr.Logger) (ctrl.Result, error) {
 	// obtain the Gitlab Api client for this specific runner
 	gitlabApiClient, err := api.NewGitlabClient(*runner.Spec.RegistrationConfig.Token, runner.Spec.GitlabInstanceURL)
 	if err != nil {
@@ -469,7 +469,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we dealing with a proper object
-		if owner.APIVersion != gitlabv1alpha1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabRunOp.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -488,7 +488,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we dealing with a proper object
-		if owner.APIVersion != gitlabv1alpha1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabRunOp.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -497,7 +497,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabv1alpha1.Runner{}).
+		For(&gitlabRunOp.Runner{}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)

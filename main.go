@@ -26,8 +26,8 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	gitlabv1alpha1 "gitlabrunnerop.k8s.alekc.dev/api/v1alpha1"
-	"gitlabrunnerop.k8s.alekc.dev/controllers"
+	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	"go.alekc.dev/gitlab-runner-operator/controllers"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -39,7 +39,7 @@ var (
 func init() {
 	_ = clientgoscheme.AddToScheme(scheme)
 
-	_ = gitlabv1alpha1.AddToScheme(scheme)
+	_ = gitlabRunOp.AddToScheme(scheme)
 	// +kubebuilder:scaffold:scheme
 }
 
