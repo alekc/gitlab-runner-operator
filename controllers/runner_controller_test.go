@@ -29,7 +29,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
-	"go.alekc.dev/gitlab-runner-operator/internal/generate"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -70,7 +69,7 @@ var _ = Describe("Runner controller", func() {
 				},
 				Spec: gitlabRunOp.RunnerSpec{
 					RegistrationConfig: gitlabRunOp.RegisterNewRunnerOptions{
-						Token:   pointer.StringPtr("12345"),
+						Token:   pointer.StringPtr("rYwg6EogqxSuvsFCVvAT"),
 						TagList: []string{"testing-runner-operator"},
 					},
 				},
@@ -88,7 +87,7 @@ var _ = Describe("Runner controller", func() {
 			By("By creating a new CronJob")
 
 			// there should be required rbac created
-			rbacName := types.NamespacedName{Name: generate.RbacName(runner), Namespace: RunnerNamespace}
+			rbacName := types.NamespacedName{Name: runner.ChildName(), Namespace: RunnerNamespace}
 
 			// sa first
 			sa := corev1.ServiceAccount{}
@@ -98,7 +97,7 @@ var _ = Describe("Runner controller", func() {
 					rbacName,
 					&sa,
 				) == nil
-			}).Should(BeTrue())
+			}, timeout, interval).Should(BeTrue())
 			Expect(sa.OwnerReferences).NotTo(BeEmpty())
 			Expect(sa.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 
@@ -106,7 +105,7 @@ var _ = Describe("Runner controller", func() {
 			var role v1.Role
 			Eventually(func() bool {
 				return k8sClient.Get(ctx, rbacName, &role) == nil
-			}).Should(BeTrue())
+			}, timeout, interval).Should(BeTrue())
 			Expect(role.OwnerReferences).NotTo(BeEmpty())
 			Expect(role.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 			Expect(role.Rules).NotTo(BeEmpty())
@@ -118,7 +117,7 @@ var _ = Describe("Runner controller", func() {
 			var roleBinding v1.RoleBinding
 			Eventually(func() bool {
 				return k8sClient.Get(ctx, rbacName, &roleBinding) == nil
-			}).Should(BeTrue())
+			}, timeout, interval).Should(BeTrue())
 			Expect(roleBinding.OwnerReferences).NotTo(BeEmpty())
 			Expect(roleBinding.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 			Expect(roleBinding.Subjects).NotTo(BeEmpty())
@@ -132,6 +131,25 @@ var _ = Describe("Runner controller", func() {
 				Kind:     "Role",
 				Name:     rbacName.Name,
 			}))
+		})
+		It("should authenticate against the gitlab server and obtain the auth token", func() {
+			Eventually(func() bool {
+				var newRunner gitlabRunOp.Runner
+				err := k8sClient.Get(
+					ctx,
+					types.NamespacedName{
+						Namespace: runner.Namespace,
+						Name:      runner.Name,
+					},
+					&newRunner,
+				)
+				if err == nil && newRunner.Status.AuthenticationToken != "" {
+					// since we are here, update the runner with a fresher option
+					runner = &newRunner
+					return true
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
 })

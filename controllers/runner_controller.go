@@ -76,6 +76,11 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
+	// Sanity check. Initialize our annotations if needed.
+	if runnerObj.Annotations == nil {
+		runnerObj.Annotations = make(map[string]string, 0)
+	}
+
 	// create required rbac credentials
 	err = r.CreateRBACIfMissing(ctx, runnerObj, logger)
 	if err != nil {
@@ -263,7 +268,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					ActiveDeadlineSeconds:         nil,
 					DNSPolicy:                     "",
 					NodeSelector:                  nil,
-					ServiceAccountName:            generate.RbacName(runnerObj),
+					ServiceAccountName:            runnerObj.ChildName(),
 					AutomountServiceAccountToken:  nil,
 					NodeName:                      "",
 					HostNetwork:                   false,
@@ -328,7 +333,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabRunOp.Runner, log logr.Logger) error {
 	// create default service account
 	// todo: deal with renames of the runner
-	runnerName := generate.RbacName(runnerObject)
+	runnerName := runnerObject.ChildName()
 	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerName}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
 	if err != nil {
@@ -446,6 +451,8 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 
 	// set the new auth token and record the reg details used for the operation (token and tags)
 	newRunner.Status.AuthenticationToken = token
+	newRunner.GetAnnotations()
+	// check if annotations has been properly initialized
 	newRunner.Annotations[lastRegistrationTokenAnnotationKey] = *runner.Spec.RegistrationConfig.Token
 	newRunner.Annotations[lastRegistrationTags] = strings.Join(runner.Spec.RegistrationConfig.TagList, ",")
 	err = r.Client.Update(ctx, newRunner)
