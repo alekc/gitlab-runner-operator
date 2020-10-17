@@ -153,10 +153,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            runnerObj.ChildName(),
 				Namespace:       runnerObj.Namespace,
-				Annotations:     nil,
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
-				ClusterName:     "",
-				ManagedFields:   nil,
 			},
 			Data: map[string]string{configMapKeyName: textualConfigMap},
 		}
@@ -202,7 +199,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 
 	// try to find one with the same name (in which case save it), and delete everything else (in case we have renamed)
 	// our name in the config
-	deploymentName := "test-deployment" //todo: change
+	deploymentName := runnerObj.ChildName()
 	var deployment *appsv1.Deployment
 	for _, dp := range deployments.Items {
 		if dp.Name == deploymentName {

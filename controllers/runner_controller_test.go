@@ -29,6 +29,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -90,6 +91,8 @@ var _ = Describe("Runner controller", func() {
 			Eventually(func() bool {
 				return k8sClient.Get(ctx, namespacedDependencyName, &configMap) == nil
 			}, timeout, interval).Should(BeTrue())
+			// validate that a proper key has been defined
+			Expect(configMap.Data).Should(HaveKey(configMapKeyName))
 		})
 
 		//
@@ -160,11 +163,14 @@ var _ = Describe("Runner controller", func() {
 			}, timeout, interval).Should(BeTrue())
 			// todo: check for annotations as well
 		})
-		It("should have generated config map", func() {
-			var configMap corev1.ConfigMap
+		It("should have generated deployment", func() {
+			var deployment appsv1.Deployment
 			Eventually(func() bool {
-				return k8sClient.Get(ctx, namespacedDependencyName, &configMap) == nil
+				return k8sClient.Get(ctx, namespacedDependencyName, &deployment) == nil
 			}, timeout, interval).Should(BeTrue())
+			Expect(deployment.OwnerReferences).NotTo(BeEmpty())
+			Expect(deployment.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
+			Expect(deployment.Annotations).To(HaveKey(configVersionAnnotationKey))
 		})
 	})
 })
