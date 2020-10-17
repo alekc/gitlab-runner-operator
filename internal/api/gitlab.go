@@ -14,7 +14,17 @@ type gitlabApi struct {
 }
 
 func (g *gitlabApi) Register(config gitlabRunOp.RegisterNewRunnerOptions) (string, error) {
-	convertedConfig := gitlab.RegisterNewRunnerOptions(config)
+	// sadly we cannot do a direct conversion due to the presence of additional field
+	convertedConfig := gitlab.RegisterNewRunnerOptions{
+		Token:          config.Token,
+		Description:    config.Description,
+		Info:           config.Info,
+		Active:         config.Active,
+		Locked:         config.Locked,
+		RunUntagged:    config.RunUntagged,
+		TagList:        config.TagList,
+		MaximumTimeout: config.MaximumTimeout,
+	}
 	runner, resp, err := g.gitlabApiClient.Runners.RegisterNewRunner(&convertedConfig)
 	if err != nil {
 		return "", err

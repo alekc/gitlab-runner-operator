@@ -180,7 +180,8 @@ type Service struct {
 // GitLab API docs:
 // https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
 type RegisterNewRunnerOptions struct {
-	Token          *string  `url:"token" json:"token"`
+	Token          *string  `url:"token" json:"token,omitempty"`
+	TokenSecret    string   `json:"token_secret,omitempty"`
 	Description    *string  `url:"description,omitempty" json:"description,omitempty"`
 	Info           *string  `url:"info,omitempty" json:"info,omitempty"`
 	Active         *bool    `url:"active,omitempty" json:"active,omitempty"`
@@ -192,7 +193,7 @@ type RegisterNewRunnerOptions struct {
 
 //nolint:lll
 type KubernetesAffinity struct {
-	NodeAffinity *KubernetesNodeAffinity `toml:"node_affinity,omitempty" json:"node_affinity" long:"node-affinity" description:"Node affinity is conceptually similar to nodeSelector -- it allows you to constrain which nodes your pod is eligible to be scheduled on, based on labels on the node."`
+	NodeAffinity *KubernetesNodeAffinity `toml:"node_affinity,omitempty" json:"node_affinity,omitempty" long:"node-affinity" description:"Node affinity is conceptually similar to nodeSelector -- it allows you to constrain which nodes your pod is eligible to be scheduled on, based on labels on the node."`
 }
 
 //nolint:lll

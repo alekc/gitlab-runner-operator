@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	coreErrors "errors"
 	"strings"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -424,21 +426,49 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 	}
 	return nil
 }
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabRunOp.Runner, log logr.Logger) (ctrl.Result, error) {
-	// obtain the Gitlab Api client for this specific runner
-	var gitlabApiClient internalApi.GitlabClient
-	var err error
-	if r.GitlabApiClient == nil {
-		gitlabApiClient, err = internalApi.NewGitlabClient(*runner.Spec.RegistrationConfig.Token, runner.Spec.GitlabInstanceURL)
-		if err != nil {
-			log.Error(err, "cannot create Gitlab api client")
-			return ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}, err
-		}
-	} else {
-		gitlabApiClient = r.GitlabApiClient
+
+func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject *gitlabRunOp.Runner) (internalApi.GitlabClient, error) {
+	// if the client is already defined, return that one instead of trying to obtain a new one.
+	if r.GitlabApiClient != nil {
+		return r.GitlabApiClient, nil
 	}
 
+	// if we have defined token in the config, then use that one.
+	if runnerObject.Spec.RegistrationConfig.Token != nil && *runnerObject.Spec.RegistrationConfig.Token != "" {
+		return internalApi.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
+	}
+
+	// we did not store the registration token in clear view. Hopefully we have defined and created a secret holding it
+	if runnerObject.Spec.RegistrationConfig.TokenSecret == "" {
+		return nil, coreErrors.New("you need to either define a token or a secret pointing to it")
+	}
+
+	// let's try to fetch the secret with our token
+	var gitlabSecret corev1.Secret
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Namespace: runnerObject.Namespace,
+		Name:      runnerObject.Spec.RegistrationConfig.TokenSecret,
+	}, &gitlabSecret); err != nil {
+		return nil, err
+	}
+
+	//
+	token, ok := gitlabSecret.Data["token"]
+	if !ok || string(token) == "" {
+		return nil, coreErrors.New("secret doesn't contain field token or it's empty")
+	}
+
+	// and finally
+	decryptedToken := string(token)
+	runnerObject.Spec.RegistrationConfig.Token = &decryptedToken
+	return internalApi.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
+}
+func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabRunOp.Runner, log logr.Logger) (ctrl.Result, error) {
 	// register the client against the gitlab api and obtain the authentication token
+	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 	token, err := gitlabApiClient.Register(runner.Spec.RegistrationConfig)
 	if err != nil {
 		log.Error(err, "cannot register the runner against gitlab api")

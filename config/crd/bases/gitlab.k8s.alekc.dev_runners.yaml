@@ -145,8 +145,6 @@ spec:
                       - preferred_during_scheduling_ignored_during_execution
                       - required_during_scheduling_ignored_during_execution
                       type: object
-                  required:
-                  - node_affinity
                   type: object
                 bearer_token:
                   type: string
@@ -384,8 +382,8 @@ spec:
                   type: array
                 token:
                   type: string
-              required:
-              - token
+                token_secret:
+                  type: string
               type: object
           required:
           - registration_config

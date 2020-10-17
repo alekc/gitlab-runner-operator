@@ -5,6 +5,6 @@ metadata:
   name: runner-sample
 spec:
   registration_config:
-    token: "rYwg6EogqxSuvsFCVvAT"
+    token_secret: "gitlab-runner-token"
     tag_list:
       - test-gitlab-runner
