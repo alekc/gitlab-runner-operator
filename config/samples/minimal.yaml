@@ -1,3 +1,4 @@
+# This is a minimal essential configuration to have you runner up and running
 apiVersion: gitlab.k8s.alekc.dev/v1alpha1
 kind: Runner
 metadata:
