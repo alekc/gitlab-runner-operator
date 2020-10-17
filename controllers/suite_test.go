@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"go.alekc.dev/gitlab-runner-operator/internal/api"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	. "github.com/onsi/ginkgo"
@@ -76,6 +77,11 @@ var _ = BeforeSuite(func(done Done) {
 	err = (&RunnerReconciler{
 		Client: k8sManager.GetClient(),
 		Log:    ctrl.Log.WithName("controllers").WithName("GitlabRunner"),
+		GitlabApiClient: &api.MockedGitlabClient{
+			OnRegister: func(config gitlabv1alpha1.RegisterNewRunnerOptions) (string, error) {
+				return "xyz", nil
+			},
+		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 

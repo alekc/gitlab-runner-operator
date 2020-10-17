@@ -65,7 +65,6 @@ var _ = Describe("Runner controller", func() {
 			newRunner := &gitlabRunOp.Runner{
 				TypeMeta: metav1.TypeMeta{
 					APIVersion: gitlabRunOp.GroupVersion.String(),
-					Kind:       "CronJob",
 				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      RunnerName,
@@ -171,6 +170,93 @@ var _ = Describe("Runner controller", func() {
 			Expect(deployment.OwnerReferences).NotTo(BeEmpty())
 			Expect(deployment.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 			Expect(deployment.Annotations).To(HaveKey(configVersionAnnotationKey))
+		})
+	})
+
+	Context("When the configuration is changed", func() {
+		It("Should update both configmap and deployment", func() {
+			//
+			ctx := context.Background()
+
+			// create a runner
+			Expect(k8sClient.Create(ctx, &gitlabRunOp.Runner{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: gitlabRunOp.GroupVersion.String(),
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-runner-config-changes",
+					Namespace: RunnerNamespace,
+				},
+				Spec: gitlabRunOp.RunnerSpec{
+					RegistrationConfig: gitlabRunOp.RegisterNewRunnerOptions{
+						Token:   pointer.StringPtr("rYwg6EogqxSuvsFCVvAT"),
+						TagList: []string{"testing-runner-operator"},
+					},
+				},
+			})).Should(Succeed())
+
+			// fetch latest runner version from the cluster
+			var runner gitlabRunOp.Runner
+			Eventually(func() bool {
+				return k8sClient.Get(ctx, types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}, &runner) == nil
+			}, timeout, interval).Should(BeTrue())
+			namespacedDependencyName := types.NamespacedName{Name: runner.ChildName(), Namespace: RunnerNamespace}
+
+			// obtain latest config map version
+			var configMapVersion string
+			Eventually(func() bool {
+				var configMap corev1.ConfigMap
+				err := k8sClient.Get(ctx, namespacedDependencyName, &configMap)
+				if err != nil {
+					return false
+				}
+				Expect(configMap.Annotations).To(HaveKey(configVersionAnnotationKey))
+				configMapVersion = configMap.Annotations[configVersionAnnotationKey]
+				return true
+			}, timeout, interval).Should(BeTrue())
+			Expect(configMapVersion).NotTo(BeEmpty())
+
+			// verify that deployment has a proper config
+			dpCheck := func(desiredConfigMapVersion string) bool {
+				var dp appsv1.Deployment
+				err := k8sClient.Get(ctx, namespacedDependencyName, &dp)
+				if err != nil {
+					return false
+				}
+				// validate the configmap
+				if dp.Annotations == nil {
+					return false
+				}
+				if val, ok := dp.Annotations[configVersionAnnotationKey]; ok && val == desiredConfigMapVersion {
+					return true
+				}
+				return false
+			}
+			Eventually(dpCheck(configMapVersion), timeout, interval).Should(BeTrue())
+
+			// update the runner spec forcing change in final configuration
+			runner.Spec.Concurrent = 2
+			Expect(k8sClient.Update(ctx, &runner)).To(Succeed())
+
+			// wait until the configmap is updated and fetch the new version
+			Eventually(func() bool {
+				var configMap corev1.ConfigMap
+				err := k8sClient.Get(ctx, namespacedDependencyName, &configMap)
+				if err != nil {
+					return false
+				}
+
+				Expect(configMap.Annotations).To(HaveKey(configVersionAnnotationKey))
+				if val, ok := configMap.Annotations[configVersionAnnotationKey]; ok && val != configMapVersion {
+					configMapVersion = val
+					return true
+				}
+				return false
+			}, timeout, interval).Should(BeTrue())
+			Expect(configMapVersion).NotTo(BeEmpty())
+
+			// verify that our deployment has been amended with a new version
+			Eventually(dpCheck(configMapVersion), timeout, interval).Should(BeTrue())
 		})
 	})
 })

@@ -2,6 +2,7 @@ package generate
 
 import (
 	"bytes"
+	"math"
 
 	"github.com/BurntSushi/toml"
 	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
@@ -16,10 +17,10 @@ func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
 	}
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
-		Concurrent:    1,
+		Concurrent:    int(math.Max(1, float64(runnerObject.Spec.Concurrent))),
 		LogLevel:      runnerObject.Spec.LogLevel,
 		Runners: []*config.RunnerConfig{{
-			Name:  "test-runnerObject",
+			Name:  runnerObject.Name,
 			Limit: 10,
 			RunnerCredentials: config.RunnerCredentials{
 				Token: runnerObject.Status.AuthenticationToken,

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	internalApi "go.alekc.dev/gitlab-runner-operator/internal/api"
 	v1 "k8s.io/api/rbac/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -28,7 +29,6 @@ import (
 	"go.alekc.dev/gitlab-runner-operator/internal/generate"
 
 	"github.com/go-logr/logr"
-	"go.alekc.dev/gitlab-runner-operator/api"
 	"go.alekc.dev/gitlab-runner-operator/internal/crypto"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -54,8 +54,9 @@ const lastRegistrationTags = "last-reg-tags"
 // RunnerReconciler reconciles a Runner object
 type RunnerReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log             logr.Logger
+	Scheme          *runtime.Scheme
+	GitlabApiClient internalApi.GitlabClient
 }
 
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
@@ -105,7 +106,8 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 	// persist the configMap version in the runner status
 	configMapVersion := crypto.StringToSHA1(textualConfigMap)
 	if runnerObj.Status.ConfigMapVersion != configMapVersion {
-		logger.Info("a new version of config map detected. updating Runner", "version", configMapVersion)
+		logger.Info("a new version of config map detected. updating Runner",
+			"new_version", configMapVersion, "old_version", runnerObj.Status.ConfigMapVersion)
 		runnerObj.Status.ConfigMapVersion = configMapVersion
 		err = r.Client.Update(ctx, runnerObj)
 		if err != nil {
@@ -154,6 +156,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 				Name:            runnerObj.ChildName(),
 				Namespace:       runnerObj.Namespace,
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
+				Annotations:     map[string]string{configVersionAnnotationKey: configMapVersion},
 			},
 			Data: map[string]string{configMapKeyName: textualConfigMap},
 		}
@@ -172,6 +175,7 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		logger.Info("config map object has old config, needs updating", "configMapName", cm.Name)
 		newObj := cm.DeepCopy()
 		newObj.Data[configMapKeyName] = textualConfigMap
+		newObj.Annotations[configVersionAnnotationKey] = configMapVersion
 		err = r.Update(ctx, newObj)
 		if err != nil {
 			logger.Error(
@@ -423,10 +427,16 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 }
 func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabRunOp.Runner, log logr.Logger) (ctrl.Result, error) {
 	// obtain the Gitlab Api client for this specific runner
-	gitlabApiClient, err := api.NewGitlabClient(*runner.Spec.RegistrationConfig.Token, runner.Spec.GitlabInstanceURL)
-	if err != nil {
-		log.Error(err, "cannot create Gitlab api client")
-		return ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}, err
+	var gitlabApiClient internalApi.GitlabClient
+	var err error
+	if r.GitlabApiClient == nil {
+		gitlabApiClient, err = internalApi.NewGitlabClient(*runner.Spec.RegistrationConfig.Token, runner.Spec.GitlabInstanceURL)
+		if err != nil {
+			log.Error(err, "cannot create Gitlab api client")
+			return ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}, err
+		}
+	} else {
+		gitlabApiClient = r.GitlabApiClient
 	}
 
 	// register the client against the gitlab api and obtain the authentication token
