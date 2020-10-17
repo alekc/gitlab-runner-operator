@@ -33,8 +33,9 @@ type RunnerSpec struct {
 	// +kubebuilder:validation:Enum=panic;fatal;error;warning;info;debug
 	LogLevel string `json:"log_level,omitempty"`
 
-	Concurrent int              `json:"concurrent,omitempty"`
-	Config     KubernetesConfig `json:"config,inline"`
+	// +kubebuilder:validation:Minimum=1
+	Concurrent     int              `json:"concurrent,omitempty"`
+	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
 }
 
 // RunnerStatus defines the observed state of Runner
@@ -117,11 +118,11 @@ type KubernetesConfig struct {
 }
 
 type KubernetesVolumes struct {
-	HostPaths  []KubernetesHostPath  `toml:"host_path" json:"host_path"  description:"The host paths which will be mounted"`
-	PVCs       []KubernetesPVC       `toml:"pvc" json:"pvc" description:"The persistent volume claims that will be mounted"`
-	ConfigMaps []KubernetesConfigMap `toml:"config_map" json:"config_map"  description:"The config maps which will be mounted as volumes"`
-	Secrets    []KubernetesSecret    `toml:"secret" json:"secret"  description:"The secret maps which will be mounted"`
-	EmptyDirs  []KubernetesEmptyDir  `toml:"empty_dir" json:"empty_dir"  description:"The empty dirs which will be mounted"`
+	HostPaths  []KubernetesHostPath  `toml:"host_path" json:"host_path,omitempty"  description:"The host paths which will be mounted"`
+	PVCs       []KubernetesPVC       `toml:"pvc" json:"pvc,omitempty" description:"The persistent volume claims that will be mounted"`
+	ConfigMaps []KubernetesConfigMap `toml:"config_map" json:"config_map,omitempty"  description:"The config maps which will be mounted as volumes"`
+	Secrets    []KubernetesSecret    `toml:"secret" json:"secret,omitempty"  description:"The secret maps which will be mounted"`
+	EmptyDirs  []KubernetesEmptyDir  `toml:"empty_dir" json:"empty_dir,omitempty"  description:"The empty dirs which will be mounted"`
 }
 
 //nolint:lll

@@ -24,7 +24,7 @@ func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
 		},
 		RunnerSettings: config.RunnerSettings{
 			Executor:   "kubernetes",
-			Kubernetes: &runnerObject.Spec.Config,
+			Kubernetes: &runnerObject.Spec.ExecutorConfig,
 		},
 	}
 	// set the namespace to the same one as the runner object if not declared otherwise

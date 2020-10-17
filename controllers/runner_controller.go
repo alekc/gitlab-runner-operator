@@ -21,25 +21,22 @@ import (
 	"strings"
 	"time"
 
-	internalApi "go.alekc.dev/gitlab-runner-operator/internal/api"
-	v1 "k8s.io/api/rbac/v1"
-
-	"k8s.io/apimachinery/pkg/api/errors"
-
-	"go.alekc.dev/gitlab-runner-operator/internal/generate"
-
 	"github.com/go-logr/logr"
+	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	internalApi "go.alekc.dev/gitlab-runner-operator/internal/api"
 	"go.alekc.dev/gitlab-runner-operator/internal/crypto"
+	interlalErrors "go.alekc.dev/gitlab-runner-operator/internal/errors"
+	"go.alekc.dev/gitlab-runner-operator/internal/generate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-
-	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
 )
 
 const ownerCmKey = ".metadata.cm.controller"
@@ -177,12 +174,12 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 		newObj.Data[configMapKeyName] = textualConfigMap
 		newObj.Annotations[configVersionAnnotationKey] = configMapVersion
 		err = r.Update(ctx, newObj)
-		if err != nil {
+		if err != nil && !interlalErrors.IsStale(err) {
 			logger.Error(
 				err,
 				"cannot update config map with the new configuration",
 				"config_map_name", cm.Name)
-			return resultRequeueAfterDefaultTimeout, err
+			return ctrl.Result{Requeue: true}, err
 		}
 		// all is good, reconcile this runner again
 		return ctrl.Result{Requeue: true}, nil
@@ -238,6 +235,9 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
+					Annotations: map[string]string{
+						configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
+					},
 				},
 				Spec: corev1.PodSpec{
 					Volumes: []corev1.Volume{{
@@ -248,7 +248,6 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 							},
 						},
 					}},
-					InitContainers: nil,
 					Containers: []corev1.Container{{
 						Name:            "runner",
 						Image:           "gitlab/gitlab-runner:latest", //todo: param
