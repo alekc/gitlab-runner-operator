@@ -20,7 +20,12 @@ CRD are not part of a Helm chart. This is caused by the fact that once created t
 kubectl apply -f https://raw.githubusercontent.com/alekc-go/gitlab-runner-operator/main/config/crd/bases/gitlab.k8s.alekc.dev_runners.yaml
 ```
 
-Once you have installed your
+Once you have installed CRD you can deploy the operator in your prefered namespace
+```
+helm repo add alekc https://charts.alekc.dev/
+helm repo update
+helm install gitlab-runner-operator alekc/gitlab-runner-operator
+```
 
 ## Configuration
 The CRD Runner is composed by following fields (all of them are optional, except for registration tokens, see examples below):
