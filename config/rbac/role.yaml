@@ -7,9 +7,8 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - ""
+  - apps
   resources:
-  - configmaps
   - deployments
   verbs:
   - create
@@ -22,11 +21,16 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - serviceaccount
+  - configmaps
+  - serviceaccounts
   verbs:
   - create
   - delete
   - get
+  - list
+  - patch
+  - update
+  - watch
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
