@@ -1,0 +1,22 @@
+# permissions for end users to view runners.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: runner-viewer-role
+  labels:
+    {{- include "gitlab-runner-operator.labels" . | nindent 4 }}
+rules:
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - runners
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - runners/status
+  verbs:
+  - get
