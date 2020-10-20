@@ -11,6 +11,9 @@ This breaks the IAC way, and doesn't permit you to be flexible in your configura
 
 This operator aims to provide you with all configuration which are provided by [kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html), see below for some examples. 
 
+## Status & Contributions
+This operator is still in alpha stages, so there is a possibility of breaking changes (which will be announced if any). Please open issues if you find any bugs
+
 ## Installation 
 TODO
 
