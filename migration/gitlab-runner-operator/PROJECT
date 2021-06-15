@@ -1,0 +1,6 @@
+domain: k8s.alekc.dev
+layout:
+- go.kubebuilder.io/v3
+projectName: gitlab-runner-operator
+repo: gitlab.k8s.alekc.dev
+version: "3"
