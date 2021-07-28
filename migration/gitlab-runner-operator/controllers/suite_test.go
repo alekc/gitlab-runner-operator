@@ -17,7 +17,6 @@ limitations under the License.
 package controllers
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -55,7 +54,7 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	Expect(os.Setenv("USE_EXISTING_CLUSTER", "true")).To(Succeed())
+	// Expect(os.Setenv("USE_EXISTING_CLUSTER", "true")).To(Succeed())
 
 	// read crds
 	By("bootstrapping test environment")
@@ -87,7 +86,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&RunnerReconciler{
-		Client: k8sClient,
+		Client: k8sManager.GetClient(),
 		Log: controllerruntime.Log.
 			WithName("controllers").
 			WithName("GitlabRunner"),

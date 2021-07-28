@@ -48,9 +48,9 @@ type RunnerStatus struct {
 	ConfigMapVersion    string `json:"config_map_version"`
 }
 
+// Runner is the Schema for the runners API
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-// Runner is the Schema for the runners API
 type Runner struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
