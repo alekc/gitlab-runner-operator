@@ -3,4 +3,14 @@ layout:
 - go.kubebuilder.io/v3
 projectName: gitlab-runner-operator
 repo: gitlab.k8s.alekc.dev
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.alekc.dev
+  group: gitlab
+  kind: Runner
+  path: gitlab.k8s.alekc.dev/api/v1beta1
+  version: v1beta1
 version: "3"

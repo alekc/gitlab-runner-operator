@@ -1,0 +1,9 @@
+apiVersion: gitlab.k8s.alekc.dev/v1beta1
+kind: Runner
+metadata:
+  name: runner-sample
+spec:
+  registration_config:
+    token: "XXXXXXXXXXXX"
+    tag_list:
+      - test-gitlab-runner
