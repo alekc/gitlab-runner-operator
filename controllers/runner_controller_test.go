@@ -301,5 +301,26 @@ var _ = Describe("Runner controller", func() {
 			Eventually(getConfigMapFunc, timeout, interval).Should(BeTrue())
 			Expect(configMap.UID).NotTo(BeEquivalentTo(oldUID))
 		})
+
+		It("should recreate deleted deployments", func() {
+			var deployment appsv1.Deployment
+
+			// obtain latest config map version
+			getDeploymentFunc := func() bool {
+				if err := k8sClient.Get(ctx, namespacedDependencyName, &deployment); err != nil {
+					return false
+				}
+				return true
+			}
+			Eventually(getDeploymentFunc, timeout, interval).Should(BeTrue())
+
+			// get the uid of the config map
+			oldUID := deployment.UID
+			Expect(k8sClient.Delete(context.TODO(), deployment.DeepCopy())).To(BeNil())
+
+			// obtain new version of config map
+			Eventually(getDeploymentFunc, timeout, interval).Should(BeTrue())
+			Expect(deployment.UID).NotTo(BeEquivalentTo(oldUID))
+		})
 	})
 })
