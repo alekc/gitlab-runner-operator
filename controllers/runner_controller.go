@@ -389,7 +389,7 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 			Rules: []v1.PolicyRule{{
 				Verbs:     []string{"get", "list", "watch", "create", "patch", "delete"},
 				APIGroups: []string{"*"},
-				Resources: []string{"pods", "pods/exec", "secrets", "configmaps"},
+				Resources: []string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"},
 			}},
 		}
 		err = r.Client.Create(ctx, role)
