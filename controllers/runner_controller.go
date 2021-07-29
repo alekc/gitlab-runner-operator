@@ -271,9 +271,9 @@ func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *git
 	return nil, nil
 }
 
-//+kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
@@ -389,7 +389,7 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 			Rules: []v1.PolicyRule{{
 				Verbs:     []string{"get", "list", "watch", "create", "patch", "delete"},
 				APIGroups: []string{"*"},
-				Resources: []string{"pods", "pods/exec", "secrets"},
+				Resources: []string{"pods", "pods/exec", "secrets", "configmaps"},
 			}},
 		}
 		err = r.Client.Create(ctx, role)
