@@ -114,7 +114,7 @@ var _ = Describe("Runner controller", func() {
 			Expect(role.Rules).NotTo(BeEmpty())
 			Expect(role.Rules[0].APIGroups).To(BeEquivalentTo([]string{"*"}))
 			Expect(role.Rules[0].Verbs).To(BeEquivalentTo([]string{"get", "list", "watch", "create", "patch", "delete"}))
-			Expect(role.Rules[0].Resources).To(BeEquivalentTo([]string{"pods", "pods/exec", "secrets"}))
+			Expect(role.Rules[0].Resources).To(BeEquivalentTo([]string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"}))
 
 			// and finally, check the actual role binding
 			var roleBinding v1.RoleBinding
