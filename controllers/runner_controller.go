@@ -564,8 +564,11 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			},
 			DeleteFunc: func(event event.DeleteEvent) bool {
 				// The reconciler adds a finalizer when the delete timestamp is added.
-				// Avoid reconciling.
-				return false
+				// Avoid reconciling in case it's a runner, we still want to reconcile if it's a dependent object
+				if _, ok := event.Object.(*gitlabv1beta1.Runner); ok {
+					return false
+				}
+				return true
 			}}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).

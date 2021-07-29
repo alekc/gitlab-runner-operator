@@ -175,6 +175,7 @@ var _ = Describe("Runner controller", func() {
 			}, timeout, interval).Should(BeTrue())
 			// todo: check for annotations as well
 		})
+
 		It("should have generated deployment", func() {
 			var deployment appsv1.Deployment
 			Eventually(func() bool {
@@ -218,6 +219,7 @@ var _ = Describe("Runner controller", func() {
 			}, timeout, interval).Should(BeTrue())
 			namespacedDependencyName = types.NamespacedName{Name: runner.ChildName(), Namespace: RunnerNamespace}
 		})
+
 		It("should have valid config map created", func() {
 			// obtain latest config map version
 			Eventually(func() bool {
@@ -276,6 +278,28 @@ var _ = Describe("Runner controller", func() {
 
 			// verify that our deployment has been amended with a new version
 			Eventually(dpCheck(configMapVersion), timeout, interval).Should(BeTrue())
+		})
+
+		It("should recreate deleted config maps", func() {
+			var configMap corev1.ConfigMap
+
+			// obtain latest config map version
+			getConfigMapFunc := func() bool {
+				if err := k8sClient.Get(ctx, namespacedDependencyName, &configMap); err != nil {
+					return false
+				}
+				return true
+			}
+			Eventually(getConfigMapFunc, timeout, interval).Should(BeTrue())
+			Expect(configMapVersion).NotTo(BeEmpty())
+
+			// get the uid of the config map
+			oldUID := configMap.UID
+			Expect(k8sClient.Delete(context.TODO(), configMap.DeepCopy())).To(BeNil())
+
+			// obtain new version of config map
+			Eventually(getConfigMapFunc, timeout, interval).Should(BeTrue())
+			Expect(configMap.UID).NotTo(BeEquivalentTo(oldUID))
 		})
 	})
 })
