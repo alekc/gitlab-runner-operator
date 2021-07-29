@@ -136,7 +136,7 @@ func (r *RunnerReconciler) ValidateDeployment(ctx context.Context, runnerObj *gi
 					}},
 					Containers: []corev1.Container{{
 						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:latest", //todo: param
+						Image:           "gitlab/gitlab-runner:alpine-v14.0.1",
 						Resources:       corev1.ResourceRequirements{}, //todo:
 						ImagePullPolicy: "Always",                      //todo
 						VolumeMounts: []corev1.VolumeMount{{
