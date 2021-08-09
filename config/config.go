@@ -1,6 +1,6 @@
 package config
 
-import gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+import "gitlab.k8s.alekc.dev/api/v1beta1"
 
 //nolint:lll
 type Config struct {
@@ -43,5 +43,5 @@ type RunnerSettings struct {
 
 	DebugTraceDisabled bool `toml:"debug_trace_disabled,omitempty" json:"debug_trace_disabled" long:"debug-trace-disabled" env:"RUNNER_DEBUG_TRACE_DISABLED" description:"When set to true Runner will disable the possibility of using the CI_DEBUG_TRACE feature"`
 
-	Kubernetes *gitlabRunOp.KubernetesConfig `toml:"kubernetes,omitempty" json:"kubernetes" group:"kubernetes executor" namespace:"kubernetes"`
+	Kubernetes *v1beta1.KubernetesConfig `toml:"kubernetes,omitempty" json:"kubernetes" group:"kubernetes executor" namespace:"kubernetes"`
 }

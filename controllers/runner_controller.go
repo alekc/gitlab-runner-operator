@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -23,11 +23,9 @@ import (
 	"time"
 
 	"github.com/go-logr/logr"
-	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
-	internalApi "go.alekc.dev/gitlab-runner-operator/internal/api"
-	"go.alekc.dev/gitlab-runner-operator/internal/crypto"
-	interlalErrors "go.alekc.dev/gitlab-runner-operator/internal/errors"
-	"go.alekc.dev/gitlab-runner-operator/internal/generate"
+	"gitlab.k8s.alekc.dev/internal/api"
+	internalErrors "gitlab.k8s.alekc.dev/internal/errors"
+	"gitlab.k8s.alekc.dev/internal/generate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
@@ -39,10 +37,15 @@ import (
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/event"
+	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
+
+	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 )
 
-const ownerCmKey = ".metadata.cm.controller"
-const ownerDpKey = ".metadata.dp.controller"
+const ownerCmKey = ".metadata.cmcontroller"
+const ownerDpKey = ".metadata.dpcontroller"
 
 const defaultTimeout = 15 * time.Second
 const configMapKeyName = "config.toml"
@@ -55,174 +58,94 @@ type RunnerReconciler struct {
 	client.Client
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
-	GitlabApiClient internalApi.GitlabClient
+	GitlabApiClient api.GitlabClient
 }
+
+var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
 
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
-func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
-	ctx := context.Background()
-	logger := r.Log.WithValues("runner", req.NamespacedName)
-	resultRequeueAfterDefaultTimeout := ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
+// Reconcile is part of the main kubernetes reconciliation loop which aims to
+// move the current state of the cluster closer to the desired state.
+//
+// For more details, check Reconcile and its Result here:
+// - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
+func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+	logger.Info("starting")
 
 	// find the object, in case we cannot find it just return.
-	runnerObj := &gitlabRunOp.Runner{}
+	runnerObj := &gitlabv1beta1.Runner{}
 	err := r.Client.Get(ctx, req.NamespacedName, runnerObj)
 	if err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
+
+	// reset the error
+	runnerObj.Status.Error = ""
 
 	// Sanity check. Initialize our annotations if needed.
 	if runnerObj.Annotations == nil {
 		runnerObj.Annotations = make(map[string]string, 0)
 	}
 
-	// create required rbac credentials
-	err = r.CreateRBACIfMissing(ctx, runnerObj, logger)
-	if err != nil {
+	// create required rbac credentials if they are missing
+	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
+		runnerObj.Status.Error = "Cannot create the rbac objects"
+		if err := r.Client.Status().Update(ctx, runnerObj); err != nil {
+			logger.Error(err, "cannot patch runner status")
+		}
 		return ctrl.Result{RequeueAfter: defaultTimeout}, err
 	}
 
-	// if the runner doesn't have a saved authentication token or the latest registration token/tags are different from the
+	// if the runner doesn't have a saved authentication token
+	// or the latest registration token/tags are different from the
 	// current one, we need to redo the registration
 	if runnerObj.Status.AuthenticationToken == "" ||
 		runnerObj.GetAnnotation(lastRegistrationTokenAnnotationKey) != *runnerObj.Spec.RegistrationConfig.Token ||
 		runnerObj.GetAnnotation(lastRegistrationTags) != strings.Join(runnerObj.Spec.RegistrationConfig.TagList, ",") {
+		// todo: delete old runner
 		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
 
-	// create a config object
-	textualConfigMap, err := generate.ConfigText(runnerObj)
+	// generate a new config map based on the runner spec
+	gitlabRunnerConfig, configHashKey, err := generate.ConfigText(runnerObj)
 	if err != nil {
-		logger.Error(err, "cannot generate toml config")
+		logger.Error(err, "cannot generate config map")
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
-	// persist the configMap version in the runner status
-	configMapVersion := crypto.StringToSHA1(textualConfigMap)
-	if runnerObj.Status.ConfigMapVersion != configMapVersion {
-		logger.Info("a new version of config map detected. updating Runner",
-			"new_version", configMapVersion, "old_version", runnerObj.Status.ConfigMapVersion)
-		runnerObj.Status.ConfigMapVersion = configMapVersion
-		err = r.Client.Update(ctx, runnerObj)
-		if err != nil {
-			logger.Error(err, "cannot assign config map hash to the runner")
-			return resultRequeueAfterDefaultTimeout, err
-		}
+	result, err := r.ValidateConfigMap(ctx, runnerObj, gitlabRunnerConfig, configHashKey)
+	switch {
+	case err != nil:
+		return resultRequeueAfterDefaultTimeout, err
+	case result != nil:
+		return *result, nil
 	}
 
-	var cm *corev1.ConfigMap
-	var configMaps corev1.ConfigMapList
-
-	// fetch children configmap
-	err = r.Client.List(
-		ctx,
-		&configMaps,
-		client.InNamespace(runnerObj.Namespace),
-		client.MatchingFields{ownerCmKey: string(runnerObj.UID)},
-	)
-	if err != nil {
-		logger.Error(err, "cannot list dependent configmaps")
-		return ctrl.Result{}, err
+	result, err = r.ValidateDeployment(ctx, runnerObj)
+	switch {
+	case err != nil:
+		return resultRequeueAfterDefaultTimeout, err
+	case result != nil:
+		return *result, nil
 	}
 
-	// try to find one with the same name (in which case save it), and delete everything else (in case we have renamed)
-	// our name in the config
-	for _, k8Cm := range configMaps.Items {
-		if k8Cm.Name == runnerObj.ChildName() {
-			// we found our dependent config map, save it
-			tmp := k8Cm
-			cm = &tmp
-			continue
-		}
-		logger.Info("deleting obsolete config map", "configMapName", k8Cm.Name)
-		err = r.Delete(ctx, k8Cm.DeepCopy())
-		if err != nil {
-			// log the error but pretty much ignore it for now.
-			logger.Error(err, "cannot delete obsolete config map", "zombie-name", k8Cm.Name)
-		}
-	}
+	return ctrl.Result{}, nil
+}
 
-	// if the config map doesn't exist, create it
-	if cm == nil {
-		cm = &corev1.ConfigMap{
-			TypeMeta: metav1.TypeMeta{},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            runnerObj.ChildName(),
-				Namespace:       runnerObj.Namespace,
-				OwnerReferences: runnerObj.GenerateOwnerReference(),
-				Annotations:     map[string]string{configVersionAnnotationKey: configMapVersion},
-			},
-			Data: map[string]string{configMapKeyName: textualConfigMap},
-		}
-		logger.Info("creating config map object", "configMapName", cm.Name)
-		err = r.Client.Create(ctx, cm)
-		if err != nil {
-			logger.Error(err, "cannot create a config map", "configMapName", cm.Name)
-			return resultRequeueAfterDefaultTimeout, err
-		}
-		// config map has been created, requeue to ensure the proper state
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// ensure that our configMap has the same data
-	if value, ok := cm.Data[configMapKeyName]; !ok || value != textualConfigMap {
-		logger.Info("config map object has old config, needs updating", "configMapName", cm.Name)
-		newObj := cm.DeepCopy()
-		newObj.Data[configMapKeyName] = textualConfigMap
-		newObj.Annotations[configVersionAnnotationKey] = configMapVersion
-		err = r.Update(ctx, newObj)
-		if err != nil && !interlalErrors.IsStale(err) {
-			logger.Error(
-				err,
-				"cannot update config map with the new configuration",
-				"config_map_name", cm.Name)
-			return ctrl.Result{Requeue: true}, err
-		}
-		// all is good, reconcile this runner again
-		return ctrl.Result{Requeue: true}, nil
-	}
-
-	// fetch related deployment
-	var deployments appsv1.DeploymentList
-	err = r.Client.List(
-		ctx,
-		&deployments,
-		client.InNamespace(runnerObj.Namespace),
-		client.MatchingFields{ownerDpKey: string(runnerObj.UID)},
-	)
-	if err != nil {
-		logger.Error(err, "cannot list dependent deployments")
-		return ctrl.Result{}, err
-	}
-
-	// try to find one with the same name (in which case save it), and delete everything else (in case we have renamed)
-	// our name in the config
-	deploymentName := runnerObj.ChildName()
-	var deployment *appsv1.Deployment
-	for _, dp := range deployments.Items {
-		if dp.Name == deploymentName {
-			// we found our dependent config map, save it
-			tmp := dp
-			deployment = &tmp
-			continue
-		}
-		logger.Info("found obsolete deployment, deleting it", "deployment_name", dp.Name)
-		err = r.Delete(ctx, dp.DeepCopy())
-		if err != nil {
-			// log the error but pretty much ignore it for now.
-			logger.Error(err, "cannot delete zombie deployment", "deployment_name", dp.Name)
-		}
-	}
+func (r *RunnerReconciler) ValidateDeployment(ctx context.Context, runnerObj *gitlabv1beta1.Runner) (*ctrl.Result, error) {
+	logger := log.FromContext(ctx)
 
 	labels := map[string]string{"deployment": runnerObj.Name}
-	newDeployment := appsv1.Deployment{
+	wantedDeployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      deploymentName,
+			Name:      runnerObj.ChildName(),
 			Namespace: runnerObj.Namespace,
 			Annotations: map[string]string{
 				configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
@@ -252,182 +175,234 @@ func (r *RunnerReconciler) Reconcile(req ctrl.Request) (ctrl.Result, error) {
 					}},
 					Containers: []corev1.Container{{
 						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:latest", //todo: param
+						Image:           "gitlab/gitlab-runner:alpine-v14.0.1",
 						Resources:       corev1.ResourceRequirements{}, //todo:
-						LivenessProbe:   nil,
-						ReadinessProbe:  nil,
-						ImagePullPolicy: "Always", //todo
-						SecurityContext: nil,
+						ImagePullPolicy: "IfNotPresent",                //todo
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "config",
 							MountPath: "/etc/gitlab-runner/",
 						}},
 					}},
-					EphemeralContainers:           nil,
-					RestartPolicy:                 "",
-					TerminationGracePeriodSeconds: nil,
-					ActiveDeadlineSeconds:         nil,
-					DNSPolicy:                     "",
-					NodeSelector:                  nil,
-					ServiceAccountName:            runnerObj.ChildName(),
-					AutomountServiceAccountToken:  nil,
-					NodeName:                      "",
-					HostNetwork:                   false,
-					HostPID:                       false,
-					HostIPC:                       false,
-					ShareProcessNamespace:         nil,
-					SecurityContext:               nil,
-					ImagePullSecrets:              nil,
-					Hostname:                      "",
-					Subdomain:                     "",
-					Affinity:                      nil,
-					SchedulerName:                 "",
-					Tolerations:                   nil,
-					HostAliases:                   nil,
-					PriorityClassName:             "",
-					Priority:                      nil,
-					DNSConfig:                     nil,
-					ReadinessGates:                nil,
-					RuntimeClassName:              nil,
-					EnableServiceLinks:            nil,
-					PreemptionPolicy:              nil,
-					Overhead:                      nil,
-					TopologySpreadConstraints:     nil,
+					ServiceAccountName: runnerObj.ChildName(),
 				},
 			},
-			Strategy:                appsv1.DeploymentStrategy{},
-			MinReadySeconds:         0,
-			RevisionHistoryLimit:    nil,
-			Paused:                  false,
-			ProgressDeadlineSeconds: nil,
 		},
 	}
-	if deployment == nil {
-		logger.Info("creating a new deployment", "deployment_name", newDeployment.Name)
-		err = r.Client.Create(ctx, &newDeployment)
-		if err != nil {
-			logger.Error(err, "cannot create the deployment")
-			return resultRequeueAfterDefaultTimeout, err
+
+	var existingDeployment appsv1.Deployment
+	err := r.Get(ctx, client.ObjectKey{
+		Namespace: runnerObj.Namespace,
+		Name:      runnerObj.ChildName(),
+	}, &existingDeployment)
+
+	// if deployment doesn't exist, create it
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			logger.Error(err, "could not obtain the deployment")
+			return &resultRequeueAfterDefaultTimeout, err
 		}
-		// deployment has been created, requeue to proceed further
-		return ctrl.Result{Requeue: true}, nil
+
+		if err = r.Client.Create(ctx, &wantedDeployment); err != nil {
+			logger.Error(err, "cannot create a deployment", "deploymentName", existingDeployment.Name)
+			return &resultRequeueAfterDefaultTimeout, err
+		}
+		return &ctrl.Result{Requeue: true}, nil
 	}
 
-	// check if there are any differences between 2 deployments
-	var existingConfigMap string
-	if val, ok := deployment.GetAnnotations()[configVersionAnnotationKey]; ok {
-		existingConfigMap = val
-	}
-	if existingConfigMap != runnerObj.Status.ConfigMapVersion || !equality.Semantic.DeepDerivative(newDeployment.Spec, deployment.DeepCopy().Spec) {
-		logger.Info("deployment is different from our version, updating", "deployment_name", newDeployment.Name)
-		err = r.Client.Update(ctx, &newDeployment)
+	// deployment exists. Check the configMap annotation
+	if existingDeployment.GetAnnotations()[configVersionAnnotationKey] != runnerObj.Status.
+		ConfigMapVersion || !equality.Semantic.DeepDerivative(wantedDeployment.Spec, existingDeployment.DeepCopy().Spec) {
+		logger.Info("deployment is different from our version, updating", "deployment_name", existingDeployment.Name)
+		err = r.Client.Update(ctx, &wantedDeployment)
 		if err != nil {
 			logger.Error(err, "cannot update deployment")
-			return resultRequeueAfterDefaultTimeout, err
+			return &resultRequeueAfterDefaultTimeout, err
 		}
 	}
 
-	// generate the map
-	return ctrl.Result{}, nil
+	return nil, nil
 }
 
-func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabRunOp.Runner, log logr.Logger) error {
-	// create default service account
-	// todo: deal with renames of the runner
-	runnerName := runnerObject.ChildName()
-	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerName}
+func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *gitlabv1beta1.Runner,
+	gitlabRunnerTomlConfig string,
+	hashKey string) (*ctrl.Result, error) {
+	logger := log.FromContext(ctx)
+
+	var configMap corev1.ConfigMap
+	// fetch all config maps who are registered to the runner as owner
+	err := r.Get(ctx, client.ObjectKey{
+		Namespace: runnerObj.Namespace,
+		Name:      runnerObj.ChildName(),
+	}, &configMap)
+
+	// create config map (or report an error)
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			logger.Error(err, "could not obtain the config map")
+			return &resultRequeueAfterDefaultTimeout, err
+		}
+		// configmap doesn't exist, create it and requeue
+		configMap = corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:            runnerObj.ChildName(),
+				Namespace:       runnerObj.Namespace,
+				OwnerReferences: runnerObj.GenerateOwnerReference(),
+				Annotations:     map[string]string{configVersionAnnotationKey: hashKey},
+			},
+			Data: map[string]string{configMapKeyName: gitlabRunnerTomlConfig},
+		}
+		if err = r.Client.Create(ctx, &configMap); err != nil {
+			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
+			return &resultRequeueAfterDefaultTimeout, err
+		}
+		return &ctrl.Result{Requeue: true}, nil
+	}
+
+	// configmap exists. Check the value for the config map is different
+	if configMap.Data[configMapKeyName] != gitlabRunnerTomlConfig || configMap.
+		Annotations[configVersionAnnotationKey] != hashKey {
+		logger.Info("config map object has old config, needs updating", "configMapName", configMap.Name)
+		newObj := configMap.DeepCopy()
+		newObj.Data[configMapKeyName] = gitlabRunnerTomlConfig
+		newObj.Annotations[configVersionAnnotationKey] = hashKey
+		if err = r.Update(ctx, newObj); err != nil && !internalErrors.IsStale(err) {
+			logger.Error(
+				err,
+				"cannot update config map with the new configuration",
+				"config_map_name", configMap.Name)
+			return &ctrl.Result{Requeue: true}, err
+		}
+	}
+
+	// if the config version differs, perform the upgrade
+	if runnerObj.Status.ConfigMapVersion != hashKey {
+		logger.Info("a new version of config map detected. updating Runner",
+			"new_version", hashKey,
+			"old_version", runnerObj.Status.ConfigMapVersion)
+		runnerObj.Status.ConfigMapVersion = hashKey
+		if err = r.Client.Status().Update(ctx, runnerObj); err != nil {
+			logger.Error(err, "cannot assign config map hash to the runner")
+			return &resultRequeueAfterDefaultTimeout, nil
+		}
+		return &ctrl.Result{Requeue: true}, nil
+	}
+
+	return nil, nil
+}
+
+func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
+	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
-	if err != nil {
-		// if the error is different from not found (which is acceptable for us), then return from the function
-		if !errors.IsNotFound(err) {
-			log.Error(err, "cannot get the service account")
-			return err
-		}
-
-		// by this point we do not have any sa. Create one
-		log.Info("creating sa")
-		sa := &corev1.ServiceAccount{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            runnerName,
-				Namespace:       runnerObject.Namespace,
-				OwnerReferences: runnerObject.GenerateOwnerReference(),
-			},
-		}
-		err = r.Client.Create(ctx, sa)
-		if err != nil {
-			log.Error(err, "cannot create service-account")
-			return err
-		}
+	switch {
+	case err == nil: // service account exists
+		return nil
+	case !errors.IsNotFound(err):
+		log.Error(err, "cannot get the service account")
+		return err
 	}
-
-	// check if we need to create a role
-	err = r.Client.Get(ctx, namespacedKey, &v1.Role{})
-	if err != nil {
-		// if the error is different from not found (which is acceptable for us), then return from the function
-		if !errors.IsNotFound(err) {
-			log.Error(err, "cannot get the role")
-			return err
-		}
-
-		// by this point we do not have any role. Create one
-		log.Info("creating the role")
-		role := &v1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            runnerName,
-				Namespace:       runnerObject.Namespace,
-				OwnerReferences: runnerObject.GenerateOwnerReference(),
-			},
-			Rules: []v1.PolicyRule{{
-				Verbs:     []string{"get", "list", "watch", "create", "patch", "delete"},
-				APIGroups: []string{"*"},
-				Resources: []string{"pods", "pods/exec", "secrets"},
-			}},
-		}
-		err = r.Client.Create(ctx, role)
-		if err != nil {
-			log.Error(err, "cannot create role")
-			return err
-		}
+	// sa doesn't exists, create it
+	log.Info("creating missing s")
+	sa := &corev1.ServiceAccount{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            runnerObject.ChildName(),
+			Namespace:       runnerObject.Namespace,
+			OwnerReferences: runnerObject.GenerateOwnerReference(),
+		},
 	}
-
-	// check if we need to create the binding
-	err = r.Client.Get(ctx, namespacedKey, &v1.RoleBinding{})
-	if err != nil {
-		// if the error is different from not found (which is acceptable for us), then return from the function
-		if !errors.IsNotFound(err) {
-			log.Error(err, "cannot get the rolebinding")
-			return err
-		}
-
-		// by this point we do not have any role. Create one
-		log.Info("creating the rolebinding")
-		role := &v1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            runnerName,
-				Namespace:       runnerObject.Namespace,
-				OwnerReferences: runnerObject.GenerateOwnerReference(),
-			},
-			Subjects: []v1.Subject{{
-				Kind:      "ServiceAccount",
-				Name:      runnerName,
-				Namespace: runnerObject.Namespace,
-			}},
-			RoleRef: v1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     runnerName,
-			},
-		}
-		err = r.Client.Create(ctx, role)
-		if err != nil {
-			log.Error(err, "cannot create rolebinding")
-			return err
-		}
+	if err = r.Client.Create(ctx, sa); err != nil {
+		log.Error(err, "cannot create service-account")
+		return err
 	}
 	return nil
 }
 
-func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject *gitlabRunOp.Runner) (internalApi.GitlabClient, error) {
+func (r *RunnerReconciler) createRoleIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner,
+	log logr.Logger) error {
+	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
+	err := r.Client.Get(ctx, namespacedKey, &v1.Role{})
+	switch {
+	case err == nil:
+		return nil
+	case !errors.IsNotFound(err):
+		log.Error(err, "cannot get the role")
+		return err
+	}
+	// sa doesn't exists, create it
+	log.Info("creating missing role")
+	role := &v1.Role{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            runnerObject.ChildName(),
+			Namespace:       runnerObject.Namespace,
+			OwnerReferences: runnerObject.GenerateOwnerReference(),
+		},
+		Rules: []v1.PolicyRule{{
+			Verbs:     []string{"get", "list", "watch", "create", "patch", "delete"},
+			APIGroups: []string{"*"},
+			Resources: []string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"},
+		}},
+	}
+	err = r.Client.Create(ctx, role)
+	if err != nil {
+		log.Error(err, "cannot create role")
+		return err
+	}
+	return nil
+}
+
+func (r *RunnerReconciler) createRoleBindingIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner,
+	log logr.Logger) error {
+	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
+	err := r.Client.Get(ctx, namespacedKey, &v1.RoleBinding{})
+	switch {
+	case err == nil: // service account exists
+		return nil
+	case !errors.IsNotFound(err):
+		log.Error(err, "cannot get the Role binding")
+		return err
+	}
+	// sa doesn't exists, create it
+	log.Info("creating missing rolebinding")
+	role := &v1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:            runnerObject.ChildName(),
+			Namespace:       runnerObject.Namespace,
+			OwnerReferences: runnerObject.GenerateOwnerReference(),
+		},
+		Subjects: []v1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      runnerObject.ChildName(),
+			Namespace: runnerObject.Namespace,
+		}},
+		RoleRef: v1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "Role",
+			Name:     runnerObject.ChildName(),
+		},
+	}
+	err = r.Client.Create(ctx, role)
+	if err != nil {
+		log.Error(err, "cannot create rolebindings")
+		return err
+	}
+	return nil
+}
+
+// CreateRBACIfMissing creates missing rbacs if needed
+// todo: introduce the patching?
+func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
+	if err := r.createSAIfMissing(ctx, runnerObject, log); err != nil {
+		return err
+	}
+	if err := r.createRoleIfMissing(ctx, runnerObject, log); err != nil {
+		return err
+	}
+	if err := r.createRoleBindingIfMissing(ctx, runnerObject, log); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject *gitlabv1beta1.Runner) (api.GitlabClient, error) {
 	// if the client is already defined, return that one instead of trying to obtain a new one.
 	if r.GitlabApiClient != nil {
 		return r.GitlabApiClient, nil
@@ -435,7 +410,7 @@ func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject 
 
 	// if we have defined token in the config, then use that one.
 	if runnerObject.Spec.RegistrationConfig.Token != nil && *runnerObject.Spec.RegistrationConfig.Token != "" {
-		return internalApi.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
+		return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
 	}
 
 	// we did not store the registration token in clear view. Hopefully we have defined and created a secret holding it
@@ -461,20 +436,23 @@ func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject 
 	// and finally
 	decryptedToken := string(token)
 	runnerObject.Spec.RegistrationConfig.Token = &decryptedToken
-	return internalApi.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
+	return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
 }
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabRunOp.Runner, log logr.Logger) (ctrl.Result, error) {
-	// register the client against the gitlab api and obtain the authentication token
+
+// RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
+func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, log logr.Logger) (ctrl.Result, error) {
+	// get the gitlab runner
 	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
+
+	// obtain the registration token from gitlab
 	token, err := gitlabApiClient.Register(runner.Spec.RegistrationConfig)
 	if err != nil {
 		log.Error(err, "cannot register the runner against gitlab api")
 		runner.Status.Error = err.Error()
-		errUpdate := r.Client.Update(ctx, runner)
-		if errUpdate != nil {
+		if errUpdate := r.Client.Status().Update(ctx, runner); errUpdate != nil {
 			log.Error(errUpdate, "cannot set the status of the runner object")
 		}
 		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
@@ -486,31 +464,38 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 
 	// set the new auth token and record the reg details used for the operation (token and tags)
 	newRunner.Status.AuthenticationToken = token
-	newRunner.GetAnnotations()
+
 	// check if annotations has been properly initialized
 	newRunner.Annotations[lastRegistrationTokenAnnotationKey] = *runner.Spec.RegistrationConfig.Token
 	newRunner.Annotations[lastRegistrationTags] = strings.Join(runner.Spec.RegistrationConfig.TagList, ",")
-	err = r.Client.Update(ctx, newRunner)
-	if err != nil {
+
+	if err = r.Client.Update(ctx, newRunner); err != nil {
 		log.Error(err, "cannot update runner with authentication token")
 		return ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}, err
 	}
+	if err = r.Client.Status().Update(ctx, newRunner); err != nil {
+		log.Error(err, "cannot update runner status")
+		return resultRequeueAfterDefaultTimeout, err
+	}
+
 	log.Info("registered a new runner on gitlab server")
 	return ctrl.Result{Requeue: true}, err
 }
 
+// SetupWithManager sets up the controller with the Manager.
 func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// setup indexers on configmap created by x
-	if err := mgr.GetFieldIndexer().IndexField(&corev1.ConfigMap{}, ownerCmKey, func(rawObj runtime.Object) []string {
+	ctx := context.Background()
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, ownerCmKey, func(object client.Object) []string {
 		// grab the configMap object, extract the owner...
-		configMap := rawObj.(*corev1.ConfigMap)
+		configMap := object.(*corev1.ConfigMap)
 		owner := metav1.GetControllerOf(configMap)
 		if owner == nil {
 			return nil
 		}
 
 		// ensure that we dealing with a proper object
-		if owner.APIVersion != gitlabRunOp.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -520,7 +505,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 	// deployments
 	// todo : unify with configmap above
-	if err := mgr.GetFieldIndexer().IndexField(&appsv1.Deployment{}, ownerDpKey, func(rawObj runtime.Object) []string {
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &appsv1.Deployment{}, ownerDpKey, func(rawObj client.Object) []string {
 		// grab the deployment object, extract the owner...
 		deployment := rawObj.(*appsv1.Deployment)
 		owner := metav1.GetControllerOf(deployment)
@@ -529,7 +514,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we dealing with a proper object
-		if owner.APIVersion != gitlabRunOp.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -538,7 +523,22 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabRunOp.Runner{}).
+		For(&gitlabv1beta1.Runner{}).
+		WithEventFilter(predicate.Funcs{
+			UpdateFunc: func(e event.UpdateEvent) bool {
+				if e.ObjectOld == nil || e.ObjectNew == nil {
+					return false
+				}
+				return e.ObjectNew.GetGeneration() != e.ObjectOld.GetGeneration()
+			},
+			DeleteFunc: func(event event.DeleteEvent) bool {
+				// The reconciler adds a finalizer when the delete timestamp is added.
+				// Avoid reconciling in case it's a runner, we still want to reconcile if it's a dependent object
+				if _, ok := event.Object.(*gitlabv1beta1.Runner); ok {
+					return false
+				}
+				return true
+			}}).
 		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)

@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1alpha1
+package v1beta1
 
 import (
 	"fmt"
@@ -22,6 +22,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
 )
+
+// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
+// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // RunnerSpec defines the desired state of Runner
 type RunnerSpec struct {
@@ -45,9 +48,9 @@ type RunnerStatus struct {
 	ConfigMapVersion    string `json:"config_map_version"`
 }
 
-// +kubebuilder:object:root=true
-
 // Runner is the Schema for the runners API
+//+kubebuilder:object:root=true
+//+kubebuilder:subresource:status
 type Runner struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -56,7 +59,7 @@ type Runner struct {
 	Status RunnerStatus `json:"status,omitempty"`
 }
 
-// +kubebuilder:object:root=true
+//+kubebuilder:object:root=true
 
 // RunnerList contains a list of Runner
 type RunnerList struct {
@@ -180,15 +183,28 @@ type Service struct {
 // GitLab API docs:
 // https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
 type RegisterNewRunnerOptions struct {
-	Token          *string  `url:"token" json:"token,omitempty"`
-	TokenSecret    string   `json:"token_secret,omitempty"`
-	Description    *string  `url:"description,omitempty" json:"description,omitempty"`
-	Info           *string  `url:"info,omitempty" json:"info,omitempty"`
-	Active         *bool    `url:"active,omitempty" json:"active,omitempty"`
-	Locked         *bool    `url:"locked,omitempty" json:"locked,omitempty"`
-	RunUntagged    *bool    `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
-	TagList        []string `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
-	MaximumTimeout *int     `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
+	Token          *string                       `url:"token" json:"token,omitempty"`
+	TokenSecret    string                        `json:"token_secret,omitempty"`
+	Description    *string                       `url:"description,omitempty" json:"description,omitempty"`
+	Info           *RegisterNewRunnerInfoOptions `url:"info,omitempty" json:"info,omitempty"`
+	Active         *bool                         `url:"active,omitempty" json:"active,omitempty"`
+	Locked         *bool                         `url:"locked,omitempty" json:"locked,omitempty"`
+	RunUntagged    *bool                         `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
+	TagList        []string                      `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
+	MaximumTimeout *int                          `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
+}
+
+// RegisterNewRunnerInfoOptions represents the info hashmap parameter in
+// RegisterNewRunnerOptions.
+//
+// GitLab API docs:
+// https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
+type RegisterNewRunnerInfoOptions struct {
+	Name         *string `url:"name,omitempty" json:"name,omitempty"`
+	Version      *string `url:"version,omitempty" json:"version,omitempty"`
+	Revision     *string `url:"revision,omitempty" json:"revision,omitempty"`
+	Platform     *string `url:"platform,omitempty" json:"platform,omitempty"`
+	Architecture *string `url:"architecture,omitempty" json:"architecture,omitempty"`
 }
 
 //nolint:lll
@@ -238,8 +254,8 @@ func (r *Runner) GetAnnotation(key string) string {
 // GenerateOwnerReference returns a generated owner reference which can be used later to for any child object
 func (r *Runner) GenerateOwnerReference() []metav1.OwnerReference {
 	return []metav1.OwnerReference{{
-		APIVersion:         r.APIVersion,
-		Kind:               r.Kind,
+		APIVersion:         GroupVersion.String(), // due to https://github.com/kubernetes/client-go/issues/541 type meta is empty
+		Kind:               "Runner",
 		Name:               r.Name,
 		UID:                r.UID,
 		Controller:         pointer.BoolPtr(true),

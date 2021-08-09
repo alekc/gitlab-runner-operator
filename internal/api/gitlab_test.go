@@ -3,14 +3,13 @@ package api
 import (
 	"testing"
 
+	"gitlab.k8s.alekc.dev/api/v1beta1"
 	"k8s.io/utils/pointer"
-
-	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
 )
 
 func TestGitlabApi_Register(t *testing.T) {
 	cl, _ := NewGitlabClient("9Bo36Uxwx6ay-cR-bCLh", "")
-	_, _ = cl.Register(gitlabRunOp.RegisterNewRunnerOptions{
+	_, _ = cl.Register(v1beta1.RegisterNewRunnerOptions{
 		Token:          pointer.StringPtr("9Bo36Uxwx6ay-cR-bCLh"),
 		Description:    nil,
 		Info:           nil,

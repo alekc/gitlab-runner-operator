@@ -46,6 +46,12 @@ rules:
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - runners/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
   - runners/status
   verbs:
   - get

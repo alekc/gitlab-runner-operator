@@ -1,5 +1,5 @@
 /*
-
+Copyright 2021.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,19 +20,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	"go.alekc.dev/gitlab-runner-operator/internal/api"
-	ctrl "sigs.k8s.io/controller-runtime"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	gitlabv1alpha1 "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	api2 "gitlab.k8s.alekc.dev/internal/api"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -51,53 +51,63 @@ func TestAPIs(t *testing.T) {
 		[]Reporter{printer.NewlineReporter{}})
 }
 
-var _ = BeforeSuite(func(done Done) {
-	logf.SetLogger(zap.New(zap.UseDevMode(true), zap.WriteTo(GinkgoWriter)))
+var _ = BeforeSuite(func() {
 
+	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
+	// Expect(os.Setenv("USE_EXISTING_CLUSTER", "true")).To(Succeed())
+
+	// read crds
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
+		ErrorIfCRDPathMissing: true,
 	}
 
-	var err error
-	cfg, err = testEnv.Start()
-	Expect(err).ToNot(HaveOccurred())
-	Expect(cfg).ToNot(BeNil())
+	// start test environment cluster
+	cfg, err := testEnv.Start()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(cfg).NotTo(BeNil())
 
-	err = gitlabv1alpha1.AddToScheme(scheme.Scheme)
+	// ensure that the schema is the latest up and running
+	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	// +kubebuilder:scaffold:scheme
+	//+kubebuilder:scaffold:scheme
 
-	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
+	// create the test client
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient).NotTo(BeNil())
+
+	// we also do need the manager
+	k8sManager, err := controllerruntime.NewManager(cfg, controllerruntime.Options{
 		Scheme: scheme.Scheme,
 	})
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&RunnerReconciler{
 		Client: k8sManager.GetClient(),
-		Log:    ctrl.Log.WithName("controllers").WithName("GitlabRunner"),
-		GitlabApiClient: &api.MockedGitlabClient{
-			OnRegister: func(config gitlabv1alpha1.RegisterNewRunnerOptions) (string, error) {
+		Log: controllerruntime.Log.
+			WithName("controllers").
+			WithName("GitlabRunner"),
+		GitlabApiClient: &api2.MockedGitlabClient{
+			OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
 				return "xyz", nil
 			},
 		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
+	// run the reconciler in a separate go routine
 	go func() {
-		err = k8sManager.Start(ctrl.SetupSignalHandler())
+		err = k8sManager.Start(controllerruntime.SetupSignalHandler())
 		Expect(err).ToNot(HaveOccurred())
 	}()
-
-	k8sClient = k8sManager.GetClient()
-	Expect(k8sClient).ToNot(BeNil())
-
-	close(done)
 }, 60)
 
 var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	err := testEnv.Stop()
-	Expect(err).ToNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 })

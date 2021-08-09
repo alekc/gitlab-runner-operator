@@ -1,4 +1,4 @@
-apiVersion: gitlab.k8s.alekc.dev/v1alpha1
+apiVersion: gitlab.k8s.alekc.dev/v1beta1
 kind: Runner
 metadata:
   name: runner-sample

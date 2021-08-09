@@ -1,24 +1,26 @@
 package api
 
 import (
+	"io"
+
 	"github.com/xanzy/go-gitlab"
-	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
+	"gitlab.k8s.alekc.dev/api/v1beta1"
 )
 
 type GitlabClient interface {
-	Register(config gitlabRunOp.RegisterNewRunnerOptions) (string, error)
+	Register(config v1beta1.RegisterNewRunnerOptions) (string, error)
 }
 
 type gitlabApi struct {
 	gitlabApiClient *gitlab.Client
 }
 
-func (g *gitlabApi) Register(config gitlabRunOp.RegisterNewRunnerOptions) (string, error) {
+func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, error) {
 	// sadly we cannot do a direct conversion due to the presence of additional field
 	convertedConfig := gitlab.RegisterNewRunnerOptions{
 		Token:          config.Token,
 		Description:    config.Description,
-		Info:           config.Info,
+		Info:           (*gitlab.RegisterNewRunnerInfoOptions)(config.Info),
 		Active:         config.Active,
 		Locked:         config.Locked,
 		RunUntagged:    config.RunUntagged,
@@ -29,7 +31,9 @@ func (g *gitlabApi) Register(config gitlabRunOp.RegisterNewRunnerOptions) (strin
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	return runner.Token, nil
 }

@@ -5,22 +5,20 @@ import (
 	"math"
 
 	"github.com/BurntSushi/toml"
-	gitlabRunOp "go.alekc.dev/gitlab-runner-operator/api/v1alpha1"
-	"go.alekc.dev/gitlab-runner-operator/config"
+	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/config"
+	"gitlab.k8s.alekc.dev/internal/crypto"
 )
 
-func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
+// ConfigText initialize default config object and returns it as a text
+func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some of the configuration values
-	instanceUrl := runnerObject.Spec.GitlabInstanceURL
-	if instanceUrl == "" {
-		instanceUrl = "https://gitlab.com/"
-	}
 	runnerConfig := &config.RunnerConfig{
 		Name:  runnerObject.Name,
 		Limit: 10,
 		RunnerCredentials: config.RunnerCredentials{
 			Token: runnerObject.Status.AuthenticationToken,
-			URL:   instanceUrl,
+			URL:   runnerObject.Spec.GitlabInstanceURL,
 		},
 		RunnerSettings: config.RunnerSettings{
 			Executor:   "kubernetes",
@@ -45,9 +43,12 @@ func ConfigText(runnerObject *gitlabRunOp.Runner) (string, error) {
 
 	var buff bytes.Buffer
 	tomlEncoder := toml.NewEncoder(&buff)
-	err := tomlEncoder.Encode(rootConfig)
+	err = tomlEncoder.Encode(rootConfig)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-	return buff.String(), nil
+
+	gitlabConfig = buff.String()
+	configHashKey = crypto.StringToSHA1(gitlabConfig)
+	return buff.String(), configHashKey, nil
 }
