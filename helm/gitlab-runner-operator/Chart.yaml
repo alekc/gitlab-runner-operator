@@ -3,4 +3,4 @@ name: gitlab-runner-operator
 description: An operator for gitlab runners
 type: application
 version: 1.0.0
-appVersion: v14.0.1
+appVersion: 1.0.0
