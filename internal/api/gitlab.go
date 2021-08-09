@@ -1,6 +1,8 @@
 package api
 
 import (
+	"io"
+
 	"github.com/xanzy/go-gitlab"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
 )
@@ -29,7 +31,9 @@ func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, e
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
 
 	return runner.Token, nil
 }
