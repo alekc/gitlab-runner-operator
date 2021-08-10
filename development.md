@@ -20,8 +20,11 @@ Install crd to the cluster
 `make install`
 
 ### Docker image 
+Note: you need to specify an image name during the build. If the image has `latest` tag, then kind will attempt to download
+it even if you have loaded it through `kind load docker-image`
+
 ```shell
-make docker-build
+make docker-build controller:dev
 kind load docker-image controller:dev
 make deploy IMG=controller:dev
 ```
