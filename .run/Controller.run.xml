@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Controller" type="GoTestRunConfiguration" factoryName="Go Test">
+    <module name="gitlab-runop" />
+    <working_directory value="$PROJECT_DIR$/controllers" />
+    <envs>
+      <env name="TEST_TIMEOUT" value="300" />
+    </envs>
+    <root_directory value="$PROJECT_DIR$" />
+    <kind value="PACKAGE" />
+    <package value="gitlab.k8s.alekc.dev/controllers" />
+    <directory value="$PROJECT_DIR$" />
+    <filePath value="$PROJECT_DIR$" />
+    <framework value="gotest" />
+    <pattern value="^\QTestAPIs\E$" />
+    <method v="2" />
+  </configuration>
+</component>

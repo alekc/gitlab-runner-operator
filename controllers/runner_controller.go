@@ -120,6 +120,20 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
+	// set the status with a config map hash
+	// if the config version differs, perform the upgrade
+	if runnerObj.Status.ConfigMapVersion != configHashKey {
+		logger.Info("a new version of config map detected. updating Runner",
+			"new_version", configHashKey,
+			"old_version", runnerObj.Status.ConfigMapVersion)
+		runnerObj.Status.ConfigMapVersion = configHashKey
+		if err = r.Client.Status().Update(ctx, runnerObj); err != nil {
+			logger.Error(err, "cannot assign config map hash to the runner")
+			return resultRequeueAfterDefaultTimeout, err
+		}
+		return ctrl.Result{Requeue: true}, nil
+	}
+
 	result, err := r.ValidateConfigMap(ctx, runnerObj, gitlabRunnerConfig, configHashKey)
 	switch {
 	case err != nil:
@@ -272,19 +286,6 @@ func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *git
 				"config_map_name", configMap.Name)
 			return &ctrl.Result{Requeue: true}, err
 		}
-	}
-
-	// if the config version differs, perform the upgrade
-	if runnerObj.Status.ConfigMapVersion != hashKey {
-		logger.Info("a new version of config map detected. updating Runner",
-			"new_version", hashKey,
-			"old_version", runnerObj.Status.ConfigMapVersion)
-		runnerObj.Status.ConfigMapVersion = hashKey
-		if err = r.Client.Status().Update(ctx, runnerObj); err != nil {
-			logger.Error(err, "cannot assign config map hash to the runner")
-			return &resultRequeueAfterDefaultTimeout, nil
-		}
-		return &ctrl.Result{Requeue: true}, nil
 	}
 
 	return nil, nil
@@ -458,23 +459,21 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
 	}
 
+	// set the new auth token and record the reg details used for the operation (token and tags)
+	runner.Status.Error = ""
+	runner.Status.AuthenticationToken = token
+	if err = r.Client.Status().Update(ctx, runner); err != nil {
+		log.Error(err, "cannot update runner status")
+		return resultRequeueAfterDefaultTimeout, err
+	}
 	// all is fine, new token has been applied, requeue the runner and check create/amend a deployment if needed
 	newRunner := runner.DeepCopy()
-	newRunner.Status.Error = ""
-
-	// set the new auth token and record the reg details used for the operation (token and tags)
-	newRunner.Status.AuthenticationToken = token
 
 	// check if annotations has been properly initialized
 	newRunner.Annotations[lastRegistrationTokenAnnotationKey] = *runner.Spec.RegistrationConfig.Token
 	newRunner.Annotations[lastRegistrationTags] = strings.Join(runner.Spec.RegistrationConfig.TagList, ",")
-
 	if err = r.Client.Update(ctx, newRunner); err != nil {
 		log.Error(err, "cannot update runner with authentication token")
-		return ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}, err
-	}
-	if err = r.Client.Status().Update(ctx, newRunner); err != nil {
-		log.Error(err, "cannot update runner status")
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
