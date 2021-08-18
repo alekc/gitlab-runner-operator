@@ -12,7 +12,7 @@ import (
 
 // ConfigText initialize default config object and returns it as a text
 func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey string, err error) {
-	// define sensible config for some of the configuration values
+	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:  runnerObject.Name,
 		Limit: 10,
