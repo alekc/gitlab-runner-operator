@@ -43,7 +43,15 @@ type RunnerSpec struct {
 
 // RunnerStatus defines the observed state of Runner
 type RunnerStatus struct {
-	Error               string `json:"error"`
+	Error string `json:"error"`
+
+	// LastRegistrationToken is the last token used for a successful authentication
+	LastRegistrationToken string `json:"last_registration_token"`
+
+	// LastRegistrationTags are last tags used in successful registration
+	LastRegistrationTags []string `json:"last_registration_tags"`
+
+	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
 	AuthenticationToken string `json:"authentication_token"`
 	ConfigMapVersion    string `json:"config_map_version"`
 }

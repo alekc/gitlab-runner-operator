@@ -408,15 +408,29 @@ spec:
             description: RunnerStatus defines the observed state of Runner
             properties:
               authentication_token:
+                description: AuthenticationToken obtained from the gitlab which can
+                  be used in runner configuration for authentication
                 type: string
               config_map_version:
                 type: string
               error:
                 type: string
+              last_registration_tags:
+                description: LastRegistrationTags are last tags used in successful
+                  registration
+                items:
+                  type: string
+                type: array
+              last_registration_token:
+                description: LastRegistrationToken is the last token used for a successful
+                  authentication
+                type: string
             required:
             - authentication_token
             - config_map_version
             - error
+            - last_registration_tags
+            - last_registration_token
             type: object
         type: object
     served: true

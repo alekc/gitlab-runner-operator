@@ -19,7 +19,8 @@ package controllers
 import (
 	"context"
 	coreErrors "errors"
-	"strings"
+	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -70,14 +71,20 @@ var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: 
 // +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
+func PatchRunnerObj(ctx context.Context, r *RunnerReconciler, runnerObj *gitlabv1beta1.Runner, logger logr.Logger) {
+	err := r.Status().Update(ctx, runnerObj)
+	if err != nil {
+		logger.Error(err, "cannot update status of the runner object")
+	}
+}
+
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-	logger.Info("starting")
+	logger := log.FromContext(ctx).WithValues("runner_name", req.Name)
 
 	// find the object, in case we cannot find it just return.
 	runnerObj := &gitlabv1beta1.Runner{}
@@ -86,55 +93,47 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// reset the error
+	// reset the error. If there is one still present we will get it later on
 	runnerObj.Status.Error = ""
 
-	// Sanity check. Initialize our annotations if needed.
-	if runnerObj.Annotations == nil {
-		runnerObj.Annotations = make(map[string]string, 0)
-	}
+	// patch status when done processing
+	defer PatchRunnerObj(ctx, r, runnerObj, logger)
 
 	// create required rbac credentials if they are missing
 	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
 		runnerObj.Status.Error = "Cannot create the rbac objects"
-		if err := r.Client.Status().Update(ctx, runnerObj); err != nil {
-			logger.Error(err, "cannot patch runner status")
-		}
-		return ctrl.Result{RequeueAfter: defaultTimeout}, err
+		return resultRequeueAfterDefaultTimeout, err
 	}
 
 	// if the runner doesn't have a saved authentication token
 	// or the latest registration token/tags are different from the
 	// current one, we need to redo the registration
 	if runnerObj.Status.AuthenticationToken == "" ||
-		runnerObj.GetAnnotation(lastRegistrationTokenAnnotationKey) != *runnerObj.Spec.RegistrationConfig.Token ||
-		runnerObj.GetAnnotation(lastRegistrationTags) != strings.Join(runnerObj.Spec.RegistrationConfig.TagList, ",") {
-		// todo: delete old runner
-		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
+		runnerObj.Status.LastRegistrationToken != *runnerObj.Spec.RegistrationConfig.Token ||
+		reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig) {
+
+		if res, err := r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger); err != nil {
+			return *res, err
+		}
 	}
 
 	// generate a new config map based on the runner spec
-	gitlabRunnerConfig, configHashKey, err := generate.ConfigText(runnerObj)
+	generatedTomlConfig, configHashKey, err := generate.ConfigText(runnerObj)
 	if err != nil {
 		logger.Error(err, "cannot generate config map")
 		return resultRequeueAfterDefaultTimeout, err
 	}
+	runnerObj.Status.ConfigMapVersion = configHashKey
 
 	// set the status with a config map hash
 	// if the config version differs, perform the upgrade
 	if runnerObj.Status.ConfigMapVersion != configHashKey {
-		logger.Info("a new version of config map detected. updating Runner",
+		logger.Info("a new version of config map detected",
 			"new_version", configHashKey,
 			"old_version", runnerObj.Status.ConfigMapVersion)
-		runnerObj.Status.ConfigMapVersion = configHashKey
-		if err = r.Client.Status().Update(ctx, runnerObj); err != nil {
-			logger.Error(err, "cannot assign config map hash to the runner")
-			return resultRequeueAfterDefaultTimeout, err
-		}
-		return ctrl.Result{Requeue: true}, nil
 	}
 
-	result, err := r.ValidateConfigMap(ctx, runnerObj, gitlabRunnerConfig, configHashKey)
+	result, err := r.ValidateConfigMap(ctx, runnerObj, generatedTomlConfig)
 	switch {
 	case err != nil:
 		return resultRequeueAfterDefaultTimeout, err
@@ -237,9 +236,7 @@ func (r *RunnerReconciler) ValidateDeployment(ctx context.Context, runnerObj *gi
 	return nil, nil
 }
 
-func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *gitlabv1beta1.Runner,
-	gitlabRunnerTomlConfig string,
-	hashKey string) (*ctrl.Result, error) {
+func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *gitlabv1beta1.Runner, gitlabRunnerTomlConfig string) (*ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	var configMap corev1.ConfigMap
@@ -261,7 +258,7 @@ func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *git
 				Name:            runnerObj.ChildName(),
 				Namespace:       runnerObj.Namespace,
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
-				Annotations:     map[string]string{configVersionAnnotationKey: hashKey},
+				Annotations:     map[string]string{configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion},
 			},
 			Data: map[string]string{configMapKeyName: gitlabRunnerTomlConfig},
 		}
@@ -269,16 +266,16 @@ func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *git
 			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
 			return &resultRequeueAfterDefaultTimeout, err
 		}
-		return &ctrl.Result{Requeue: true}, nil
+		return nil, nil
 	}
 
 	// configmap exists. Check the value for the config map is different
 	if configMap.Data[configMapKeyName] != gitlabRunnerTomlConfig || configMap.
-		Annotations[configVersionAnnotationKey] != hashKey {
+		Annotations[configVersionAnnotationKey] != runnerObj.Status.ConfigMapVersion {
 		logger.Info("config map object has old config, needs updating", "configMapName", configMap.Name)
 		newObj := configMap.DeepCopy()
 		newObj.Data[configMapKeyName] = gitlabRunnerTomlConfig
-		newObj.Annotations[configVersionAnnotationKey] = hashKey
+		newObj.Annotations[configVersionAnnotationKey] = runnerObj.Status.ConfigMapVersion
 		if err = r.Update(ctx, newObj); err != nil && !internalErrors.IsStale(err) {
 			logger.Error(
 				err,
@@ -441,44 +438,28 @@ func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject 
 }
 
 // RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, log logr.Logger) (ctrl.Result, error) {
-	// get the gitlab runner
+func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (*ctrl.Result, error) {
+	// get the gitlab api client
 	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
 	if err != nil {
-		return ctrl.Result{}, err
+		return &resultRequeueAfterDefaultTimeout, err
 	}
 
 	// obtain the registration token from gitlab
 	token, err := gitlabApiClient.Register(runner.Spec.RegistrationConfig)
 	if err != nil {
-		log.Error(err, "cannot register the runner against gitlab api")
-		runner.Status.Error = err.Error()
-		if errUpdate := r.Client.Status().Update(ctx, runner); errUpdate != nil {
-			log.Error(errUpdate, "cannot set the status of the runner object")
-		}
-		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
+		logger.Error(err, "cannot register the runner against gitlab api")
+		runner.Status.Error = fmt.Sprintf("Cannot register the runner on gitlab api. %s", err.Error())
+		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
 	}
 
 	// set the new auth token and record the reg details used for the operation (token and tags)
-	runner.Status.Error = ""
 	runner.Status.AuthenticationToken = token
-	if err = r.Client.Status().Update(ctx, runner); err != nil {
-		log.Error(err, "cannot update runner status")
-		return resultRequeueAfterDefaultTimeout, err
-	}
-	// all is fine, new token has been applied, requeue the runner and check create/amend a deployment if needed
-	newRunner := runner.DeepCopy()
+	runner.Status.LastRegistrationToken = *runner.Spec.RegistrationConfig.Token
+	runner.Status.LastRegistrationTags = runner.Spec.RegistrationConfig.TagList
 
-	// check if annotations has been properly initialized
-	newRunner.Annotations[lastRegistrationTokenAnnotationKey] = *runner.Spec.RegistrationConfig.Token
-	newRunner.Annotations[lastRegistrationTags] = strings.Join(runner.Spec.RegistrationConfig.TagList, ",")
-	if err = r.Client.Update(ctx, newRunner); err != nil {
-		log.Error(err, "cannot update runner with authentication token")
-		return resultRequeueAfterDefaultTimeout, err
-	}
-
-	log.Info("registered a new runner on gitlab server")
-	return ctrl.Result{Requeue: true}, err
+	logger.Info("registered a new runner on gitlab server")
+	return nil, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
