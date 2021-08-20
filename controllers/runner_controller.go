@@ -25,17 +25,15 @@ import (
 
 	"github.com/go-logr/logr"
 	"gitlab.k8s.alekc.dev/internal/api"
-	internalErrors "gitlab.k8s.alekc.dev/internal/errors"
 	"gitlab.k8s.alekc.dev/internal/generate"
+	"gitlab.k8s.alekc.dev/internal/validate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -51,8 +49,6 @@ const ownerDpKey = ".metadata.dpcontroller"
 const defaultTimeout = 15 * time.Second
 const configMapKeyName = "config.toml"
 const configVersionAnnotationKey = "config-version"
-const lastRegistrationTokenAnnotationKey = "last-reg-token"
-const lastRegistrationTags = "last-reg-tags"
 
 // RunnerReconciler reconciles a Runner object
 type RunnerReconciler struct {
@@ -131,159 +127,16 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			"old_version", runnerObj.Status.ConfigMapVersion)
 	}
 
-	result, err := r.ValidateConfigMap(ctx, runnerObj, generatedTomlConfig)
-	switch {
-	case err != nil:
-		return resultRequeueAfterDefaultTimeout, err
-	case result != nil:
-		return *result, nil
+	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig); result != nil || err != nil {
+		return *result, err
 	}
 
-	result, err = r.ValidateDeployment(ctx, runnerObj)
-	switch {
-	case err != nil:
-		return resultRequeueAfterDefaultTimeout, err
-	case result != nil:
-		return *result, nil
+	// validate deployment data
+	if result, err := validate.Deployment(ctx, r.Client, runnerObj, logger); result != nil || err != nil {
+		return *result, err
 	}
 
 	return ctrl.Result{}, nil
-}
-
-func (r *RunnerReconciler) ValidateDeployment(ctx context.Context, runnerObj *gitlabv1beta1.Runner) (*ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	labels := map[string]string{"deployment": runnerObj.Name}
-	wantedDeployment := appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      runnerObj.ChildName(),
-			Namespace: runnerObj.Namespace,
-			Annotations: map[string]string{
-				configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
-			},
-			OwnerReferences: runnerObj.GenerateOwnerReference(),
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labels,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labels,
-					Annotations: map[string]string{
-						configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
-					},
-				},
-				Spec: corev1.PodSpec{
-					Volumes: []corev1.Volume{{
-						Name: "config",
-						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{Name: runnerObj.ChildName()},
-							},
-						},
-					}},
-					Containers: []corev1.Container{{
-						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:alpine-v14.0.1",
-						Resources:       corev1.ResourceRequirements{}, //todo:
-						ImagePullPolicy: "IfNotPresent",                //todo
-						VolumeMounts: []corev1.VolumeMount{{
-							Name:      "config",
-							MountPath: "/etc/gitlab-runner/",
-						}},
-					}},
-					ServiceAccountName: runnerObj.ChildName(),
-				},
-			},
-		},
-	}
-
-	var existingDeployment appsv1.Deployment
-	err := r.Get(ctx, client.ObjectKey{
-		Namespace: runnerObj.Namespace,
-		Name:      runnerObj.ChildName(),
-	}, &existingDeployment)
-
-	// if deployment doesn't exist, create it
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			logger.Error(err, "could not obtain the deployment")
-			return &resultRequeueAfterDefaultTimeout, err
-		}
-
-		if err = r.Client.Create(ctx, &wantedDeployment); err != nil {
-			logger.Error(err, "cannot create a deployment", "deploymentName", existingDeployment.Name)
-			return &resultRequeueAfterDefaultTimeout, err
-		}
-		return &ctrl.Result{Requeue: true}, nil
-	}
-
-	// deployment exists. Check the configMap annotation
-	if existingDeployment.GetAnnotations()[configVersionAnnotationKey] != runnerObj.Status.
-		ConfigMapVersion || !equality.Semantic.DeepDerivative(wantedDeployment.Spec, existingDeployment.DeepCopy().Spec) {
-		logger.Info("deployment is different from our version, updating", "deployment_name", existingDeployment.Name)
-		err = r.Client.Update(ctx, &wantedDeployment)
-		if err != nil {
-			logger.Error(err, "cannot update deployment")
-			return &resultRequeueAfterDefaultTimeout, err
-		}
-	}
-
-	return nil, nil
-}
-
-func (r *RunnerReconciler) ValidateConfigMap(ctx context.Context, runnerObj *gitlabv1beta1.Runner, gitlabRunnerTomlConfig string) (*ctrl.Result, error) {
-	logger := log.FromContext(ctx)
-
-	var configMap corev1.ConfigMap
-	// fetch all config maps who are registered to the runner as owner
-	err := r.Get(ctx, client.ObjectKey{
-		Namespace: runnerObj.Namespace,
-		Name:      runnerObj.ChildName(),
-	}, &configMap)
-
-	// create config map (or report an error)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			logger.Error(err, "could not obtain the config map")
-			return &resultRequeueAfterDefaultTimeout, err
-		}
-		// configmap doesn't exist, create it and requeue
-		configMap = corev1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:            runnerObj.ChildName(),
-				Namespace:       runnerObj.Namespace,
-				OwnerReferences: runnerObj.GenerateOwnerReference(),
-				Annotations:     map[string]string{configVersionAnnotationKey: runnerObj.Status.ConfigMapVersion},
-			},
-			Data: map[string]string{configMapKeyName: gitlabRunnerTomlConfig},
-		}
-		if err = r.Client.Create(ctx, &configMap); err != nil {
-			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
-			return &resultRequeueAfterDefaultTimeout, err
-		}
-		return nil, nil
-	}
-
-	// configmap exists. Check the value for the config map is different
-	if configMap.Data[configMapKeyName] != gitlabRunnerTomlConfig || configMap.
-		Annotations[configVersionAnnotationKey] != runnerObj.Status.ConfigMapVersion {
-		logger.Info("config map object has old config, needs updating", "configMapName", configMap.Name)
-		newObj := configMap.DeepCopy()
-		newObj.Data[configMapKeyName] = gitlabRunnerTomlConfig
-		newObj.Annotations[configVersionAnnotationKey] = runnerObj.Status.ConfigMapVersion
-		if err = r.Update(ctx, newObj); err != nil && !internalErrors.IsStale(err) {
-			logger.Error(
-				err,
-				"cannot update config map with the new configuration",
-				"config_map_name", configMap.Name)
-			return &ctrl.Result{Requeue: true}, err
-		}
-	}
-
-	return nil, nil
 }
 
 func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
