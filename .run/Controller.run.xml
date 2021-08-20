@@ -3,7 +3,7 @@
     <module name="gitlab-runop" />
     <working_directory value="$PROJECT_DIR$/controllers" />
     <envs>
-      <env name="TEST_TIMEOUT" value="10" />
+      <env name="TEST_TIMEOUT" value="300" />
     </envs>
     <root_directory value="$PROJECT_DIR$" />
     <kind value="PACKAGE" />

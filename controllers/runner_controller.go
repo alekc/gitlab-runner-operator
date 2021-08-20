@@ -96,7 +96,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// reset the error. If there is one still present we will get it later on
 	runnerObj.Status.Error = ""
 
-	// patch status when done processing
+	// update the status when done processing in case there is anything pending
 	defer PatchRunnerObj(ctx, r, runnerObj, logger)
 
 	// create required rbac credentials if they are missing
@@ -110,11 +110,9 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// current one, we need to redo the registration
 	if runnerObj.Status.AuthenticationToken == "" ||
 		runnerObj.Status.LastRegistrationToken != *runnerObj.Spec.RegistrationConfig.Token ||
-		reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig) {
+		!reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig.TagList) {
 
-		if res, err := r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger); err != nil {
-			return *res, err
-		}
+		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
 
 	// generate a new config map based on the runner spec
@@ -438,11 +436,11 @@ func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject 
 }
 
 // RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (*ctrl.Result, error) {
+func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (ctrl.Result, error) {
 	// get the gitlab api client
 	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
 	if err != nil {
-		return &resultRequeueAfterDefaultTimeout, err
+		return resultRequeueAfterDefaultTimeout, err
 	}
 
 	// obtain the registration token from gitlab
@@ -450,7 +448,7 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 	if err != nil {
 		logger.Error(err, "cannot register the runner against gitlab api")
 		runner.Status.Error = fmt.Sprintf("Cannot register the runner on gitlab api. %s", err.Error())
-		return &ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
+		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
 	}
 
 	// set the new auth token and record the reg details used for the operation (token and tags)
@@ -459,7 +457,7 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 	runner.Status.LastRegistrationTags = runner.Spec.RegistrationConfig.TagList
 
 	logger.Info("registered a new runner on gitlab server")
-	return nil, nil
+	return ctrl.Result{Requeue: true}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
