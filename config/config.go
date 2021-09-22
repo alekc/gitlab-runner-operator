@@ -11,7 +11,7 @@ type Config struct {
 	Runners       []*RunnerConfig `toml:"runners" json:"runners"`
 }
 
-//nolint:lll
+// nolint:lll
 type RunnerConfig struct {
 	Name               string `toml:"name" json:"name" short:"name" long:"description" env:"RUNNER_NAME" description:"Runner name"`
 	Limit              int    `toml:"limit,omitzero" json:"limit,omitempty" long:"limit" env:"RUNNER_LIMIT" description:"Maximum number of builds processed by this runner"`

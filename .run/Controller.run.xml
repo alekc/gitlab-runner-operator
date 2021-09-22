@@ -1,9 +1,10 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Controller" type="GoTestRunConfiguration" factoryName="Go Test">
-    <module name="gitlab-runop" />
+    <module name="gitlab-runner-operator" />
     <working_directory value="$PROJECT_DIR$/controllers" />
     <envs>
-      <env name="TEST_TIMEOUT" value="300" />
+      <env name="TEST_TIMEOUT" value="5" />
+      <env name="KUBEBUILDER_ASSETS" value="$PROJECT_DIR$/testbin/bin" />
     </envs>
     <root_directory value="$PROJECT_DIR$" />
     <kind value="PACKAGE" />

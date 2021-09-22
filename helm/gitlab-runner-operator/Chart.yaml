@@ -1,6 +1,0 @@
-apiVersion: v2
-name: gitlab-runner-operator
-description: An operator for gitlab runners
-type: application
-version: 1.0.0
-appVersion: 1.0.0
