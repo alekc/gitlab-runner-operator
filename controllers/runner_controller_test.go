@@ -49,7 +49,8 @@ type testCase struct {
 	CheckCondition func(*v1beta1.Runner) bool
 	CheckRunner    func(*v1beta1.Runner)
 }
-type testTweaks func(*testCase)
+
+type testCaseTweak func(*testCase)
 
 const (
 	interval = time.Millisecond * 250
@@ -71,14 +72,18 @@ var _ = Describe("Runner controller", func() {
 		}
 	}
 
-	//
+	// before every test
 	BeforeEach(func() {
 		var err error
+		// create a runner namespace
 		RunnerNamespace, err = CreateNamespace(k8sClient)
 		Expect(err).ToNot(HaveOccurred())
+
+		// generate a random name for the runner
 		RunnerName = fmt.Sprintf("test-runner-%s", generate.RandomString(5))
 	})
 
+	// after each test perform some cleaning actions
 	AfterEach(func() {
 		// delete the runner
 		Expect(k8sClient.Delete(context.Background(), &v1beta1.Runner{
@@ -98,25 +103,9 @@ var _ = Describe("Runner controller", func() {
 
 	table.DescribeTable(
 		"When reconciling Gitlab Runner",
-		func(tweaks ...testTweaks) {
-			runner := &v1beta1.Runner{
-				TypeMeta: metav1.TypeMeta{
-					APIVersion: v1beta1.GroupVersion.String(),
-					Kind:       "Runner",
-				},
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      RunnerName,
-					Namespace: RunnerNamespace,
-				},
-				Spec: v1beta1.RunnerSpec{
-					RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
-						Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
-						TagList: []string{"default-tag"},
-					},
-				},
-			}
+		func(tweaks ...testCaseTweak) {
 			tc := &testCase{
-				Runner: runner,
+				Runner: defaultRunner(RunnerName, RunnerNamespace),
 				CheckCondition: func(runner *v1beta1.Runner) bool {
 					return runner.UID != ""
 				},
@@ -142,28 +131,11 @@ var _ = Describe("Runner controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			//
-			tc.CheckRunner(runner)
+			tc.CheckRunner(tc.Runner)
 		},
 		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
 	)
 })
-
-func CreateNamespace(c client.Client) (string, error) {
-	ns := &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			GenerateName: "ctrl-test-",
-		},
-	}
-	var err error
-	err = wait.Poll(time.Second, 10*time.Second, func() (bool, error) {
-		err = c.Create(context.Background(), ns)
-		return err == nil, nil
-	})
-	if err != nil {
-		return "", err
-	}
-	return ns.Name, nil
-}
 
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
@@ -296,4 +268,40 @@ func nameSpacedRunnerName(runner *v1beta1.Runner) types.NamespacedName {
 }
 func nameSpacedDependencyName(runner *v1beta1.Runner) types.NamespacedName {
 	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.Namespace}
+}
+func CreateNamespace(c client.Client) (string, error) {
+	ns := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "ctrl-test-",
+		},
+	}
+	var err error
+	err = wait.Poll(time.Second, 10*time.Second, func() (bool, error) {
+		err = c.Create(context.Background(), ns)
+		return err == nil, nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return ns.Name, nil
+}
+
+// defaultRunner returns an instance of gitlab runner with default values
+func defaultRunner(name string, nameSpace string) *v1beta1.Runner {
+	return &v1beta1.Runner{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: v1beta1.GroupVersion.String(),
+			Kind:       "Runner",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: nameSpace,
+		},
+		Spec: v1beta1.RunnerSpec{
+			RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
+				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
+				TagList: []string{"default-tag"},
+			},
+		},
+	}
 }
