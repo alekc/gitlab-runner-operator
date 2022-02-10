@@ -54,11 +54,14 @@ type RunnerStatus struct {
 	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
 	AuthenticationToken string `json:"authentication_token"`
 	ConfigMapVersion    string `json:"config_map_version"`
+
+	// Ready indicates that all runner operation has been completed and final object is ready to serve
+	Ready bool `json:"ready"`
 }
 
 // Runner is the Schema for the runners API
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 type Runner struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -67,7 +70,7 @@ type Runner struct {
 	Status RunnerStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // RunnerList contains a list of Runner
 type RunnerList struct {

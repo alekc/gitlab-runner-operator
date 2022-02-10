@@ -20,6 +20,8 @@ import (
 	"context"
 	coreErrors "errors"
 	"fmt"
+	"gitlab.k8s.alekc.dev/internal/result"
+	"k8s.io/client-go/util/retry"
 	"reflect"
 	"time"
 
@@ -67,39 +69,51 @@ var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: 
 // +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
-func PatchRunnerObj(ctx context.Context, r *RunnerReconciler, runnerObj *gitlabv1beta1.Runner, logger logr.Logger) {
-	err := r.Status().Update(ctx, runnerObj)
-	if err != nil {
-		logger.Error(err, "cannot update status of the runner object")
-	}
-}
-
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("runner_name", req.Name)
+	logger := log.FromContext(ctx)
 
 	// find the object, in case we cannot find it just return.
 	runnerObj := &gitlabv1beta1.Runner{}
 	err := r.Client.Get(ctx, req.NamespacedName, runnerObj)
 	if err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return *result.DontRequeue(), client.IgnoreNotFound(err)
 	}
+
+	logger.Info("reconciling")
+
+	// update the status when done processing in case there is anything pending
+	defer func() {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var newRunner gitlabv1beta1.Runner
+			err = r.Client.Get(
+				ctx,
+				client.ObjectKey{Namespace: runnerObj.Namespace, Name: runnerObj.GetName()},
+				&newRunner)
+			switch {
+			case err != nil:
+				logger.Error(err, "cannot get runner")
+				return err
+
+			// no changes in status detected
+			case reflect.DeepEqual(runnerObj.Status, newRunner.Status):
+				return nil
+			}
+			newRunner.Status = runnerObj.Status
+			return r.Status().Update(ctx, &newRunner)
+		})
+		if err != nil {
+			logger.Error(err, "cannot update runner's status")
+		}
+	}()
 
 	// reset the error. If there is one still present we will get it later on
 	runnerObj.Status.Error = ""
-
-	// update the status when done processing in case there is anything pending
-	defer PatchRunnerObj(ctx, r, runnerObj, logger)
-
-	// create required rbac credentials if they are missing
-	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
-		runnerObj.Status.Error = "Cannot create the rbac objects"
-		return resultRequeueAfterDefaultTimeout, err
-	}
+	runnerObj.Status.Ready = false
 
 	// if the runner doesn't have a saved authentication token
 	// or the latest registration token/tags are different from the
@@ -111,23 +125,23 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
 
+	// create required rbac credentials if they are missing
+	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
+		runnerObj.Status.Error = "Cannot create the rbac objects"
+		logger.Error(err, "cannot create rbac objects")
+		return resultRequeueAfterDefaultTimeout, err
+	}
+
 	// generate a new config map based on the runner spec
 	generatedTomlConfig, configHashKey, err := generate.ConfigText(runnerObj)
 	if err != nil {
 		logger.Error(err, "cannot generate config map")
 		return resultRequeueAfterDefaultTimeout, err
 	}
-	runnerObj.Status.ConfigMapVersion = configHashKey
 
-	// set the status with a config map hash
 	// if the config version differs, perform the upgrade
-	if runnerObj.Status.ConfigMapVersion != configHashKey {
-		logger.Info("a new version of config map detected",
-			"new_version", configHashKey,
-			"old_version", runnerObj.Status.ConfigMapVersion)
-	}
-
-	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig); result != nil || err != nil {
+	// set the status with a config map hash
+	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig, configHashKey); result != nil || err != nil {
 		return *result, err
 	}
 
@@ -136,7 +150,8 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return *result, err
 	}
 
-	return ctrl.Result{}, nil
+	runnerObj.Status.Ready = true
+	return *result.DontRequeue(), nil
 }
 
 func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
@@ -237,7 +252,6 @@ func (r *RunnerReconciler) createRoleBindingIfMissing(ctx context.Context, runne
 }
 
 // CreateRBACIfMissing creates missing rbacs if needed
-// todo: introduce the patching?
 func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
 	if err := r.createSAIfMissing(ctx, runnerObject, log); err != nil {
 		return err
