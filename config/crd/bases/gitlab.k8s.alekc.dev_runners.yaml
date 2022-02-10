@@ -425,12 +425,17 @@ spec:
                 description: LastRegistrationToken is the last token used for a successful
                   authentication
                 type: string
+              ready:
+                description: Ready indicates that all runner operation has been completed
+                  and final object is ready to serve
+                type: boolean
             required:
             - authentication_token
             - config_map_version
             - error
             - last_registration_tags
             - last_registration_token
+            - ready
             type: object
         type: object
     served: true

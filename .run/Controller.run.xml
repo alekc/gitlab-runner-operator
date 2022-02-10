@@ -3,10 +3,9 @@
     <module name="gitlab-runner-operator" />
     <working_directory value="$PROJECT_DIR$/controllers" />
     <envs>
-      <env name="TEST_TIMEOUT" value="5" />
-      <env name="KUBEBUILDER_ASSETS" value="$PROJECT_DIR$/testbin/bin" />
+      <env name="TEST_TIMEOUT" value="35" />
+      <env name="USE_EXISTING_CLUSTER" value="true" />
     </envs>
-    <root_directory value="$PROJECT_DIR$" />
     <kind value="PACKAGE" />
     <package value="gitlab.k8s.alekc.dev/controllers" />
     <directory value="$PROJECT_DIR$" />

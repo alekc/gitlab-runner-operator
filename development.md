@@ -1,11 +1,15 @@
 ## Kind cluster
 
-### Spinning 
+### Spinning  kind cluster
 To spin up a local testing kind cluster (1 master node, 2 workers), you can run 
 
 `kind create cluster --config hack/kind-config.yaml --image=kindest/node:v1.22.0`
 
 You can use --image flag to specify the cluster version you want, e.g. --image=kindest/node:v1.17.2, the supported version are listed [here](https://hub.docker.com/r/kindest/node/tags)
+
+### Removing any left overs
+if you need to remove any leftovers, just run 
+` kubectl get ns -o name | grep ctrl-test  | xargs kubectl delete`
 
 ### Install cert manager
 In order to test our webhook implementation, sadly we need to have a support of cert-manager

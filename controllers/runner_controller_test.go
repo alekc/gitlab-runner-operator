@@ -107,7 +107,7 @@ var _ = Describe("Runner controller", func() {
 			tc := &testCase{
 				Runner: defaultRunner(RunnerName, RunnerNamespace),
 				CheckCondition: func(runner *v1beta1.Runner) bool {
-					return runner.UID != ""
+					return runner.UID != "" && runner.Status.Ready
 				},
 			}
 			for _, tweak := range tweaks {
@@ -119,7 +119,7 @@ var _ = Describe("Runner controller", func() {
 			Expect(Expect(k8sClient.Create(ctx, tc.Runner)).To(Succeed()))
 
 			//
-			esKey := types.NamespacedName{Name: RunnerNamespace, Namespace: RunnerNamespace}
+			esKey := types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}
 			createdRunner := &v1beta1.Runner{}
 			By("checking the runner condition")
 			Eventually(func() bool {
@@ -131,7 +131,7 @@ var _ = Describe("Runner controller", func() {
 			}, timeout, interval).Should(BeTrue())
 
 			//
-			tc.CheckRunner(tc.Runner)
+			tc.CheckRunner(createdRunner)
 		},
 		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
 	)
@@ -140,7 +140,7 @@ var _ = Describe("Runner controller", func() {
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
-		Expect(runner.Status.AuthenticationToken).To(BeEquivalentTo("fc54da1422d38c11f4727c6c32f67738"))
+		Expect(runner.Status.AuthenticationToken).To(BeEquivalentTo("95ef6f888cb2280a3a070186cf55b04f"))
 	}
 }
 

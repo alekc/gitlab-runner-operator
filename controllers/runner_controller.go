@@ -67,20 +67,13 @@ var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: 
 // +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
-func PatchRunnerObj(ctx context.Context, r *RunnerReconciler, runnerObj *gitlabv1beta1.Runner, logger logr.Logger) {
-	err := r.Status().Update(ctx, runnerObj)
-	if err != nil {
-		logger.Error(err, "cannot update status of the runner object")
-	}
-}
-
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	logger := log.FromContext(ctx).WithValues("runner_name", req.Name)
+	logger := log.FromContext(ctx)
 
 	// find the object, in case we cannot find it just return.
 	runnerObj := &gitlabv1beta1.Runner{}
@@ -89,17 +82,22 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
-	// reset the error. If there is one still present we will get it later on
-	runnerObj.Status.Error = ""
+	logger.Info("reconciling")
 
 	// update the status when done processing in case there is anything pending
-	defer PatchRunnerObj(ctx, r, runnerObj, logger)
+	defer func(currentStatus gitlabv1beta1.RunnerStatus) {
+		if reflect.DeepEqual(currentStatus, runnerObj.Status) {
+			return
+		}
+		err := r.Status().Update(ctx, runnerObj)
+		if err != nil {
+			logger.Error(err, "cannot update status of the runner object")
+		}
+	}(runnerObj.Status)
 
-	// create required rbac credentials if they are missing
-	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
-		runnerObj.Status.Error = "Cannot create the rbac objects"
-		return resultRequeueAfterDefaultTimeout, err
-	}
+	// reset the error. If there is one still present we will get it later on
+	runnerObj.Status.Error = ""
+	runnerObj.Status.Ready = false
 
 	// if the runner doesn't have a saved authentication token
 	// or the latest registration token/tags are different from the
@@ -111,6 +109,15 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
 
+	runnerObj.Status.Ready = true
+
+	return ctrl.Result{}, nil
+
+	// create required rbac credentials if they are missing
+	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
+		runnerObj.Status.Error = "Cannot create the rbac objects"
+		return resultRequeueAfterDefaultTimeout, err
+	}
 	// generate a new config map based on the runner spec
 	generatedTomlConfig, configHashKey, err := generate.ConfigText(runnerObj)
 	if err != nil {
@@ -139,6 +146,9 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return ctrl.Result{}, nil
 }
 
+// func xyz(currentStatus gitlabv1beta1.RunnerStatus, runner *gitlabv1beta1.Runner) {
+// 	fmt.prin
+// }
 func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
 	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
