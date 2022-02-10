@@ -82,7 +82,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 			logger.Error(err, "cannot create a deployment", "deploymentName", existingDeployment.Name)
 			return result.RequeueWithDefaultTimeout(), err
 		}
-		return result.DontRequeue(), nil
+		return result.RequeueNow(), nil
 	}
 
 	// deployment exists. Check the configMap annotation
@@ -94,8 +94,8 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 			logger.Error(err, "cannot update deployment")
 			return result.RequeueWithDefaultTimeout(), err
 		}
+		return result.RequeueNow(), nil
 	}
-
 	return nil, nil
 }
 
@@ -129,7 +129,7 @@ func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.R
 			return result.RequeueWithDefaultTimeout(), err
 		}
 		runnerObj.Status.ConfigMapVersion = configHashKey
-		return nil, nil
+		return result.RequeueNow(), nil
 	}
 
 	// configmap exists. Check the value for the config map is different
@@ -144,6 +144,7 @@ func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.R
 			return &ctrl.Result{Requeue: true}, err
 		}
 		runnerObj.Status.ConfigMapVersion = configHashKey
+		return result.RequeueNow(), nil
 	}
 	return nil, nil
 }

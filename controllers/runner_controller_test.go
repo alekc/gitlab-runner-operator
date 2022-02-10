@@ -260,18 +260,30 @@ func caseSpecChanged(tc *testCase) {
 		// update runner spec
 		runner.Spec.Concurrent = 2
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
+
+		var newRunner v1beta1.Runner
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), runner)
-			return err == nil && runner.Status.Ready && runner.Status.ConfigMapVersion != oldConfigMapVersion
+			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), &newRunner)
+			return err == nil && newRunner.Status.Ready && newRunner.Status.ConfigMapVersion != oldConfigMapVersion
 		}, timeout, interval).Should(BeTrue())
 
 		// wait until the configmap is updated and fetch the new version
-		newConfigMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), configMap.ResourceVersion)
-		Expect(configMap.Data[configMapKeyName]).NotTo(BeEquivalentTo(newConfigMap.Data[configMapKeyName]))
+		Eventually(func() bool {
+			var cm corev1.ConfigMap
+			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &cm); err != nil {
+				return false
+			}
+			return configMap.Data[configMapKeyName] != cm.Data[configMapKeyName]
+		}, timeout, interval).Should(BeTrue(), "configmap should have new toml config")
 
-		// // verify that our deployment has been amended with a new version
-		dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
-		Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
+		// verify that our deployment has been amended with a new version
+		Eventually(func() bool {
+			var newDp appsv1.Deployment
+			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &newDp); err != nil {
+				return false
+			}
+			return dp.Annotations[configVersionAnnotationKey] == runner.Status.ConfigMapVersion
+		}, timeout, interval).Should(BeTrue(), "deployment should have a new config map version")
 	}
 }
 
