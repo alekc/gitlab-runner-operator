@@ -134,7 +134,8 @@ var _ = Describe("Runner controller", func() {
 			tc.CheckRunner(createdRunner)
 		},
 		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		table.Entry("Should have created a different registration on registration token update", caseTagsChanged),
+		table.Entry("Should have updated runner status with auth token", caseRegistrationTokenChanged),
 	)
 })
 
@@ -201,6 +202,26 @@ func caseTagsChanged(tc *testCase) {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
 			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
 		}, timeout, interval).Should(BeTrue())
+	}
+}
+
+// caseRegistrationTokenChanged deals with scenario where we change our registration token
+func caseRegistrationTokenChanged(tc *testCase) {
+	ctx := context.Background()
+	tc.CheckRunner = func(runner *v1beta1.Runner) {
+		oldAuth := runner.Status.AuthenticationToken
+
+		// update tags
+		runner.Spec.RegistrationConfig.Token = pointer.StringPtr("new reg token")
+		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
+
+		// runner should get a new hash version
+		newRunner := &v1beta1.Runner{}
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
+			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+		}, timeout, interval).Should(BeTrue())
+		Expect(newRunner.Status.LastRegistrationToken).To(Equal(*runner.Spec.RegistrationConfig.Token))
 	}
 }
 
