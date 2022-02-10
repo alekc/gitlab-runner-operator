@@ -138,6 +138,7 @@ var _ = Describe("Runner controller", func() {
 		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
 		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
 		table.Entry("Should have created required RBAC", caseRBACCheck),
+		table.Entry("Should have generated config map", caseGeneratedConfigMap),
 	)
 })
 
@@ -175,14 +176,10 @@ func caseTestAuthToken(tc *testCase) {
 }
 
 func caseGeneratedConfigMap(tc *testCase) {
-	var configMap corev1.ConfigMap
 	ctx := context.Background()
 
-	tc.CheckCondition = func(runner *v1beta1.Runner) bool {
-		return runner.Status.ConfigMapVersion != ""
-	}
-
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
+		var configMap corev1.ConfigMap
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &configMap) == nil
 		}, timeout, interval).Should(BeTrue())
@@ -190,10 +187,7 @@ func caseGeneratedConfigMap(tc *testCase) {
 		Expect(configMap.OwnerReferences).NotTo(BeEmpty())
 		Expect(configMap.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 		Expect(configMap.Data).Should(HaveKey(configMapKeyName), "Child config map should have %s data entry", configMapKeyName)
-		Expect(runner.Status.ConfigMapVersion).Should(
-			BeEquivalentTo(configMap.Annotations[configVersionAnnotationKey]),
-			"runner.Status.ConfigMapVersion should report the same version as configmap",
-		)
+		Expect(runner.Status.ConfigMapVersion).Should(Not(BeEmpty()))
 	}
 }
 

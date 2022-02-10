@@ -112,11 +112,9 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// create required rbac credentials if they are missing
 	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
 		runnerObj.Status.Error = "Cannot create the rbac objects"
+		logger.Error(err, "cannot create rbac objects")
 		return resultRequeueAfterDefaultTimeout, err
 	}
-
-	runnerObj.Status.Ready = true
-	return ctrl.Result{}, nil
 
 	// generate a new config map based on the runner spec
 	generatedTomlConfig, configHashKey, err := generate.ConfigText(runnerObj)
@@ -124,19 +122,15 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		logger.Error(err, "cannot generate config map")
 		return resultRequeueAfterDefaultTimeout, err
 	}
-	runnerObj.Status.ConfigMapVersion = configHashKey
 
-	// set the status with a config map hash
 	// if the config version differs, perform the upgrade
-	if runnerObj.Status.ConfigMapVersion != configHashKey {
-		logger.Info("a new version of config map detected",
-			"new_version", configHashKey,
-			"old_version", runnerObj.Status.ConfigMapVersion)
-	}
-
-	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig); result != nil || err != nil {
+	// set the status with a config map hash
+	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig, configHashKey); result != nil || err != nil {
 		return *result, err
 	}
+
+	runnerObj.Status.Ready = true
+	return ctrl.Result{}, nil
 
 	// validate deployment data
 	if result, err := validate.Deployment(ctx, r.Client, runnerObj, logger); result != nil || err != nil {
@@ -247,7 +241,6 @@ func (r *RunnerReconciler) createRoleBindingIfMissing(ctx context.Context, runne
 }
 
 // CreateRBACIfMissing creates missing rbacs if needed
-// todo: introduce the patching?
 func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
 	if err := r.createSAIfMissing(ctx, runnerObject, log); err != nil {
 		return err

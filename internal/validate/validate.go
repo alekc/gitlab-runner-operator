@@ -52,8 +52,8 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 					Containers: []corev1.Container{{
 						Name:            "runner",
 						Image:           "gitlab/gitlab-runner:alpine-v14.0.1",
-						Resources:       corev1.ResourceRequirements{}, //todo:
-						ImagePullPolicy: "IfNotPresent",                //todo
+						Resources:       corev1.ResourceRequirements{}, // todo:
+						ImagePullPolicy: "IfNotPresent",                // todo
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "config",
 							MountPath: "/etc/gitlab-runner/",
@@ -99,49 +99,48 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 	return nil, nil
 }
 
-func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.Runner, logger logr.Logger, gitlabRunnerTomlConfig string) (*ctrl.Result, error) {
+func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.Runner, logger logr.Logger, gitlabRunnerTomlConfig string, configHashKey string) (*ctrl.Result, error) {
+	// fetch current config map
 	var configMap corev1.ConfigMap
-	// fetch all config maps who are registered to the runner as owner
 	err := cl.Get(ctx, client.ObjectKey{
 		Namespace: runnerObj.Namespace,
 		Name:      runnerObj.ChildName(),
 	}, &configMap)
 
-	// create config map (or report an error)
-	if err != nil {
-		if !errors.IsNotFound(err) {
-			logger.Error(err, "could not obtain the config map")
-			return result.RequeueWithDefaultTimeout(), err
-		}
+	// create config map if it doesn't exist (or report an error)
+	if err != nil && !errors.IsNotFound(err) {
+		logger.Error(err, "got an error while fetching config map")
+		return result.RequeueWithDefaultTimeout(), err
+	}
+
+	if err != nil && errors.IsNotFound(err) {
 		// configmap doesn't exist, create it and requeue
 		configMap = corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            runnerObj.ChildName(),
 				Namespace:       runnerObj.Namespace,
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
-				Annotations:     map[string]string{types.ConfigVersionAnnotationKey: runnerObj.Status.ConfigMapVersion},
 			},
 			Data: map[string]string{types.ConfigMapKeyName: gitlabRunnerTomlConfig},
 		}
 		if err = cl.Create(ctx, &configMap); err != nil {
+			runnerObj.Status.Error = "cannot create config map"
 			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
 			return result.RequeueWithDefaultTimeout(), err
 		}
+		runnerObj.Status.ConfigMapVersion = configHashKey
 		return nil, nil
 	}
 
 	// configmap exists. Check the value for the config map is different
-	if configMap.Data[types.ConfigMapKeyName] != gitlabRunnerTomlConfig || configMap.
-		Annotations[types.ConfigVersionAnnotationKey] != runnerObj.Status.ConfigMapVersion {
+	if configMap.Data[types.ConfigMapKeyName] != gitlabRunnerTomlConfig {
 		logger.Info("config map object has old config, needs updating", "configMapName", configMap.Name)
 		newObj := configMap.DeepCopy()
 		newObj.Data[types.ConfigMapKeyName] = gitlabRunnerTomlConfig
-		newObj.Annotations[types.ConfigVersionAnnotationKey] = runnerObj.Status.ConfigMapVersion
 		if err = cl.Update(ctx, newObj); err != nil {
-			logger.Error(
-				err,
-				"cannot update config map with the new configuration",
-				"config_map_name", configMap.Name)
+			const errMsg = "cannot update config map with the new configuration"
+			runnerObj.Status.Error = errMsg
+			logger.Error(err, errMsg)
 			return &ctrl.Result{Requeue: true}, err
 		}
 	}
