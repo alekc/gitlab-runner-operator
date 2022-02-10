@@ -24,6 +24,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	v1 "k8s.io/api/rbac/v1"
 	"os"
 	"strconv"
 	"time"
@@ -134,10 +135,37 @@ var _ = Describe("Runner controller", func() {
 			tc.CheckRunner(createdRunner)
 		},
 		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		table.Entry("Should have created a different registration on registration token update", caseTagsChanged),
-		table.Entry("Should have updated runner status with auth token", caseRegistrationTokenChanged),
+		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
+		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		table.Entry("Should have created required RBAC", caseRBACCheck),
 	)
 })
+
+func caseRBACCheck(tc *testCase) {
+	tc.CheckRunner = func(runner *v1beta1.Runner) {
+		ctx := context.TODO()
+
+		// service  account should be created
+		var sa corev1.ServiceAccount
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &sa)
+			return err == nil
+		}, timeout, interval).Should(BeTrue())
+
+		// fetch created role
+		var role v1.Role
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &role)
+			return err == nil
+		}, timeout, interval).Should(BeTrue())
+
+		var roleBinding v1.RoleBinding
+		Eventually(func() bool {
+			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &roleBinding)
+			return err == nil
+		}, timeout, interval).Should(BeTrue())
+	}
+}
 
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta1.Runner) {

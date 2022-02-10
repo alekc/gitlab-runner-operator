@@ -109,14 +109,15 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
 
-	runnerObj.Status.Ready = true
-	return ctrl.Result{}, nil
-
 	// create required rbac credentials if they are missing
 	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
 		runnerObj.Status.Error = "Cannot create the rbac objects"
 		return resultRequeueAfterDefaultTimeout, err
 	}
+
+	runnerObj.Status.Ready = true
+	return ctrl.Result{}, nil
+
 	// generate a new config map based on the runner spec
 	generatedTomlConfig, configHashKey, err := generate.ConfigText(runnerObj)
 	if err != nil {
