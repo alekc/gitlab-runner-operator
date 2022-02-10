@@ -134,11 +134,12 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
-		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
-		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
-		table.Entry("Should have created required RBAC", caseRBACCheck),
-		table.Entry("Should have generated config map", caseGeneratedConfigMap),
+		// table.Entry("Should have created a different registration on tag update", caseTagsChanged),
+		// table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
+		// table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		// table.Entry("Should have created required RBAC", caseRBACCheck),
+		// table.Entry("Should have generated config map", caseGeneratedConfigMap),
+		table.Entry("On spec change, config map should be updated", caseSpecChanged),
 	)
 })
 
@@ -168,6 +169,7 @@ func caseRBACCheck(tc *testCase) {
 	}
 }
 
+// caseTestAuthToken checks if our runner gets registration form gitlab server
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
@@ -175,6 +177,7 @@ func caseTestAuthToken(tc *testCase) {
 	}
 }
 
+// caseGeneratedConfigMap checks if a new config map is generated
 func caseGeneratedConfigMap(tc *testCase) {
 	ctx := context.Background()
 
@@ -251,25 +254,24 @@ func caseSpecChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
 		oldConfigMapVersion := runner.Status.ConfigMapVersion
-		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
+		// dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
 		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
 
 		// update runner spec
 		runner.Spec.Concurrent = 2
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner),
-				runner)
-			return err == nil && runner.Status.ConfigMapVersion != oldConfigMapVersion
+			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), runner)
+			return err == nil && runner.Status.Ready && runner.Status.ConfigMapVersion != oldConfigMapVersion
 		}, timeout, interval).Should(BeTrue())
 
 		// wait until the configmap is updated and fetch the new version
-		configMap = getChangedConfigMap(ctx, nameSpacedDependencyName(runner), configMap.ResourceVersion)
-		Expect(configMap.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
+		newConfigMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), configMap.ResourceVersion)
+		Expect(configMap.Data[configMapKeyName]).NotTo(BeEquivalentTo(newConfigMap.Data[configMapKeyName]))
 
-		// verify that our deployment has been amended with a new version
-		dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
-		Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
+		// // verify that our deployment has been amended with a new version
+		// dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
+		// Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
 	}
 }
 
