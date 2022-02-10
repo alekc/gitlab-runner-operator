@@ -134,11 +134,12 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
-		// table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		// table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
-		// table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
-		// table.Entry("Should have created required RBAC", caseRBACCheck),
-		// table.Entry("Should have generated config map", caseGeneratedConfigMap),
+		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
+		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
+		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		table.Entry("Should have created required RBAC", caseRBACCheck),
+		table.Entry("Should have generated config map", caseGeneratedConfigMap),
+		table.Entry("Should have generated deployment", caseCheckDeployment),
 		table.Entry("On spec change, config map should be updated", caseSpecChanged),
 	)
 })
@@ -202,12 +203,11 @@ func caseCheckDeployment(tc *testCase) {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
 		}, timeout, interval).Should(BeTrue())
 
+		//
 		Expect(deployment.OwnerReferences).NotTo(BeEmpty())
 		Expect(deployment.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 		Expect(deployment.Annotations).To(HaveKey(configVersionAnnotationKey))
 		Expect(deployment.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
-
-		// todo: verify number of running pods
 	}
 }
 
@@ -254,7 +254,7 @@ func caseSpecChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
 		oldConfigMapVersion := runner.Status.ConfigMapVersion
-		// dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
+		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
 		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
 
 		// update runner spec
@@ -270,8 +270,8 @@ func caseSpecChanged(tc *testCase) {
 		Expect(configMap.Data[configMapKeyName]).NotTo(BeEquivalentTo(newConfigMap.Data[configMapKeyName]))
 
 		// // verify that our deployment has been amended with a new version
-		// dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
-		// Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
+		dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
+		Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
 	}
 }
 

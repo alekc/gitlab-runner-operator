@@ -143,6 +143,7 @@ func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.R
 			logger.Error(err, errMsg)
 			return &ctrl.Result{Requeue: true}, err
 		}
+		runnerObj.Status.ConfigMapVersion = configHashKey
 	}
 	return nil, nil
 }

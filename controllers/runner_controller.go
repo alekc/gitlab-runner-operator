@@ -20,6 +20,7 @@ import (
 	"context"
 	coreErrors "errors"
 	"fmt"
+	"k8s.io/client-go/util/retry"
 	"reflect"
 	"time"
 
@@ -85,15 +86,29 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	logger.Info("reconciling")
 
 	// update the status when done processing in case there is anything pending
-	defer func(currentStatus gitlabv1beta1.RunnerStatus) {
-		if reflect.DeepEqual(currentStatus, runnerObj.Status) {
-			return
-		}
-		err := r.Status().Update(ctx, runnerObj)
+	defer func() {
+		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+			var newRunner gitlabv1beta1.Runner
+			err = r.Client.Get(
+				ctx,
+				client.ObjectKey{Namespace: runnerObj.Namespace, Name: runnerObj.GetName()},
+				&newRunner)
+			switch {
+			case err != nil:
+				logger.Error(err, "cannot get runner")
+				return err
+
+			// no changes in status detected
+			case reflect.DeepEqual(runnerObj.Status, newRunner.Status):
+				return nil
+			}
+			newRunner.Status = runnerObj.Status
+			return r.Status().Update(ctx, &newRunner)
+		})
 		if err != nil {
-			logger.Error(err, "cannot update status of the runner object")
+			logger.Error(err, "cannot update runner's status")
 		}
-	}(runnerObj.Status)
+	}()
 
 	// reset the error. If there is one still present we will get it later on
 	runnerObj.Status.Error = ""
@@ -129,14 +144,12 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return *result, err
 	}
 
-	runnerObj.Status.Ready = true
-	return ctrl.Result{}, nil
-
 	// validate deployment data
 	if result, err := validate.Deployment(ctx, r.Client, runnerObj, logger); result != nil || err != nil {
 		return *result, err
 	}
 
+	runnerObj.Status.Ready = true
 	return ctrl.Result{}, nil
 }
 
