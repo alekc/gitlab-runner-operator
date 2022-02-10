@@ -20,6 +20,7 @@ import (
 	"context"
 	coreErrors "errors"
 	"fmt"
+	"gitlab.k8s.alekc.dev/internal/result"
 	"k8s.io/client-go/util/retry"
 	"reflect"
 	"time"
@@ -80,7 +81,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	runnerObj := &gitlabv1beta1.Runner{}
 	err := r.Client.Get(ctx, req.NamespacedName, runnerObj)
 	if err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		return *result.DontRequeue(), client.IgnoreNotFound(err)
 	}
 
 	logger.Info("reconciling")
@@ -150,12 +151,9 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	runnerObj.Status.Ready = true
-	return ctrl.Result{}, nil
+	return *result.DontRequeue(), nil
 }
 
-// func xyz(currentStatus gitlabv1beta1.RunnerStatus, runner *gitlabv1beta1.Runner) {
-// 	fmt.prin
-// }
 func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
 	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
