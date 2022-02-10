@@ -110,7 +110,6 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	runnerObj.Status.Ready = true
-
 	return ctrl.Result{}, nil
 
 	// create required rbac credentials if they are missing

@@ -133,6 +133,7 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
+		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
 		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
 	)
 })
@@ -184,12 +185,11 @@ func caseCheckDeployment(tc *testCase) {
 	}
 }
 
+// caseTagsChanged deals with situation when we change tags for an existing runner
 func caseTagsChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta1.Runner) {
-		oldConfigMapVersion := runner.Status.ConfigMapVersion
-		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
-		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
+		oldAuth := runner.Status.AuthenticationToken
 
 		// update tags
 		runner.Spec.RegistrationConfig.TagList = []string{"new", "tag", "list"}
@@ -198,17 +198,9 @@ func caseTagsChanged(tc *testCase) {
 		// runner should get a new hash version
 		newRunner := &v1beta1.Runner{}
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedRunnerName(newRunner), newRunner)
-			return err == nil && newRunner.Status.ConfigMapVersion != oldConfigMapVersion
+			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
+			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
 		}, timeout, interval).Should(BeTrue())
-
-		// wait until the configmap is updated and fetch the new version
-		configMap = getChangedConfigMap(ctx, nameSpacedDependencyName(runner), configMap.ResourceVersion)
-		Expect(configMap.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(newRunner.Status.ConfigMapVersion))
-
-		// verify that our deployment has been amended with a new version
-		dp = getChangedDeployment(ctx, nameSpacedDependencyName(runner), dp.ResourceVersion)
-		Expect(dp.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(newRunner.Status.ConfigMapVersion))
 	}
 }
 
