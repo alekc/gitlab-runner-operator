@@ -6,10 +6,7 @@ ARG TARGETPLATFORM
 
 WORKDIR /
 
-RUN --mount=target=/build ls -la
 RUN --mount=target=/build tar xf /build/dist/gitlab-runner-operator_*_$(echo ${TARGETPLATFORM} | tr '/' '_' | sed -e 's/arm_/arm/').tar.gz
-RUN ls -la
-RUN --mount=target=/build ls -la
 RUN cp operator /usr/bin/operator
 
 FROM gcr.io/distroless/static:nonroot
