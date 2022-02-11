@@ -42,7 +42,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
-          IMAGE_TAG: dev-$${{ github.ref_name }}
+          IMAGE_TAG: dev-${{ github.head_ref }}
       - name: test
         run: |
           docker images
