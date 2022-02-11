@@ -56,9 +56,9 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg VERSION=${{ steps.ref_slug.outputs.github-ref-name }} \
+            --build-arg VERSION=pr-${GITHUB_REF_SLUG//-merge/} \
             --push \
-            -t ${DOCKER_REPO}:${{ steps.ref_slug.outputs.github-ref-name }} .
+            -t ${DOCKER_REPO}:pr-${GITHUB_REF_SLUG//-merge/} .
 ##            .
 #          docker buildx build \
 #            --platform linux/amd64,linux/arm64 \
