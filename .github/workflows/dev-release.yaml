@@ -36,7 +36,7 @@ jobs:
           version: latest
           args: release --rm-dist --timeout=1h
         env:
-          VERSION: ${{ env.tag_name }}
+          VERSION: ${{  steps.ref_slug.outputs.github-ref-name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: set up buildx
@@ -50,15 +50,16 @@ jobs:
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-#      - name: build (and publish) main image
-#        env:
-#          DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gitlab-runner-operator
-#        run: |
-#          docker buildx build \
-#            --platform linux/amd64,linux/arm64 \
-#            --build-arg VERSION=${{ steps.prepare.outputs.tag_name }} \
-#            -t ${DOCKER_REPO}:${{ steps.prepare.outputs.tag_name }} \
-#            -f dockerfiles/endpoints-operator/Dockerfile
+      - name: build (and publish) main image
+        env:
+          DOCKER_REPO: ghcr.io/${{ github.repository_owner }}/gitlab-runner-operator
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg VERSION=${{ steps.ref_slug.outputs.github-ref-name }} \
+            --push \
+            -t ${DOCKER_REPO}:${{ steps.ref_slug.outputs.github-ref-name }} \
+            -f dockerfiles/endpoints-operator/Dockerfile
 ##            .
 #          docker buildx build \
 #            --platform linux/amd64,linux/arm64 \
