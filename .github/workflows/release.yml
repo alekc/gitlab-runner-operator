@@ -43,7 +43,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GPG_FINGERPRINT: ${{ steps.import_gpg.outputs.fingerprint }}
       - name: test
-        run: docker images
+        run: |
+          docker images
+          env
 #      - name: Upload assets
 #        uses: actions/upload-artifact@v2
 #        with:
