@@ -1,7 +1,7 @@
 # Use distroless as minimal base image to package the manager binary
 # Refer to https://github.com/GoogleContainerTools/distroless for more details
 
-FROM gcr.io/distroless/static:nonroot
+FROM alpine as builder
 ARG TARGETPLATFORM
 
 WORKDIR /
@@ -12,6 +12,8 @@ RUN ls -la
 RUN --mount=target=/build ls -la
 RUN cp operator /usr/bin/operator
 
+FROM gcr.io/distroless/static:nonroot
+COPY --from=builder /usr/bin/operator .
 USER 65532:65532
 
 ENTRYPOINT ["/usr/bin/operator"]
