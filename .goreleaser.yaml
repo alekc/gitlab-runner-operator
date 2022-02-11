@@ -8,7 +8,7 @@ builds:
       - amd64
       - arm64
 dockers:
-  - image_templates: ["ghcr.io/alekc/gitlab-runner-operator:{{ .ENV.IMAGE_TAG }}-amd64"]
+  - image_templates: ["ghcr.io/alekc/gitlab-runner-operator-amd64"]
     dockerfile: Dockerfile
     use: buildx
     build_flag_templates:
@@ -21,7 +21,7 @@ dockers:
       - --label=org.opencontainers.image.created={{ time "2006-01-02T15:04:05Z07:00" }}
       - --label=org.opencontainers.image.revision={{ .FullCommit }}
       - --label=org.opencontainers.image.licenses=Mozilla Public License Version 2.0
-  - image_templates: [ "ghcr.io/alekc/gitlab-runner-operator:{{ .ENV.IMAGE_TAG }}-arm64" ]
+  - image_templates: [ "ghcr.io/alekc/gitlab-runner-operator-arm64" ]
     dockerfile: Dockerfile
     goarch: arm64
     use: buildx
@@ -38,5 +38,5 @@ dockers:
 docker_manifests:
   - name_template: ghcr.io/alekc/gitlab-runner-operator:{{ .Version }}
     image_templates:
-      - "ghcr.io/alekc/gitlab-runner-operator:{{ .ENV.IMAGE_TAG }}-amd64"
-      - "ghcr.io/alekc/gitlab-runner-operator:{{ .ENV.IMAGE_TAG }}-arm64"
+      - "ghcr.io/alekc/gitlab-runner-operator-amd64"
+      - "ghcr.io/alekc/gitlab-runner-operator-arm64"
