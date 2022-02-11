@@ -5,7 +5,10 @@ FROM gcr.io/distroless/static:nonroot
 ARG TARGETPLATFORM
 
 WORKDIR /
-RUN --mount=target=/build tar xf /build/dist/gitlab-runner-operator_*_$(echo ${TARGETPLATFORM} | tr '/' '_' | sed -e 's/arm_/arm/').tar.gz && cp operator /usr/bin/operator
+RUN ls -la /home/runner/work/gitlab-runner-operator/gitlab-runner-operator/dist/
+RUN ls -la /home/runner/work/gitlab-runner-operator/gitlab-runner-operator/dist/gitlab-runner-operator_linux_${TARGETPLATFORM}/
+ADD /home/runner/work/gitlab-runner-operator/gitlab-runner-operator/dist/gitlab-runner-operator_linux_${TARGETPLATFORM}/operator /usr/bin/
+#RUN --mount=target=/build tar xf /build/dist/gitlab-runner-operator_*_$(echo ${TARGETPLATFORM} | tr '/' '_' | sed -e 's/arm_/arm/').tar.gz && cp operator /usr/bin/operator
 
 USER 65532:65532
 
