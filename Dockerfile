@@ -10,7 +10,7 @@ RUN --mount=target=/build tar xf /build/dist/gitlab-runner-operator_*_$(echo ${T
 RUN cp operator /usr/bin/operator
 
 FROM gcr.io/distroless/static:nonroot
-COPY --from=builder /usr/bin/operator .
+COPY --from=builder /usr/bin/operator /usr/bin/operator
 USER 65532:65532
 
 ENTRYPOINT ["/usr/bin/operator"]
