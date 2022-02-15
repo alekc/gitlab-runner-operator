@@ -56,9 +56,9 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
-            --build-arg VERSION=pr-${GITHUB_REF_SLUG} \
+            --build-arg VERSION=${GITHUB_REF_SLUG} \
             --push \
-            -t ${DOCKER_REPO}:pr-${GITHUB_REF_SLUG} .
+            -t ${DOCKER_REPO}:${GITHUB_REF_SLUG} .
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             --build-arg VERSION=latest \
