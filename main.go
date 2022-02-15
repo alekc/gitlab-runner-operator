@@ -130,7 +130,7 @@ func injectTLS() error {
 		setupLog.Error(err, "could not create folder for certs")
 		return err
 	}
-	certBytes, keyBytes, err := certutil.GenerateSelfSignedCertKey(host, nil, nil)
+	certBytes, keyBytes, err := certutil.GenerateSelfSignedCertKey(host, nil, []string{"gitlab-runner-operator-webhook-service"})
 	if err != nil {
 		setupLog.Error(err, "could not generate sign key")
 		return err
