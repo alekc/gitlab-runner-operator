@@ -36,6 +36,7 @@ jobs:
           version: latest
           args: release --rm-dist --timeout=1h
         env:
+          VERSION: ${{  steps.ref_slug.outputs.github-ref-name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: set up buildx
