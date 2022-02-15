@@ -66,7 +66,7 @@ var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: 
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups="core",resources=configmaps;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -200,7 +200,7 @@ func (r *RunnerReconciler) createRoleIfMissing(ctx context.Context, runnerObject
 			OwnerReferences: runnerObject.GenerateOwnerReference(),
 		},
 		Rules: []v1.PolicyRule{{
-			Verbs:     []string{"get", "list", "watch", "create", "patch", "delete"},
+			Verbs:     []string{"get", "list", "watch", "create", "patch", "delete", "update"},
 			APIGroups: []string{"*"},
 			Resources: []string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"},
 		}},
