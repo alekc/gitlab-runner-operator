@@ -130,6 +130,11 @@ func injectTLS() error {
 		setupLog.Error(err, "cannot write tls.crt")
 		return err
 	}
+	err = os.MkdirAll(certPath, 0755)
+	if err != nil {
+		setupLog.Error(err, "could not create folder for certs")
+		return err
+	}
 	if err := os.WriteFile(certPath+"/tls.crt", certBytes, 0644); err != nil {
 		setupLog.Error(err, "cannot write tls.key")
 		return err
