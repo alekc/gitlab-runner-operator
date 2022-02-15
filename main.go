@@ -126,11 +126,11 @@ func injectTLS() error {
 		setupLog.Error(err, "Failed to retrieve hostname for self-signed cert")
 	}
 	certBytes, keyBytes, err := certutil.GenerateSelfSignedCertKey(host, nil, nil)
-	if err := os.WriteFile(certPath+"/tls.key", certBytes, 0644); err != nil {
+	if err := os.WriteFile(certPath+"/tls.key", keyBytes, 0644); err != nil {
 		setupLog.Error(err, "cannot write tls.crt")
 		return err
 	}
-	if err := os.WriteFile(certPath+"/tls.crt", keyBytes, 0644); err != nil {
+	if err := os.WriteFile(certPath+"/tls.crt", certBytes, 0644); err != nil {
 		setupLog.Error(err, "cannot write tls.key")
 		return err
 	}
