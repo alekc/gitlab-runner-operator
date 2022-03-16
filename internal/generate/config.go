@@ -32,6 +32,7 @@ func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey strin
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
 		Concurrent:    int(math.Max(1, float64(runnerObject.Spec.Concurrent))),
+		CheckInterval: int(math.Max(3, float64(runnerObject.Spec.CheckInterval))),
 		LogLevel:      runnerObject.Spec.LogLevel,
 		Runners:       []*config.RunnerConfig{runnerConfig},
 	}

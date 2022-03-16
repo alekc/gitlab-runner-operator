@@ -36,6 +36,9 @@ spec:
           spec:
             description: RunnerSpec defines the desired state of Runner
             properties:
+              check_interval:
+                minimum: 3
+                type: integer
               concurrent:
                 minimum: 1
                 type: integer
@@ -402,6 +405,7 @@ spec:
                     type: string
                 type: object
             required:
+            - check_interval
             - registration_config
             type: object
           status:
