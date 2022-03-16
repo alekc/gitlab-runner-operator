@@ -37,7 +37,12 @@ type RunnerSpec struct {
 	LogLevel string `json:"log_level,omitempty"`
 
 	// +kubebuilder:validation:Minimum=1
-	Concurrent     int              `json:"concurrent,omitempty"`
+	Concurrent int `json:"concurrent,omitempty"`
+
+	// +kubebuilder:validation:Minimum=3
+	// +kubebuilder:default:3
+	CheckInterval int `json:"check_interval"`
+
 	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
 }
 
