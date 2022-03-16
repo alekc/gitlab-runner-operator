@@ -84,9 +84,12 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "Runner")
 		os.Exit(1)
 	}
-	if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
-		os.Exit(1)
+	// disable webhooks if needed
+	if os.Getenv("DISABLE_WEBHOOK") == "" {
+		if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
