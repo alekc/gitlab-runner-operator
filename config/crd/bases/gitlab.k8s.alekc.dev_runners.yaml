@@ -950,14 +950,6 @@ spec:
                     - pvc
                     - secret
                     type: object
-                required:
-                - bearer_token_overwrite_allowed
-                - host
-                - image
-                - namespace
-                - namespace_overwrite_allowed
-                - pod_annotations_overwrite_allowed
-                - service_account_overwrite_allowed
                 type: object
               gitlab_instance_url:
                 type: string
