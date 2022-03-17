@@ -64,10 +64,6 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_fields:
@@ -81,15 +77,8 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
-                                  required:
-                                  - match_expressions
-                                  - match_fields
                                   type: object
                                 weight:
                                   format: int32
@@ -115,10 +104,6 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_fields:
@@ -132,23 +117,13 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
-                                  required:
-                                  - match_expressions
-                                  - match_fields
                                   type: object
                                 type: array
                             required:
                             - node_selector_terms
                             type: object
-                        required:
-                        - preferred_during_scheduling_ignored_during_execution
-                        - required_during_scheduling_ignored_during_execution
                         type: object
                       pod_affinity:
                         properties:
@@ -170,19 +145,12 @@ spec:
                                                 items:
                                                   type: string
                                                 type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            - values
                                             type: object
                                           type: array
                                         match_labels:
                                           additionalProperties:
                                             type: string
                                           type: object
-                                      required:
-                                      - match_expressions
-                                      - match_labels
                                       type: object
                                     namespace_selector:
                                       properties:
@@ -197,19 +165,12 @@ spec:
                                                 items:
                                                   type: string
                                                 type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            - values
                                             type: object
                                           type: array
                                         match_labels:
                                           additionalProperties:
                                             type: string
                                           type: object
-                                      required:
-                                      - match_expressions
-                                      - match_labels
                                       type: object
                                     namespaces:
                                       items:
@@ -217,11 +178,6 @@ spec:
                                       type: array
                                     topology_key:
                                       type: string
-                                  required:
-                                  - label_selector
-                                  - namespace_selector
-                                  - namespaces
-                                  - topology_key
                                   type: object
                                 weight:
                                   format: int32
@@ -247,19 +203,12 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_labels:
                                       additionalProperties:
                                         type: string
                                       type: object
-                                  required:
-                                  - match_expressions
-                                  - match_labels
                                   type: object
                                 namespace_selector:
                                   properties:
@@ -274,19 +223,12 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_labels:
                                       additionalProperties:
                                         type: string
                                       type: object
-                                  required:
-                                  - match_expressions
-                                  - match_labels
                                   type: object
                                 namespaces:
                                   items:
@@ -294,16 +236,8 @@ spec:
                                   type: array
                                 topology_key:
                                   type: string
-                              required:
-                              - label_selector
-                              - namespace_selector
-                              - namespaces
-                              - topology_key
                               type: object
                             type: array
-                        required:
-                        - preferred_during_scheduling_ignored_during_execution
-                        - required_during_scheduling_ignored_during_execution
                         type: object
                       pod_anti_affinity:
                         properties:
@@ -325,19 +259,12 @@ spec:
                                                 items:
                                                   type: string
                                                 type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            - values
                                             type: object
                                           type: array
                                         match_labels:
                                           additionalProperties:
                                             type: string
                                           type: object
-                                      required:
-                                      - match_expressions
-                                      - match_labels
                                       type: object
                                     namespace_selector:
                                       properties:
@@ -352,19 +279,12 @@ spec:
                                                 items:
                                                   type: string
                                                 type: array
-                                            required:
-                                            - key
-                                            - operator
-                                            - values
                                             type: object
                                           type: array
                                         match_labels:
                                           additionalProperties:
                                             type: string
                                           type: object
-                                      required:
-                                      - match_expressions
-                                      - match_labels
                                       type: object
                                     namespaces:
                                       items:
@@ -372,11 +292,6 @@ spec:
                                       type: array
                                     topology_key:
                                       type: string
-                                  required:
-                                  - label_selector
-                                  - namespace_selector
-                                  - namespaces
-                                  - topology_key
                                   type: object
                                 weight:
                                   format: int32
@@ -402,19 +317,12 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_labels:
                                       additionalProperties:
                                         type: string
                                       type: object
-                                  required:
-                                  - match_expressions
-                                  - match_labels
                                   type: object
                                 namespace_selector:
                                   properties:
@@ -429,19 +337,12 @@ spec:
                                             items:
                                               type: string
                                             type: array
-                                        required:
-                                        - key
-                                        - operator
-                                        - values
                                         type: object
                                       type: array
                                     match_labels:
                                       additionalProperties:
                                         type: string
                                       type: object
-                                  required:
-                                  - match_expressions
-                                  - match_labels
                                   type: object
                                 namespaces:
                                   items:
@@ -449,21 +350,9 @@ spec:
                                   type: array
                                 topology_key:
                                   type: string
-                              required:
-                              - label_selector
-                              - namespace_selector
-                              - namespaces
-                              - topology_key
                               type: object
                             type: array
-                        required:
-                        - preferred_during_scheduling_ignored_during_execution
-                        - required_during_scheduling_ignored_during_execution
                         type: object
-                    required:
-                    - node_affinity
-                    - pod_affinity
-                    - pod_anti_affinity
                     type: object
                   allow_privilege_escalation:
                     type: boolean
@@ -676,6 +565,10 @@ spec:
                         items:
                           type: string
                         type: array
+                    required:
+                    - nameservers
+                    - options
+                    - searches
                     type: object
                   dns_policy:
                     type: string
@@ -826,8 +719,6 @@ spec:
                           format: int64
                           type: integer
                         type: array
-                    required:
-                    - fs_group
                     type: object
                   pod_termination_grace_period_seconds:
                     format: int64
@@ -1060,79 +951,13 @@ spec:
                     - secret
                     type: object
                 required:
-                - affinity
-                - allow_privilege_escalation
-                - allowed_images
-                - allowed_services
-                - bearer_token
                 - bearer_token_overwrite_allowed
-                - ca_file
-                - cap_add
-                - cap_drop
-                - cert_file
-                - cleanup_grace_period_seconds
-                - cpu_limit
-                - cpu_limit_overwrite_max_allowed
-                - cpu_request
-                - cpu_request_overwrite_max_allowed
-                - dns_config
-                - dns_policy
-                - ephemeral_storage_limit
-                - ephemeral_storage_limit_overwrite_max_allowed
-                - ephemeral_storage_request
-                - ephemeral_storage_request_overwrite_max_allowed
-                - helper_cpu_limit
-                - helper_cpu_limit_overwrite_max_allowed
-                - helper_cpu_request
-                - helper_cpu_request_overwrite_max_allowed
-                - helper_ephemeral_storage_limit
-                - helper_ephemeral_storage_limit_overwrite_max_allowed
-                - helper_ephemeral_storage_request
-                - helper_ephemeral_storage_request_overwrite_max_allowed
-                - helper_image
-                - helper_image_flavor
-                - helper_memory_limit
-                - helper_memory_limit_overwrite_max_allowed
-                - helper_memory_request
-                - helper_memory_request_overwrite_max_allowed
                 - host
-                - host_aliases
                 - image
-                - image_pull_secrets
-                - key_file
-                - memory_limit
-                - memory_limit_overwrite_max_allowed
-                - memory_request
-                - memory_request_overwrite_max_allowed
                 - namespace
                 - namespace_overwrite_allowed
-                - node_selector
-                - node_tolerations
-                - pod_annotations
                 - pod_annotations_overwrite_allowed
-                - pod_labels
-                - pod_termination_grace_period_seconds
-                - poll_interval
-                - poll_timeout
-                - privileged
-                - pull_policy
-                - service_account
                 - service_account_overwrite_allowed
-                - service_cpu_limit
-                - service_cpu_limit_overwrite_max_allowed
-                - service_cpu_request
-                - service_cpu_request_overwrite_max_allowed
-                - service_ephemeral_storage_limit
-                - service_ephemeral_storage_limit_overwrite_max_allowed
-                - service_ephemeral_storage_request
-                - service_ephemeral_storage_request_overwrite_max_allowed
-                - service_memory_limit
-                - service_memory_limit_overwrite_max_allowed
-                - service_memory_request
-                - service_memory_request_overwrite_max_allowed
-                - services
-                - terminationGracePeriodSeconds
-                - volumes
                 type: object
               gitlab_instance_url:
                 type: string
@@ -1192,7 +1017,6 @@ spec:
                     type: string
                 type: object
             required:
-            - check_interval
             - registration_config
             type: object
           status:

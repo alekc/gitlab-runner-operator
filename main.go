@@ -51,8 +51,10 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
+	var disableWebhooks bool
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
+	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable mutating and validating webhooks.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -85,7 +87,7 @@ func main() {
 		os.Exit(1)
 	}
 	// disable webhooks if needed
-	if os.Getenv("DISABLE_WEBHOOK") == "" {
+	if !disableWebhooks {
 		if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)

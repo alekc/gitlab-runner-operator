@@ -23,6 +23,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/result"
 	"k8s.io/client-go/util/retry"
 	"reflect"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -61,6 +62,7 @@ type RunnerReconciler struct {
 }
 
 var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
+var resultRequeueNow = ctrl.Result{Requeue: true}
 
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
@@ -75,6 +77,7 @@ var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: 
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.8.3/pkg/reconcile
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	const finalizer = "gitlab.k8s.alekc.dev/finalizer"
 	logger := log.FromContext(ctx)
 
 	// find the object, in case we cannot find it just return.
@@ -85,6 +88,22 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	logger.Info("reconciling")
+	if !runnerObj.ObjectMeta.DeletionTimestamp.IsZero() {
+		logger.Info("runner is being deleted")
+
+		if runnerObj.Status.AuthenticationToken != "" {
+			logger.Info("removing runner from gitlab")
+			if res, err := r.RemoveRunnerFromGitlab(ctx, runnerObj, logger); res != nil {
+				return *res, err
+			}
+		}
+		controllerutil.RemoveFinalizer(runnerObj, finalizer)
+		if err := r.Update(ctx, runnerObj); err != nil {
+			logger.Error(err, "cannot remove finalizer")
+			return resultRequeueAfterDefaultTimeout, err
+		}
+		return resultRequeueNow, nil
+	}
 
 	// update the status when done processing in case there is anything pending
 	defer func() {
@@ -111,6 +130,17 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 	}()
 
+	// if finalizer is not registered, do it now
+	if !controllerutil.ContainsFinalizer(runnerObj, finalizer) {
+		logger.Info("setting finalizer")
+		controllerutil.AddFinalizer(runnerObj, finalizer)
+		if err := r.Update(ctx, runnerObj); err != nil {
+			logger.Error(err, "cannot set finalizer")
+			return resultRequeueAfterDefaultTimeout, err
+		}
+		return resultRequeueNow, nil
+	}
+
 	// reset the error. If there is one still present we will get it later on
 	runnerObj.Status.Error = ""
 	runnerObj.Status.Ready = false
@@ -121,6 +151,13 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if runnerObj.Status.AuthenticationToken == "" ||
 		runnerObj.Status.LastRegistrationToken != *runnerObj.Spec.RegistrationConfig.Token ||
 		!reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig.TagList) {
+
+		// since we are doing a new registration, IF the runner already has an authentication token, delete it from gitlab server
+		if runnerObj.Status.AuthenticationToken != "" {
+			if res, err := r.RemoveRunnerFromGitlab(ctx, runnerObj, logger); res != nil {
+				return *res, err
+			}
+		}
 
 		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
 	}
@@ -304,6 +341,8 @@ func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject 
 
 // RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
 func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (ctrl.Result, error) {
+	logger.Info("Registering new runner on gitlab")
+
 	// get the gitlab api client
 	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
 	if err != nil {
@@ -325,6 +364,27 @@ func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner
 
 	logger.Info("registered a new runner on gitlab server")
 	return ctrl.Result{Requeue: true}, nil
+}
+
+// RemoveRunnerFromGitlab removes the runner from giltab server. Usually should happen when we delete our runner
+// or we are forced to redo the registration.
+func (r *RunnerReconciler) RemoveRunnerFromGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (*ctrl.Result, error) {
+	// get the gitlab api client
+	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
+	if err != nil {
+		return &resultRequeueAfterDefaultTimeout, err
+	}
+
+	// obtain the registration token from gitlab
+	res, err := gitlabApiClient.DeleteByToken(runner.Status.AuthenticationToken)
+	if err != nil {
+		logger.Error(err, "cannot remove runner from gitlab server", "response", res.Body)
+		runner.Status.Error = fmt.Sprintf("Cannot remove the runner on gitlab api. %s", err.Error())
+		return nil, err // even if we can't remove the runner, we do not want to interrupt the flow
+	}
+
+	logger.Info("removed runner from gitlab server")
+	return nil, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
