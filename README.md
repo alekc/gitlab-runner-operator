@@ -14,11 +14,7 @@ This operator aims to provide you with all configuration which are provided by [
 ## Status & Contributions
 This operator is still in alpha stages, so there is a possibility of breaking changes (which will be announced if any). Please open issues if you find any bugs
 
-## Installation 
-CRD are not part of a Helm chart. This is caused by the fact that once created through Helm you are not able to update them through the same mechanism anymore. So, for now (while we are in alpha stage at the very least), you will need to install/update them manually through
-```
-kubectl apply -f https://raw.githubusercontent.com/alekc-go/gitlab-runner-operator/main/config/crd/bases/gitlab.k8s.alekc.dev_runners.yaml
-```
+## Installation with helm
 
 Once you have installed CRD you can deploy the operator in your prefered namespace
 ```
