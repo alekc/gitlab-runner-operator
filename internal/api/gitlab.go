@@ -2,6 +2,7 @@ package api
 
 import (
 	"io"
+	"k8s.io/utils/pointer"
 
 	"github.com/xanzy/go-gitlab"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
@@ -9,12 +10,18 @@ import (
 
 type GitlabClient interface {
 	Register(config v1beta1.RegisterNewRunnerOptions) (string, error)
+	DeleteByToken(token string) (*gitlab.Response, error)
 }
 
 type gitlabApi struct {
 	gitlabApiClient *gitlab.Client
 }
 
+func (g *gitlabApi) DeleteByToken(token string) (*gitlab.Response, error) {
+	return g.gitlabApiClient.Runners.DeleteRegisteredRunner(&gitlab.DeleteRegisteredRunnerOptions{
+		Token: pointer.String(token),
+	})
+}
 func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, error) {
 	// sadly we cannot do a direct conversion due to the presence of additional field
 	convertedConfig := gitlab.RegisterNewRunnerOptions{

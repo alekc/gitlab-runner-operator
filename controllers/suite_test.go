@@ -19,6 +19,7 @@ package controllers
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"github.com/xanzy/go-gitlab"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -100,6 +101,9 @@ var _ = BeforeSuite(func() {
 				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
 				hash := md5.Sum([]byte(*config.Token + strings.Join(config.TagList, ",")))
 				return hex.EncodeToString(hash[:]), nil
+			},
+			OnDeleteByTokens: func(token string) (*gitlab.Response, error) {
+				return &gitlab.Response{}, nil
 			},
 		},
 	}).SetupWithManager(k8sManager)
