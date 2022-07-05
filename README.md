@@ -31,6 +31,8 @@ kind: Runner
 metadata:
   name: runner-sample
 spec:
+  environment:
+    - "bar=foo"
   concurrent: 1
   log_level: info
   gitlab_instance_url: https://gitlab.com

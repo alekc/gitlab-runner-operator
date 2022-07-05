@@ -45,6 +45,10 @@ type RunnerSpec struct {
 	CheckInterval int `json:"check_interval,omitempty"`
 
 	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// Environment contains custom environment variables injected to build environment
+	Environment []string `json:"environment,omitempty"`
 }
 
 // RunnerStatus defines the observed state of Runner
