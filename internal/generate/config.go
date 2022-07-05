@@ -21,8 +21,9 @@ func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey strin
 			URL:   runnerObject.Spec.GitlabInstanceURL,
 		},
 		RunnerSettings: config.RunnerSettings{
-			Executor:   "kubernetes",
-			Kubernetes: &runnerObject.Spec.ExecutorConfig,
+			Environment: runnerObject.Spec.Environment,
+			Executor:    "kubernetes",
+			Kubernetes:  &runnerObject.Spec.ExecutorConfig,
 		},
 	}
 	// set the namespace to the same one as the runner object if not declared otherwise

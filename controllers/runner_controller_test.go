@@ -134,6 +134,7 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
+		table.Entry("Should support setting of env var for build env", caseEnvironmentIsSpecified),
 		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
 		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
 		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
@@ -208,6 +209,17 @@ func caseCheckDeployment(tc *testCase) {
 		Expect(deployment.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
 		Expect(deployment.Annotations).To(HaveKey(configVersionAnnotationKey))
 		Expect(deployment.Annotations[configVersionAnnotationKey]).To(BeEquivalentTo(runner.Status.ConfigMapVersion))
+	}
+}
+
+func caseEnvironmentIsSpecified(tc *testCase) {
+	ctx := context.Background()
+	tc.Runner.Spec.Environment = []string{"foo=bar"}
+	tc.CheckRunner = func(runner *v1beta1.Runner) {
+		var deployment appsv1.Deployment
+		Eventually(func() bool {
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
+		}, timeout, interval).Should(BeTrue())
 	}
 }
 
