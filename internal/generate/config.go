@@ -13,29 +13,54 @@ import (
 // ConfigText initialize default config object and returns it as a text
 func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
-	runnerConfig := &config.RunnerConfig{
-		Name:  runnerObject.Name,
-		Limit: 10,
-		RunnerCredentials: config.RunnerCredentials{
-			Token: runnerObject.Status.AuthenticationToken,
-			URL:   runnerObject.Spec.GitlabInstanceURL,
-		},
-		RunnerSettings: config.RunnerSettings{
-			Environment: runnerObject.Spec.Environment,
-			Executor:    "kubernetes",
-			Kubernetes:  &runnerObject.Spec.ExecutorConfig,
-		},
-	}
-	// set the namespace to the same one as the runner object if not declared otherwise
-	if runnerConfig.RunnerSettings.Kubernetes.Namespace == "" {
-		runnerConfig.RunnerSettings.Kubernetes.Namespace = runnerObject.Namespace
+	var runnersConfig []*config.RunnerConfig
+	if len(runnerObject.Spec.Runners) > 0 {
+		for _, runner := range runnerObject.Spec.Runners {
+			runnerConfig := &config.RunnerConfig{
+				Name:  runnerObject.Name,
+				Limit: 10,
+				RunnerCredentials: config.RunnerCredentials{
+					Token: runnerObject.Status.AuthenticationToken, // FIXME
+					URL:   runner.GitlabInstanceURL,
+				},
+				RunnerSettings: config.RunnerSettings{
+					Environment: runner.Environment,
+					Executor:    "kubernetes",
+					Kubernetes:  &runner.ExecutorConfig,
+				},
+			}
+			// set the namespace to the same one as the runner object if not declared otherwise
+			if runnerConfig.RunnerSettings.Kubernetes.Namespace == "" {
+				runnerConfig.RunnerSettings.Kubernetes.Namespace = runnerObject.Namespace
+			}
+			runnersConfig = append(runnersConfig, runnerConfig)
+		}
+	} else {
+		runnerConfig := &config.RunnerConfig{
+			Name:  runnerObject.Name,
+			Limit: 10,
+			RunnerCredentials: config.RunnerCredentials{
+				Token: runnerObject.Status.AuthenticationToken,
+				URL:   runnerObject.Spec.GitlabInstanceURL,
+			},
+			RunnerSettings: config.RunnerSettings{
+				Environment: runnerObject.Spec.Environment,
+				Executor:    "kubernetes",
+				Kubernetes:  &runnerObject.Spec.ExecutorConfig,
+			},
+		}
+		// set the namespace to the same one as the runner object if not declared otherwise
+		if runnerConfig.RunnerSettings.Kubernetes.Namespace == "" {
+			runnerConfig.RunnerSettings.Kubernetes.Namespace = runnerObject.Namespace
+		}
+		runnersConfig = append(runnersConfig, runnerConfig)
 	}
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
 		Concurrent:    int(math.Max(1, float64(runnerObject.Spec.Concurrent))),
 		CheckInterval: int(math.Max(3, float64(runnerObject.Spec.CheckInterval))),
 		LogLevel:      runnerObject.Spec.LogLevel,
-		Runners:       []*config.RunnerConfig{runnerConfig},
+		Runners:       runnersConfig,
 	}
 
 	// if not explicit, define the log level

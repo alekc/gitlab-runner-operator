@@ -29,7 +29,7 @@ import (
 
 // RunnerSpec defines the desired state of Runner
 type RunnerSpec struct {
-	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
+	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
@@ -49,6 +49,31 @@ type RunnerSpec struct {
 	// +kubebuilder:validation:Optional
 	// Environment contains custom environment variables injected to build environment
 	Environment []string `json:"environment,omitempty"`
+
+	Runners []RunnerRunner `json:"runners,omitempty"`
+}
+
+type RunnerRunner struct {
+	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
+
+	// +kubebuilder:validation:Optional
+	GitlabInstanceURL string           `json:"gitlab_instance_url,omitempty"`
+	ExecutorConfig    KubernetesConfig `json:"executor_config,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// Environment contains custom environment variables injected to build environment
+	Environment []string `json:"environment,omitempty"`
+}
+
+type RunnerStatusRunner struct {
+	// LastRegistrationToken is the last token used for a successful authentication
+	LastRegistrationToken string `json:"last_registration_token"`
+
+	// LastRegistrationTags are last tags used in successful registration
+	LastRegistrationTags []string `json:"last_registration_tags"`
+
+	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
+	AuthenticationToken string `json:"authentication_token"`
 }
 
 // RunnerStatus defines the observed state of Runner
@@ -63,7 +88,10 @@ type RunnerStatus struct {
 
 	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
 	AuthenticationToken string `json:"authentication_token"`
-	ConfigMapVersion    string `json:"config_map_version"`
+
+	Runners []RunnerStatusRunner `json:"runners"`
+
+	ConfigMapVersion string `json:"config_map_version"`
 
 	// Ready indicates that all runner operation has been completed and final object is ready to serve
 	Ready bool `json:"ready"`
