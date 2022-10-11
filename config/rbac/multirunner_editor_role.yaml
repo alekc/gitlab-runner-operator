@@ -1,0 +1,24 @@
+# permissions for end users to edit multirunners.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multirunner-editor-role
+rules:
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners/status
+  verbs:
+  - get

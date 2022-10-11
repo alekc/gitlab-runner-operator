@@ -19,14 +19,14 @@ package controllers
 import (
 	"crypto/md5"
 	"encoding/hex"
-	"github.com/xanzy/go-gitlab"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/xanzy/go-gitlab"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	api2 "gitlab.k8s.alekc.dev/internal/api"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	controllerruntime "sigs.k8s.io/controller-runtime"
@@ -35,6 +35,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+
+	api2 "gitlab.k8s.alekc.dev/internal/api"
 
 	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 	// +kubebuilder:scaffold:imports
@@ -74,6 +76,9 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	// ensure that the schema is the latest up and running
+	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 

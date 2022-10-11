@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1beta1 contains API Schema definitions for the gitlab v1beta1 API group
-//+kubebuilder:object:generate=true
-//+groupName=gitlab.k8s.alekc.dev
+// +kubebuilder:object:generate=true
+// +groupName=gitlab.k8s.alekc.dev
 package v1beta1
 
 import (

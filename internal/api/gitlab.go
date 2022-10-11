@@ -2,10 +2,10 @@ package api
 
 import (
 	"io"
-	"k8s.io/utils/pointer"
 
 	"github.com/xanzy/go-gitlab"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/internal/pointer"
 )
 
 type GitlabClient interface {
@@ -31,7 +31,7 @@ func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, e
 		Active:         config.Active,
 		Locked:         config.Locked,
 		RunUntagged:    config.RunUntagged,
-		TagList:        config.TagList,
+		TagList:        pointer.StringSlice(config.TagList),
 		MaximumTimeout: config.MaximumTimeout,
 	}
 	runner, resp, err := g.gitlabApiClient.Runners.RegisterNewRunner(&convertedConfig)

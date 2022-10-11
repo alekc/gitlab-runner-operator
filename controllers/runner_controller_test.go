@@ -24,10 +24,11 @@ package controllers
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/rbac/v1"
 	"os"
 	"strconv"
 	"time"
+
+	v1 "k8s.io/api/rbac/v1"
 
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
@@ -325,10 +326,10 @@ func getChangedConfigMap(ctx context.Context, name types.NamespacedName, resourc
 }
 
 func nameSpacedRunnerName(runner *v1beta1.Runner) types.NamespacedName {
-	return types.NamespacedName{Name: runner.Name, Namespace: runner.Namespace}
+	return types.NamespacedName{Name: runner.Name, Namespace: runner.GetNamespace()}
 }
 func nameSpacedDependencyName(runner *v1beta1.Runner) types.NamespacedName {
-	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.Namespace}
+	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.GetNamespace()}
 }
 func CreateNamespace(c client.Client) (string, error) {
 	ns := &corev1.Namespace{
@@ -360,7 +361,7 @@ func defaultRunner(name string, nameSpace string) *v1beta1.Runner {
 		},
 		Spec: v1beta1.RunnerSpec{
 			RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
-				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
+				Token:   pointer.String("zTS6g2Q8bp8y13_ynfpN"),
 				TagList: []string{"default-tag"},
 			},
 		},

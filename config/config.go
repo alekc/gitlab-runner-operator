@@ -1,6 +1,8 @@
 package config
 
-import "gitlab.k8s.alekc.dev/api/v1beta1"
+import (
+	"gitlab.k8s.alekc.dev/api/v1beta1"
+)
 
 //nolint:lll
 type Config struct {

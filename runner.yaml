@@ -1,0 +1,15 @@
+apiVersion: gitlab.k8s.alekc.dev/v1beta1
+kind: MultiRunner
+metadata:
+  name: runner-sample
+spec:
+  concurrent: 1
+  log_level: info
+  gitlab_instance_url: https://gitlab.com
+  entries:
+    - registration_config:
+        token: "GR1348941WJWZbWjDB5D9Yb_ZzHiV"
+        tag_list:
+          - test
+          - asd
+          - fgh

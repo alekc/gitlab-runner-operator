@@ -1,4 +1,3 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -32,6 +31,32 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
