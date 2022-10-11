@@ -17,7 +17,10 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // MultiRunnerSpec defines the desired state of MultiRunner
@@ -69,6 +72,76 @@ type MultiRunner struct {
 
 	Spec   MultiRunnerSpec   `json:"spec,omitempty"`
 	Status MultiRunnerStatus `json:"status,omitempty"`
+}
+
+func (in *MultiRunner) GetStatus() any {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) IsAuthenticated() bool {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) HasFinalizer() bool {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) RemoveFinalizer() {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) AddFinalizer() (finalizerUpdated bool) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) Update(ctx context.Context, writer client.Writer) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) SetConfigMapVersion(versionHash string) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) SetStatus(newStatus any) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) UpdateStatus(ctx context.Context, writer client.StatusWriter) error {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) SetStatusReady(ready bool) {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) HasValidAuth() bool {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) ConfigMapVersion() string {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) RegistrationConfig() []GitlabRegInfo {
+	// TODO implement me
+	panic("implement me")
+}
+
+func (in *MultiRunner) StoreRunnerRegistration(info GitlabRegInfo) {
+	// TODO implement me
+	panic("implement me")
 }
 
 func (in *MultiRunner) ChildName() string {

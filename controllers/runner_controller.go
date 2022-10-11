@@ -26,12 +26,9 @@ import (
 	"gitlab.k8s.alekc.dev/internal/crud"
 	"gitlab.k8s.alekc.dev/internal/generate"
 	"gitlab.k8s.alekc.dev/internal/result"
-	internalTypes "gitlab.k8s.alekc.dev/internal/types"
 	"gitlab.k8s.alekc.dev/internal/validate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/rbac/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -174,7 +171,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// create required rbac credentials if they are missing
-	if err = r.CreateRBACIfMissing(ctx, runnerObj, logger); err != nil {
+	if err = crud.CreateRBACIfMissing(ctx, r.Client, runnerObj, logger); err != nil {
 		runnerObj.SetStatusError("Cannot create the rbac objects")
 		logger.Error(err, "cannot create rbac objects")
 		return resultRequeueAfterDefaultTimeout, err
@@ -200,115 +197,6 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	runnerObj.SetStatusReady(true)
 	return *result.DontRequeue(), nil
-}
-
-func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	namespacedKey := client.ObjectKey{Namespace: runnerObject.GetNamespace(), Name: runnerObject.ChildName()}
-	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
-	switch {
-	case err == nil: // service account exists
-		return nil
-	case !errors.IsNotFound(err):
-		log.Error(err, "cannot get the service account")
-		return err
-	}
-	// sa doesn't exists, create it
-	log.Info("creating missing s")
-	sa := &corev1.ServiceAccount{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            runnerObject.ChildName(),
-			Namespace:       runnerObject.GetNamespace(),
-			OwnerReferences: runnerObject.GenerateOwnerReference(),
-		},
-	}
-	if err = r.Client.Create(ctx, sa); err != nil {
-		log.Error(err, "cannot create service-account")
-		return err
-	}
-	return nil
-}
-
-func (r *RunnerReconciler) createRoleIfMissing(ctx context.Context, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	namespacedKey := client.ObjectKey{Namespace: runnerObject.GetNamespace(), Name: runnerObject.ChildName()}
-	err := r.Client.Get(ctx, namespacedKey, &v1.Role{})
-	switch {
-	case err == nil:
-		return nil
-	case !errors.IsNotFound(err):
-		log.Error(err, "cannot get the role")
-		return err
-	}
-	// sa doesn't exists, create it
-	log.Info("creating missing role")
-	role := &v1.Role{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            runnerObject.ChildName(),
-			Namespace:       runnerObject.GetNamespace(),
-			OwnerReferences: runnerObject.GenerateOwnerReference(),
-		},
-		Rules: []v1.PolicyRule{{
-			Verbs:     []string{"get", "list", "watch", "create", "patch", "delete", "update"},
-			APIGroups: []string{"*"},
-			Resources: []string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"},
-		}},
-	}
-	err = r.Client.Create(ctx, role)
-	if err != nil {
-		log.Error(err, "cannot create role")
-		return err
-	}
-	return nil
-}
-
-func (r *RunnerReconciler) createRoleBindingIfMissing(ctx context.Context, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	namespacedKey := client.ObjectKey{Namespace: runnerObject.GetNamespace(), Name: runnerObject.ChildName()}
-	err := r.Client.Get(ctx, namespacedKey, &v1.RoleBinding{})
-	switch {
-	case err == nil: // service account exists
-		return nil
-	case !errors.IsNotFound(err):
-		log.Error(err, "cannot get the Role binding")
-		return err
-	}
-	// sa doesn't exists, create it
-	log.Info("creating missing rolebinding")
-	role := &v1.RoleBinding{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            runnerObject.ChildName(),
-			Namespace:       runnerObject.GetNamespace(),
-			OwnerReferences: runnerObject.GenerateOwnerReference(),
-		},
-		Subjects: []v1.Subject{{
-			Kind:      "ServiceAccount",
-			Name:      runnerObject.ChildName(),
-			Namespace: runnerObject.GetNamespace(),
-		}},
-		RoleRef: v1.RoleRef{
-			APIGroup: "rbac.authorization.k8s.io",
-			Kind:     "Role",
-			Name:     runnerObject.ChildName(),
-		},
-	}
-	err = r.Client.Create(ctx, role)
-	if err != nil {
-		log.Error(err, "cannot create rolebindings")
-		return err
-	}
-	return nil
-}
-
-// CreateRBACIfMissing creates missing rbacs if needed
-func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	if err := r.createSAIfMissing(ctx, runnerObject, log); err != nil {
-		return err
-	}
-	if err := r.createRoleIfMissing(ctx, runnerObject, log); err != nil {
-		return err
-	}
-	if err := r.createRoleBindingIfMissing(ctx, runnerObject, log); err != nil {
-		return err
-	}
-	return nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
