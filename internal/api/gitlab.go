@@ -44,6 +44,7 @@ func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, e
 
 	return runner.Token, nil
 }
+
 func NewGitlabClient(token, url string) (GitlabClient, error) {
 	var err error
 	// if we have not passed any private gitlab url, then use a default one.

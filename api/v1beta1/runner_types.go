@@ -86,17 +86,21 @@ type Runner struct {
 	Status RunnerStatus `json:"status,omitempty"`
 }
 
-func (in *Runner) RegistrationConfig() []RegisterNewRunnerOptions {
-	return []RegisterNewRunnerOptions{in.Spec.RegistrationConfig}
+func (in *Runner) RegistrationConfig() []GitlabRegInfo {
+	return []GitlabRegInfo{{
+		RegisterNewRunnerOptions: in.Spec.RegistrationConfig,
+		AuthToken:                in.Status.AuthenticationToken,
+		GitlabUrl:                in.Spec.GitlabInstanceURL,
+	}}
 }
 
-func (in *Runner) StoreRunnerRegistration(authToken string, config RegisterNewRunnerOptions) {
-	in.Status.AuthenticationToken = authToken
-	in.Status.LastRegistrationToken = *config.Token
-	in.Status.LastRegistrationTags = config.TagList
+func (in *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
+	in.Status.AuthenticationToken = info.AuthToken
+	in.Status.LastRegistrationToken = *info.Token
+	in.Status.LastRegistrationTags = info.TagList
 }
 
-func (in *Runner) GitlabAuthTokens() []string {
+func (in *Runner) GitlabRegTokens() []string {
 	return []string{in.Status.AuthenticationToken}
 }
 

@@ -15,3 +15,11 @@ func SingleRunner(ctx context.Context, client client.Client, nsName types.Namesp
 	err := client.Get(ctx, nsName, runnerObj)
 	return runnerObj, err
 }
+
+// MultiRunner fetches multirunner from k8s
+// todo: generics?
+func MultiRunner(ctx context.Context, client client.Client, nsName types.NamespacedName) (*gitlabv1beta1.MultiRunner, error) {
+	runnerObj := &gitlabv1beta1.MultiRunner{}
+	err := client.Get(ctx, nsName, runnerObj)
+	return runnerObj, err
+}

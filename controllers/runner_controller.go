@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	coreErrors "errors"
 	"reflect"
 	"time"
 
@@ -35,7 +34,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -86,9 +84,15 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 		if !runnerObj.IsAuthenticated() {
 			logger.Info("removing runner/s from gitlab")
-			for _, authToken := range runnerObj.GitlabAuthTokens() {
-				_, err := r.GitlabApiClient.DeleteByToken(authToken)
-				if err != nil {
+			for _, reg := range runnerObj.RegistrationConfig() {
+				cl := r.GitlabApiClient
+				if cl == nil {
+					if cl, err = api.NewGitlabClient(*reg.Token, reg.GitlabUrl); err != nil {
+						logger.Error(err, "cannot get gitlab api client for deletion of the runner")
+						continue
+					}
+				}
+				if _, err = cl.DeleteByToken(reg.AuthToken); err != nil {
 					// do not interrupt execution flow, just report it
 					logger.Error(err, "warning: cannot delete token from gitlab")
 				}
@@ -151,13 +155,20 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	if !runnerObj.HasValidAuth() {
 		// todo: add reg removal
 		for _, regConfig := range runnerObj.RegistrationConfig() {
-			token, err := r.GitlabApiClient.Register(regConfig)
+			gitlabClient := r.GitlabApiClient
+			if gitlabClient == nil {
+				if gitlabClient, err = api.NewGitlabClient(*regConfig.Token, regConfig.GitlabUrl); err != nil {
+					logger.Error(err, "cannot get gitlab api client")
+					return resultRequeueAfterDefaultTimeout, err
+				}
+			}
+			regConfig.AuthToken, err = gitlabClient.Register(regConfig.RegisterNewRunnerOptions)
 			if err != nil {
 				logger.Error(err, "cannot register on gitlab")
 				return resultRequeueAfterDefaultTimeout, err
 			}
 			logger.Info("registered new runner on the gitlab", "token", regConfig.Token)
-			runnerObj.StoreRunnerRegistration(token, regConfig)
+			runnerObj.StoreRunnerRegistration(regConfig)
 		}
 		return resultRequeueNow, nil
 	}
@@ -298,43 +309,6 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 		return err
 	}
 	return nil
-}
-
-func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject *gitlabv1beta1.Runner) (api.GitlabClient, error) {
-	// if the client is already defined, return that one instead of trying to obtain a new one.
-	if r.GitlabApiClient != nil {
-		return r.GitlabApiClient, nil
-	}
-
-	// if we have defined token in the config, then use that one.
-	if runnerObject.Spec.RegistrationConfig.Token != nil && *runnerObject.Spec.RegistrationConfig.Token != "" {
-		return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
-	}
-
-	// we did not store the registration token in clear view. Hopefully we have defined and created a secret holding it
-	if runnerObject.Spec.RegistrationConfig.TokenSecret == "" {
-		return nil, coreErrors.New("you need to either define a token or a secret pointing to it")
-	}
-
-	// let's try to fetch the secret with our token
-	var gitlabSecret corev1.Secret
-	if err := r.Client.Get(ctx, types.NamespacedName{
-		Namespace: runnerObject.GetNamespace(),
-		Name:      runnerObject.Spec.RegistrationConfig.TokenSecret,
-	}, &gitlabSecret); err != nil {
-		return nil, err
-	}
-
-	//
-	token, ok := gitlabSecret.Data["token"]
-	if !ok || string(token) == "" {
-		return nil, coreErrors.New("secret doesn't contain field token or it's empty")
-	}
-
-	// and finally
-	decryptedToken := string(token)
-	runnerObject.Spec.RegistrationConfig.Token = &decryptedToken
-	return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
 }
 
 // SetupWithManager sets up the controller with the Manager.

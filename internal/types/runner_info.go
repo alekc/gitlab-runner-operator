@@ -30,7 +30,6 @@ type RunnerInfo interface {
 	// RegisterOnGitlab(api.GitlabClient, logr.Logger) (ctrl.Result, error)
 	// DeleteFromGitlab(apiClient api.GitlabClient, logger logr.Logger) error
 	ConfigMapVersion() string
-	RegistrationConfig() []v1beta1.RegisterNewRunnerOptions
-	StoreRunnerRegistration(authToken string, config v1beta1.RegisterNewRunnerOptions)
-	GitlabAuthTokens() []string
+	RegistrationConfig() []v1beta1.GitlabRegInfo
+	StoreRunnerRegistration(v1beta1.GitlabRegInfo)
 }
