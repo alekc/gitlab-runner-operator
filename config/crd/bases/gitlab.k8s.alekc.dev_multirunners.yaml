@@ -1000,18 +1000,12 @@ spec:
                           type: array
                         token:
                           type: string
-                        token_secret:
-                          type: string
                       type: object
                   required:
                   - registration_config
                   type: object
                 type: array
               gitlab_instance_url:
-                type: string
-              listen_address:
-                description: "ListenAddress \tDefines an address (<host>:<port>) the
-                  Prometheus metrics HTTP server should listen on."
                 type: string
               log_format:
                 enum:
@@ -1042,16 +1036,21 @@ spec:
                 additionalProperties:
                   type: string
                 type: object
+              config_map_version:
+                type: string
               error:
                 type: string
               last_registration_tags:
                 additionalProperties:
-                  type: string
+                  items:
+                    type: string
+                  type: array
                 type: object
               ready:
                 type: boolean
             required:
             - auth_tokens
+            - config_map_version
             - error
             - last_registration_tags
             - ready

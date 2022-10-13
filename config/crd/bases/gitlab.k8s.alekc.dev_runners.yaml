@@ -1016,8 +1016,6 @@ spec:
                     type: array
                   token:
                     type: string
-                  token_secret:
-                    type: string
                 type: object
             required:
             - registration_config

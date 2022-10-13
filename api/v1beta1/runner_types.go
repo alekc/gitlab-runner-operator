@@ -86,30 +86,30 @@ type Runner struct {
 	Status RunnerStatus `json:"status,omitempty"`
 }
 
-func (in *Runner) RegistrationConfig() []GitlabRegInfo {
+func (r *Runner) RegistrationConfig() []GitlabRegInfo {
 	return []GitlabRegInfo{{
-		RegisterNewRunnerOptions: in.Spec.RegistrationConfig,
-		AuthToken:                in.Status.AuthenticationToken,
-		GitlabUrl:                in.Spec.GitlabInstanceURL,
+		RegisterNewRunnerOptions: r.Spec.RegistrationConfig,
+		AuthToken:                r.Status.AuthenticationToken,
+		GitlabUrl:                r.Spec.GitlabInstanceURL,
 	}}
 }
 
-func (in *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
-	in.Status.AuthenticationToken = info.AuthToken
-	in.Status.LastRegistrationToken = *info.Token
-	in.Status.LastRegistrationTags = info.TagList
+func (r *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
+	r.Status.AuthenticationToken = info.AuthToken
+	r.Status.LastRegistrationToken = *info.Token
+	r.Status.LastRegistrationTags = info.TagList
 }
 
-func (in *Runner) GitlabRegTokens() []string {
-	return []string{in.Status.AuthenticationToken}
+func (r *Runner) GitlabRegTokens() []string {
+	return []string{r.Status.AuthenticationToken}
 }
 
-func (in *Runner) GetStatus() any {
-	return in.Status
+func (r *Runner) GetStatus() any {
+	return r.Status
 }
 
-func (in *Runner) SetStatus(newStatus any) {
-	in.Status = newStatus.(RunnerStatus)
+func (r *Runner) SetStatus(newStatus any) {
+	r.Status = newStatus.(RunnerStatus)
 }
 
 // +kubebuilder:object:root=true
@@ -145,7 +145,7 @@ func (r *Runner) GenerateOwnerReference() []metav1.OwnerReference {
 		Kind:               "Runner",
 		Name:               r.Name,
 		UID:                r.UID,
-		Controller:         pointer.BoolPtr(true),
+		Controller:         pointer.Bool(true),
 		BlockOwnerDeletion: nil,
 	}}
 }

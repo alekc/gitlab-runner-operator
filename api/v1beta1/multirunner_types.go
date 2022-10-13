@@ -18,9 +18,13 @@ package v1beta1
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // MultiRunnerSpec defines the desired state of MultiRunner
@@ -48,7 +52,7 @@ type MultiRunnerSpec struct {
 
 type MultiRunnerEntry struct {
 	// Name The runner’s description. Informational only.
-	Name               string
+	Name               string                   `json:"name"`
 	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
 	ExecutorConfig     KubernetesConfig         `json:"executor_config,omitempty"`
 	Environment        []string                 `json:"environment,omitempty"`
@@ -56,10 +60,11 @@ type MultiRunnerEntry struct {
 
 // MultiRunnerStatus defines the observed state of MultiRunner
 type MultiRunnerStatus struct {
-	Error                string            `json:"error"`
-	AuthTokens           map[string]string `json:"auth_tokens"`
-	LastRegistrationTags map[string]string `json:"last_registration_tags"`
-	Ready                bool              `json:"ready"`
+	Error                string              `json:"error"`
+	AuthTokens           map[string]string   `json:"auth_tokens"`
+	LastRegistrationTags map[string][]string `json:"last_registration_tags"`
+	Ready                bool                `json:"ready"`
+	ConfigMapVersion     string              `json:"config_map_version"`
 }
 
 // +kubebuilder:object:root=true
@@ -74,94 +79,112 @@ type MultiRunner struct {
 	Status MultiRunnerStatus `json:"status,omitempty"`
 }
 
-func (in *MultiRunner) GetStatus() any {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) GetStatus() any {
+	return r.Status
 }
 
-func (in *MultiRunner) IsAuthenticated() bool {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) IsAuthenticated() bool {
+	// every entry r our runner book must have its auth
+	for _, entry := range r.Spec.Entries {
+		if _, found := r.Status.AuthTokens[*entry.RegistrationConfig.Token]; !found {
+			return false
+		}
+	}
+	return true
+}
+func (r *MultiRunner) finalizer() string {
+	return "gitlab.k8s.alekc.dev/mr-finalizer"
 }
 
-func (in *MultiRunner) HasFinalizer() bool {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) HasFinalizer() bool {
+	return controllerutil.ContainsFinalizer(r, r.finalizer())
 }
 
-func (in *MultiRunner) RemoveFinalizer() {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) RemoveFinalizer() {
+	controllerutil.RemoveFinalizer(r, r.finalizer())
 }
 
-func (in *MultiRunner) AddFinalizer() (finalizerUpdated bool) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) AddFinalizer() (finalizerUpdated bool) {
+	return controllerutil.AddFinalizer(r, r.finalizer())
 }
 
-func (in *MultiRunner) Update(ctx context.Context, writer client.Writer) error {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) Update(ctx context.Context, writer client.Writer) error {
+	return writer.Update(ctx, r)
 }
 
-func (in *MultiRunner) SetConfigMapVersion(versionHash string) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) SetConfigMapVersion(versionHash string) {
+	r.Status.ConfigMapVersion = versionHash
 }
 
-func (in *MultiRunner) SetStatus(newStatus any) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) SetStatus(newStatus any) {
+	r.Status = newStatus.(MultiRunnerStatus)
 }
 
-func (in *MultiRunner) UpdateStatus(ctx context.Context, writer client.StatusWriter) error {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) UpdateStatus(ctx context.Context, writer client.StatusWriter) error {
+	return writer.Update(ctx, r)
 }
 
-func (in *MultiRunner) SetStatusReady(ready bool) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) SetStatusReady(ready bool) {
+	r.Status.Ready = ready
 }
 
-func (in *MultiRunner) HasValidAuth() bool {
-	// TODO implement me
-	panic("implement me")
+// HasValidAuth verify if one or more entries from registration has to be registered again
+func (r *MultiRunner) HasValidAuth() bool {
+	// every entry r our runner book must have its auth
+	for _, entry := range r.Spec.Entries {
+		// do we have a valid token?
+		token := *entry.RegistrationConfig.Token
+		if _, found := r.Status.AuthTokens[token]; !found {
+			return false
+		}
+		// old tags must be stored and they need to match the present one
+		if oldTags, found := r.Status.LastRegistrationTags[token]; !found || !reflect.DeepEqual(oldTags, entry.RegistrationConfig.TagList) {
+			return false
+		}
+	}
+	return true
 }
 
-func (in *MultiRunner) ConfigMapVersion() string {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) ConfigMapVersion() string {
+	return r.Status.ConfigMapVersion
 }
 
-func (in *MultiRunner) RegistrationConfig() []GitlabRegInfo {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {
+	var res []GitlabRegInfo
+	for _, entry := range r.Spec.Entries {
+		token := *entry.RegistrationConfig.Token
+		res = append(res, GitlabRegInfo{
+			RegisterNewRunnerOptions: entry.RegistrationConfig,
+			AuthToken:                r.Status.AuthTokens[token],
+			GitlabUrl:                r.Spec.GitlabInstanceURL,
+		})
+	}
+	return res
 }
 
-func (in *MultiRunner) StoreRunnerRegistration(info GitlabRegInfo) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) StoreRunnerRegistration(info GitlabRegInfo) {
+	token := *info.RegisterNewRunnerOptions.Token
+	r.Status.AuthTokens[token] = info.AuthToken
+	r.Status.LastRegistrationTags[token] = info.TagList
 }
 
-func (in *MultiRunner) ChildName() string {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) ChildName() string {
+	return fmt.Sprintf("gitlab-mrunner-%s", r.Name)
 }
 
-func (in *MultiRunner) GenerateOwnerReference() []metav1.OwnerReference {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) GenerateOwnerReference() []metav1.OwnerReference {
+	return []metav1.OwnerReference{{
+		APIVersion:         GroupVersion.String(), // due to https://github.com/kubernetes/client-go/issues/541 type meta is empty
+		Kind:               "MultirRunner",
+		Name:               r.Name,
+		UID:                r.UID,
+		Controller:         pointer.Bool(true),
+		BlockOwnerDeletion: nil,
+	}}
 }
 
-func (in *MultiRunner) SetStatusError(errorMessage string) {
-	// TODO implement me
-	panic("implement me")
-}
-
-func (in *MultiRunner) SetStatusConfigMapVersion(versionHash string) {
-	// TODO implement me
-	panic("implement me")
+func (r *MultiRunner) SetStatusError(errorMessage string) {
+	r.Status.Error = errorMessage
 }
 
 // +kubebuilder:object:root=true
@@ -177,6 +200,6 @@ func init() {
 	SchemeBuilder.Register(&MultiRunner{}, &MultiRunnerList{})
 }
 
-func (in *MultiRunner) IsBeingDeleted() bool {
-	return !in.ObjectMeta.DeletionTimestamp.IsZero()
+func (r *MultiRunner) IsBeingDeleted() bool {
+	return !r.ObjectMeta.DeletionTimestamp.IsZero()
 }
