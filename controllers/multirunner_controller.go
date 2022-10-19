@@ -94,7 +94,7 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// update the status when done processing in case there is anything pending
 	defer func() {
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			newRunner, err := crud.SingleRunner(
+			newRunner, err := crud.MultiRunner(
 				context.Background(),
 				r.Client,
 				client.ObjectKey{
@@ -188,6 +188,9 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	const runnerOwnerCmKey = ".metadata.cmmrcontroller"
+	const runnerOwnerDpKey = ".metadata.dpmrcontroller"
+
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, runnerOwnerCmKey, func(object client.Object) []string {
 		// grab the configMap object, extract the owner...

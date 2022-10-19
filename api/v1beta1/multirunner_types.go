@@ -51,7 +51,6 @@ type MultiRunnerSpec struct {
 }
 
 type MultiRunnerEntry struct {
-	// Name The runner’s description. Informational only.
 	Name               string                   `json:"name"`
 	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
 	ExecutorConfig     KubernetesConfig         `json:"executor_config,omitempty"`

@@ -957,6 +957,8 @@ spec:
                           - secret
                           type: object
                       type: object
+                    name:
+                      type: string
                     registration_config:
                       description: "RegisterNewRunnerOptions represents the available
                         RegisterNewRunner() options. \n GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
@@ -1002,6 +1004,7 @@ spec:
                           type: string
                       type: object
                   required:
+                  - name
                   - registration_config
                   type: object
                 type: array

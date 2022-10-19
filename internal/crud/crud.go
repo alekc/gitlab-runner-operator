@@ -26,6 +26,14 @@ func SingleRunner(ctx context.Context, client client.Client, nsName types.Namesp
 func MultiRunner(ctx context.Context, client client.Client, nsName types.NamespacedName) (internalTypes.RunnerInfo, error) {
 	runnerObj := &gitlabv1beta1.MultiRunner{}
 	err := client.Get(ctx, nsName, runnerObj)
+
+	// explicit init of the status maps
+	if runnerObj.Status.AuthTokens == nil {
+		runnerObj.Status.AuthTokens = make(map[string]string, 0)
+	}
+	if runnerObj.Status.LastRegistrationTags == nil {
+		runnerObj.Status.LastRegistrationTags = make(map[string][]string, 0)
+	}
 	return runnerObj, err
 }
 

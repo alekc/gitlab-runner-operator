@@ -41,9 +41,6 @@ import (
 	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 )
 
-const runnerOwnerCmKey = ".metadata.cmcontroller"
-const runnerOwnerDpKey = ".metadata.dpcontroller"
-
 const defaultTimeout = 15 * time.Second
 const configMapKeyName = "config.toml"
 const configVersionAnnotationKey = "config-version"
@@ -201,6 +198,8 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	const runnerOwnerCmKey = ".metadata.cmcontroller"
+	const runnerOwnerDpKey = ".metadata.dpcontroller"
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, runnerOwnerCmKey, func(object client.Object) []string {
 		// grab the configMap object, extract the owner...
