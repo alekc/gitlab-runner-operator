@@ -71,7 +71,8 @@ func MultiRunnerConfig(runnerObject *v1beta1.MultiRunner) (gitlabConfig, configH
 	// create configuration for the runners
 	var runners []*config.RunnerConfig
 	for _, entry := range runnerObject.Spec.Entries {
-		// define sensible config for some configuration values
+		// executorConfig is a separate variable due to go's loop bug
+		executorConfig := entry.ExecutorConfig
 		runnerConfig := config.RunnerConfig{
 			Name:  entry.Name,
 			Limit: 10,
@@ -82,7 +83,7 @@ func MultiRunnerConfig(runnerObject *v1beta1.MultiRunner) (gitlabConfig, configH
 			RunnerSettings: config.RunnerSettings{
 				Environment: entry.Environment,
 				Executor:    "kubernetes",
-				Kubernetes:  &entry.ExecutorConfig,
+				Kubernetes:  &executorConfig,
 			},
 		}
 		// set the namespace to the same one as the runner object if not declared otherwise
