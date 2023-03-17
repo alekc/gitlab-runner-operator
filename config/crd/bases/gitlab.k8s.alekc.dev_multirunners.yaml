@@ -985,8 +985,6 @@ spec:
                                 type: object
                               type: array
                           type: object
-                      required:
-                      - scheduler_name
                       type: object
                     name:
                       type: string

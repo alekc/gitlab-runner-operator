@@ -1,0 +1,29 @@
+apiVersion: gitlab.k8s.alekc.dev/v1beta1
+kind: Runner
+metadata:
+  labels:
+    argocd.argoproj.io/instance: gitlab-runner
+  name: dind
+spec:
+  check_interval: 5
+  concurrent: 10
+  executor_config:
+    cpu_request: '0.5'
+    memory_request: 150Mi
+    node_selector:
+      kubernetes.io/arch: amd64
+    privileged: true
+    volumes:
+      empty_dir:
+        - medium: Memory
+          mount_path: /certs/client
+          name: docker-certs
+  gitlab_instance_url: 'https://gitlab.com/'
+  log_level: debug
+  registration_config:
+    tag_list:
+      - dev
+      - k8s
+      - amd64
+      - dind
+    token: xxxxx

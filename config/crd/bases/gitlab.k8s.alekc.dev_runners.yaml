@@ -984,8 +984,6 @@ spec:
                           type: object
                         type: array
                     type: object
-                required:
-                - scheduler_name
                 type: object
               gitlab_instance_url:
                 type: string
