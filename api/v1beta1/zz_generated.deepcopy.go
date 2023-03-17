@@ -107,6 +107,11 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.RuntimeClassName != nil {
+		in, out := &in.RuntimeClassName, &out.RuntimeClassName
+		*out = new(string)
+		**out = **in
+	}
 	if in.AllowPrivilegeEscalation != nil {
 		in, out := &in.AllowPrivilegeEscalation, &out.AllowPrivilegeEscalation
 		*out = new(bool)
@@ -114,6 +119,11 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 	}
 	if in.AllowedImages != nil {
 		in, out := &in.AllowedImages, &out.AllowedImages
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
+	if in.AllowedPullPolicies != nil {
+		in, out := &in.AllowedPullPolicies, &out.AllowedPullPolicies
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
@@ -183,6 +193,11 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 	if in.PodSecurityContext != nil {
 		in, out := &in.PodSecurityContext, &out.PodSecurityContext
 		*out = new(KubernetesPodSecurityContext)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.InitPermissionsContainerSecurityContext != nil {
+		in, out := &in.InitPermissionsContainerSecurityContext, &out.InitPermissionsContainerSecurityContext
+		*out = new(KubernetesContainerSecurityContext)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.BuildContainerSecurityContext != nil {

@@ -28,7 +28,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 			OwnerReferences: runnerObj.GenerateOwnerReference(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
+			Replicas: pointer.Int32(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -50,7 +50,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					}},
 					Containers: []corev1.Container{{
 						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:alpine-v14.8.2",
+						Image:           "gitlab/gitlab-runner:alpine-v15.9.1",
 						Resources:       corev1.ResourceRequirements{}, // todo:
 						ImagePullPolicy: "IfNotPresent",                // todo
 						VolumeMounts: []corev1.VolumeMount{{
