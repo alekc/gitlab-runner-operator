@@ -59,7 +59,7 @@ type RunnerStatus struct {
 	LastRegistrationToken string `json:"last_registration_token"`
 
 	// LastRegistrationTags are last tags used in successful registration
-	LastRegistrationTags []string `json:"last_registration_tags"`
+	LastRegistrationTags *[]string `json:"last_registration_tags"`
 
 	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
 	AuthenticationToken string `json:"authentication_token"`
@@ -380,14 +380,14 @@ type RegisterNewRunnerOptions struct {
 	Description *string                       `url:"description,omitempty" json:"description,omitempty"`
 	Info        *RegisterNewRunnerInfoOptions `url:"info,omitempty" json:"info,omitempty"`
 	// Active is deprecated. use paused instead
-	Active          *bool    `url:"active,omitempty" json:"active,omitempty"`
-	Paused          *bool    `url:"paused,omitempty" json:"paused,omitempty"`
-	Locked          *bool    `url:"locked,omitempty" json:"locked,omitempty"`
-	RunUntagged     *bool    `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
-	TagList         []string `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
-	AccessLevel     *string  `url:"accessLevel,omitempty" json:"accessLevel,omitempty"`
-	MaximumTimeout  *int     `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
-	MaintenanceNote *string  `url:"maintenance_note,omitempty" json:"maintenance_note,omitempty"`
+	Active          *bool     `url:"active,omitempty" json:"active,omitempty"`
+	Paused          *bool     `url:"paused,omitempty" json:"paused,omitempty"`
+	Locked          *bool     `url:"locked,omitempty" json:"locked,omitempty"`
+	RunUntagged     *bool     `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
+	TagList         *[]string `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
+	AccessLevel     *string   `url:"accessLevel,omitempty" json:"accessLevel,omitempty"`
+	MaximumTimeout  *int      `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
+	MaintenanceNote *string   `url:"maintenance_note,omitempty" json:"maintenance_note,omitempty"`
 }
 
 // RegisterNewRunnerInfoOptions represents the info hashmap parameter in

@@ -32,7 +32,6 @@ import (
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -50,9 +49,7 @@ var testEnv *envtest.Environment
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
@@ -99,7 +96,7 @@ var _ = BeforeSuite(func() {
 			OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
 				// here we create a unique hash representing a combination of registration token
 				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
-				hash := md5.Sum([]byte(*config.Token + strings.Join(config.TagList, ",")))
+				hash := md5.Sum([]byte(*config.Token + strings.Join(*config.TagList, ",")))
 				return hex.EncodeToString(hash[:]), nil
 			},
 			OnDeleteByTokens: func(token string) (*gitlab.Response, error) {

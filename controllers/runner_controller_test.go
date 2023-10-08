@@ -230,7 +230,7 @@ func caseTagsChanged(tc *testCase) {
 		oldAuth := runner.Status.AuthenticationToken
 
 		// update tags
-		runner.Spec.RegistrationConfig.TagList = []string{"new", "tag", "list"}
+		runner.Spec.RegistrationConfig.TagList = &[]string{"new", "tag", "list"}
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
 		// runner should get a new hash version
@@ -361,7 +361,7 @@ func defaultRunner(name string, nameSpace string) *v1beta1.Runner {
 		Spec: v1beta1.RunnerSpec{
 			RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
 				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
-				TagList: []string{"default-tag"},
+				TagList: &[]string{"default-tag"},
 			},
 		},
 	}
