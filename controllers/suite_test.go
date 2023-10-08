@@ -35,7 +35,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta2"
 	// +kubebuilder:scaffold:imports
 )
 

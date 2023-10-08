@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/internal/result"
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"

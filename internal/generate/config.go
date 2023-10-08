@@ -5,13 +5,13 @@ import (
 	"math"
 
 	"github.com/BurntSushi/toml"
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/config"
 	"gitlab.k8s.alekc.dev/internal/crypto"
 )
 
 // ConfigText initialize default config object and returns it as a text
-func ConfigText(runnerObject *v1beta1.Runner) (gitlabConfig, configHashKey string, err error) {
+func ConfigText(runnerObject *v1beta2.Runner) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:  runnerObject.Name,

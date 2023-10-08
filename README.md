@@ -26,7 +26,7 @@ helm install gitlab-runner-operator alekc/gitlab-runner-operator
 ## Configuration
 The CRD Runner is composed by following fields (all of them are optional, except for registration tokens, see examples below):
 ```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
@@ -53,7 +53,7 @@ In order to run your runner you will need to obtain a registration token ([see t
 
 In this config you only need to specify the name of your runner (`runner-sample`), registration token (`xxx`), and it's tag (`test-gitlab-runner`)  
 ```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
@@ -77,7 +77,7 @@ metadata:
   name: gitlab-runner-token
 type: Opaque
 ---
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
@@ -117,7 +117,7 @@ data:
   bar.txt: |
     zzz
 ---
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample

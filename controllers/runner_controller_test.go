@@ -32,7 +32,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/internal/generate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -46,9 +46,9 @@ import (
 // +kubebuilder:docs-gen:collapse=Imports
 
 type testCase struct {
-	Runner         *v1beta1.Runner
-	CheckCondition func(*v1beta1.Runner) bool
-	CheckRunner    func(*v1beta1.Runner)
+	Runner         *v1beta2.Runner
+	CheckCondition func(*v1beta2.Runner) bool
+	CheckRunner    func(*v1beta2.Runner)
 }
 
 type testCaseTweak func(*testCase)
@@ -87,7 +87,7 @@ var _ = Describe("Runner controller", func() {
 	// after each test perform some cleaning actions
 	AfterEach(func() {
 		// delete the runner
-		Expect(k8sClient.Delete(context.Background(), &v1beta1.Runner{
+		Expect(k8sClient.Delete(context.Background(), &v1beta2.Runner{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      RunnerName,
 				Namespace: RunnerNamespace,
@@ -107,7 +107,7 @@ var _ = Describe("Runner controller", func() {
 		func(tweaks ...testCaseTweak) {
 			tc := &testCase{
 				Runner: defaultRunner(RunnerName, RunnerNamespace),
-				CheckCondition: func(runner *v1beta1.Runner) bool {
+				CheckCondition: func(runner *v1beta2.Runner) bool {
 					return runner.UID != "" && runner.Status.Ready
 				},
 			}
@@ -121,7 +121,7 @@ var _ = Describe("Runner controller", func() {
 
 			//
 			esKey := types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}
-			createdRunner := &v1beta1.Runner{}
+			createdRunner := &v1beta2.Runner{}
 			By("checking the runner condition")
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, esKey, createdRunner)
@@ -146,7 +146,7 @@ var _ = Describe("Runner controller", func() {
 })
 
 func caseRBACCheck(tc *testCase) {
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		ctx := context.TODO()
 
 		// service  account should be created
@@ -173,7 +173,7 @@ func caseRBACCheck(tc *testCase) {
 
 // caseTestAuthToken checks if our runner gets registration form gitlab server
 func caseTestAuthToken(tc *testCase) {
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
 		Expect(runner.Status.AuthenticationToken).To(BeEquivalentTo("95ef6f888cb2280a3a070186cf55b04f"))
 	}
@@ -183,7 +183,7 @@ func caseTestAuthToken(tc *testCase) {
 func caseGeneratedConfigMap(tc *testCase) {
 	ctx := context.Background()
 
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		var configMap corev1.ConfigMap
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &configMap) == nil
@@ -198,7 +198,7 @@ func caseGeneratedConfigMap(tc *testCase) {
 
 func caseCheckDeployment(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		var deployment appsv1.Deployment
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
@@ -215,7 +215,7 @@ func caseCheckDeployment(tc *testCase) {
 func caseEnvironmentIsSpecified(tc *testCase) {
 	ctx := context.Background()
 	tc.Runner.Spec.Environment = []string{"foo=bar"}
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		var deployment appsv1.Deployment
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
@@ -226,7 +226,7 @@ func caseEnvironmentIsSpecified(tc *testCase) {
 // caseTagsChanged deals with situation when we change tags for an existing runner
 func caseTagsChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldAuth := runner.Status.AuthenticationToken
 
 		// update tags
@@ -234,7 +234,7 @@ func caseTagsChanged(tc *testCase) {
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
 		// runner should get a new hash version
-		newRunner := &v1beta1.Runner{}
+		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
 			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
@@ -245,7 +245,7 @@ func caseTagsChanged(tc *testCase) {
 // caseRegistrationTokenChanged deals with scenario where we change our registration token
 func caseRegistrationTokenChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldAuth := runner.Status.AuthenticationToken
 
 		// update tags
@@ -253,7 +253,7 @@ func caseRegistrationTokenChanged(tc *testCase) {
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
 		// runner should get a new hash version
-		newRunner := &v1beta1.Runner{}
+		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
 			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
@@ -264,7 +264,7 @@ func caseRegistrationTokenChanged(tc *testCase) {
 
 func caseSpecChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldConfigMapVersion := runner.Status.ConfigMapVersion
 		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
 		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
@@ -273,7 +273,7 @@ func caseSpecChanged(tc *testCase) {
 		runner.Spec.Concurrent = 2
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		var newRunner v1beta1.Runner
+		var newRunner v1beta2.Runner
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), &newRunner)
 			return err == nil && newRunner.Status.Ready && newRunner.Status.ConfigMapVersion != oldConfigMapVersion
@@ -324,10 +324,10 @@ func getChangedConfigMap(ctx context.Context, name types.NamespacedName, resourc
 	return &configMap
 }
 
-func nameSpacedRunnerName(runner *v1beta1.Runner) types.NamespacedName {
+func nameSpacedRunnerName(runner *v1beta2.Runner) types.NamespacedName {
 	return types.NamespacedName{Name: runner.Name, Namespace: runner.Namespace}
 }
-func nameSpacedDependencyName(runner *v1beta1.Runner) types.NamespacedName {
+func nameSpacedDependencyName(runner *v1beta2.Runner) types.NamespacedName {
 	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.Namespace}
 }
 func CreateNamespace(c client.Client) (string, error) {
@@ -348,18 +348,18 @@ func CreateNamespace(c client.Client) (string, error) {
 }
 
 // defaultRunner returns an instance of gitlab runner with default values
-func defaultRunner(name string, nameSpace string) *v1beta1.Runner {
-	return &v1beta1.Runner{
+func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
+	return &v1beta2.Runner{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1beta1.GroupVersion.String(),
+			APIVersion: v1beta2.GroupVersion.String(),
 			Kind:       "Runner",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: nameSpace,
 		},
-		Spec: v1beta1.RunnerSpec{
-			RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
+		Spec: v1beta2.RunnerSpec{
+			RegistrationConfig: v1beta2.RegisterNewRunnerOptions{
 				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
 				TagList: &[]string{"default-tag"},
 			},

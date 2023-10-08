@@ -4,15 +4,15 @@ import (
 	"errors"
 	"github.com/xanzy/go-gitlab"
 
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
 type MockedGitlabClient struct {
-	OnRegister       func(config v1beta1.RegisterNewRunnerOptions) (string, error)
+	OnRegister       func(config v1beta2.RegisterNewRunnerOptions) (string, error)
 	OnDeleteByTokens func(token string) (*gitlab.Response, error)
 }
 
-func (m *MockedGitlabClient) Register(config v1beta1.RegisterNewRunnerOptions) (string, error) {
+func (m *MockedGitlabClient) Register(config v1beta2.RegisterNewRunnerOptions) (string, error) {
 	if m.OnRegister == nil {
 		return "", errors.New("call is not defined")
 	}
