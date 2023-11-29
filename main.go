@@ -22,6 +22,7 @@ import (
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
+	//_ "gitlab.com/gitlab-org/gitlab-runner"
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -31,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta2"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/controllers"
 	// +kubebuilder:scaffold:imports
 )
@@ -44,7 +45,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(gitlabv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gitlabv1beta2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -69,8 +70,6 @@ func main() {
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "e47991d1.k8s.alekc.dev",
@@ -89,19 +88,19 @@ func main() {
 	}
 	// disable webhooks if needed
 	if !disableWebhooks {
-		if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&gitlabv1beta2.Runner{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)
 		}
 	}
-	if err = (&controllers.MultiRunnerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "MultiRunner")
-		os.Exit(1)
-	}
-	// +kubebuilder:scaffold:builder
+	//if err = (&controllers.MultiRunnerReconciler{
+	//	Client: mgr.GetClient(),
+	//	Scheme: mgr.GetScheme(),
+	//}).SetupWithManager(mgr); err != nil {
+	//	setupLog.Error(err, "unable to create controller", "controller", "MultiRunner")
+	//	os.Exit(1)
+	//}
+	//// +kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
 		setupLog.Error(err, "unable to set up health check")

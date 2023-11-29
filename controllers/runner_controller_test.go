@@ -225,41 +225,41 @@ func caseEnvironmentIsSpecified(tc *testCase) {
 
 // caseTagsChanged deals with situation when we change tags for an existing runner
 func caseTagsChanged(tc *testCase) {
-	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta2.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
-
-		// update tags
-		runner.Spec.RegistrationConfig.TagList = &[]string{"new", "tag", "list"}
-		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
-
-		// runner should get a new hash version
-		newRunner := &v1beta2.Runner{}
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
-		}, timeout, interval).Should(BeTrue())
-	}
+	//ctx := context.Background()
+	//tc.CheckRunner = func(runner *v1beta2.Runner) {
+	//	oldAuth := runner.Status.AuthenticationToken
+	//
+	//	// update tags
+	//	runner.Spec.RegistrationConfig.TagList = &[]string{"new", "tag", "list"}
+	//	Expect(k8sClient.Update(ctx, runner)).To(Succeed())
+	//
+	//	// runner should get a new hash version
+	//	newRunner := &v1beta2.Runner{}
+	//	Eventually(func() bool {
+	//		err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
+	//		return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+	//	}, timeout, interval).Should(BeTrue())
+	//}
 }
 
 // caseRegistrationTokenChanged deals with scenario where we change our registration token
 func caseRegistrationTokenChanged(tc *testCase) {
-	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta2.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
-
-		// update tags
-		runner.Spec.RegistrationConfig.Token = pointer.StringPtr("new reg token")
-		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
-
-		// runner should get a new hash version
-		newRunner := &v1beta2.Runner{}
-		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
-		}, timeout, interval).Should(BeTrue())
-		Expect(newRunner.Status.LastRegistrationToken).To(Equal(*runner.Spec.RegistrationConfig.Token))
-	}
+	//ctx := context.Background()
+	//tc.CheckRunner = func(runner *v1beta2.Runner) {
+	//	oldAuth := runner.Status.AuthenticationToken
+	//
+	//	// update tags
+	//	runner.Spec.RegistrationConfig.Token = pointer.StringPtr("new reg token")
+	//	Expect(k8sClient.Update(ctx, runner)).To(Succeed())
+	//
+	//	// runner should get a new hash version
+	//	newRunner := &v1beta2.Runner{}
+	//	Eventually(func() bool {
+	//		err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
+	//		return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+	//	}, timeout, interval).Should(BeTrue())
+	//	Expect(newRunner.Status.LastRegistrationToken).To(Equal(*runner.Spec.RegistrationConfig.Token))
+	//}
 }
 
 func caseSpecChanged(tc *testCase) {
@@ -359,10 +359,7 @@ func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
 			Namespace: nameSpace,
 		},
 		Spec: v1beta2.RunnerSpec{
-			RegistrationConfig: v1beta2.RegisterNewRunnerOptions{
-				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
-				TagList: &[]string{"default-tag"},
-			},
+			Token: pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
 		},
 	}
 }

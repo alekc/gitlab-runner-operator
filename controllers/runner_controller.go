@@ -19,8 +19,8 @@ package controllers
 import (
 	"context"
 	coreErrors "errors"
-	"fmt"
 	"gitlab.k8s.alekc.dev/internal/result"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/util/retry"
 	"reflect"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -36,7 +36,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -145,21 +144,32 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	runnerObj.Status.Error = ""
 	runnerObj.Status.Ready = false
 
-	// if the runner doesn't have a saved authentication token
-	// or the latest registration token/tags are different from the
-	// current one, we need to redo the registration
-	if runnerObj.Status.AuthenticationToken == "" ||
-		runnerObj.Status.LastRegistrationToken != *runnerObj.Spec.RegistrationConfig.Token ||
-		!reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig.TagList) {
+	//// if the runner doesn't have a saved authentication token
+	//// or the latest registration token/tags are different from the
+	//// current one, we need to redo the registration
+	//if runnerObj.Status.AuthenticationToken == "" ||
+	//	runnerObj.Status.LastRegistrationToken != *runnerObj.Spec.RegistrationConfig.Token ||
+	//	!reflect.DeepEqual(runnerObj.Status.LastRegistrationTags, runnerObj.Spec.RegistrationConfig.TagList) {
+	//
+	//	// since we are doing a new registration, IF the runner already has an authentication token, delete it from gitlab server
+	//	if runnerObj.Status.AuthenticationToken != "" {
+	//		if res, err := r.RemoveRunnerFromGitlab(ctx, runnerObj, logger); res != nil {
+	//			return *res, err
+	//		}
+	//	}
+	//
+	//	return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
+	//}
 
-		// since we are doing a new registration, IF the runner already has an authentication token, delete it from gitlab server
-		if runnerObj.Status.AuthenticationToken != "" {
-			if res, err := r.RemoveRunnerFromGitlab(ctx, runnerObj, logger); res != nil {
-				return *res, err
-			}
+	// get the auth token
+	runnerObj.Status.AuthenticationToken = *runnerObj.Spec.Token
+	if runnerObj.Status.AuthenticationToken == "" {
+		token, err := r.getTokenFromSecret(ctx, runnerObj, logger)
+		if err != nil {
+			logger.Error(err, "cannot obtain authentication token")
+			return resultRequeueAfterDefaultTimeout, err
 		}
-
-		return r.RegisterNewRunnerOnGitlab(ctx, runnerObj, logger)
+		runnerObj.Status.AuthenticationToken = token
 	}
 
 	// create required rbac credentials if they are missing
@@ -191,6 +201,29 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	return *result.DontRequeue(), nil
 }
 
+// getTokenFromSecret gets authentication token from the secret
+func (r *RunnerReconciler) getTokenFromSecret(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) (string, error) {
+	if runnerObject.Spec.TokenSecret == "" {
+		return "", coreErrors.New("spec.TokenSecret cannot be empty if token is not provided")
+	}
+	// let's try to fetch the secret with our token
+	var gitlabSecret corev1.Secret
+	if err := r.Client.Get(ctx, types.NamespacedName{
+		Namespace: runnerObject.Namespace,
+		Name:      runnerObject.Spec.TokenSecret,
+	}, &gitlabSecret); err != nil {
+		return "", err
+	}
+
+	// get the secret value
+	token, ok := gitlabSecret.Data["token"]
+	if !ok || string(token) == "" {
+		return "", coreErrors.New("secret doesn't contain field token or it's empty")
+	}
+
+	// and finally
+	return string(token), nil
+}
 func (r *RunnerReconciler) createSAIfMissing(ctx context.Context, runnerObject *gitlabv1beta1.Runner, log logr.Logger) error {
 	namespacedKey := client.ObjectKey{Namespace: runnerObject.Namespace, Name: runnerObject.ChildName()}
 	err := r.Client.Get(ctx, namespacedKey, &corev1.ServiceAccount{})
@@ -302,88 +335,51 @@ func (r *RunnerReconciler) CreateRBACIfMissing(ctx context.Context, runnerObject
 	return nil
 }
 
-func (r *RunnerReconciler) getGitlabApiClient(ctx context.Context, runnerObject *gitlabv1beta1.Runner) (api.GitlabClient, error) {
-	// if the client is already defined, return that one instead of trying to obtain a new one.
-	if r.GitlabApiClient != nil {
-		return r.GitlabApiClient, nil
-	}
-
-	// if we have defined token in the config, then use that one.
-	if runnerObject.Spec.RegistrationConfig.Token != nil && *runnerObject.Spec.RegistrationConfig.Token != "" {
-		return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
-	}
-
-	// we did not store the registration token in clear view. Hopefully we have defined and created a secret holding it
-	if runnerObject.Spec.RegistrationConfig.TokenSecret == "" {
-		return nil, coreErrors.New("you need to either define a token or a secret pointing to it")
-	}
-
-	// let's try to fetch the secret with our token
-	var gitlabSecret corev1.Secret
-	if err := r.Client.Get(ctx, types.NamespacedName{
-		Namespace: runnerObject.Namespace,
-		Name:      runnerObject.Spec.RegistrationConfig.TokenSecret,
-	}, &gitlabSecret); err != nil {
-		return nil, err
-	}
-
-	//
-	token, ok := gitlabSecret.Data["token"]
-	if !ok || string(token) == "" {
-		return nil, coreErrors.New("secret doesn't contain field token or it's empty")
-	}
-
-	// and finally
-	decryptedToken := string(token)
-	runnerObject.Spec.RegistrationConfig.Token = &decryptedToken
-	return api.NewGitlabClient(*runnerObject.Spec.RegistrationConfig.Token, runnerObject.Spec.GitlabInstanceURL)
-}
-
-// RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
-func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (ctrl.Result, error) {
-	logger.Info("Registering new runner on gitlab")
-
-	// get the gitlab api client
-	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
-	if err != nil {
-		return resultRequeueAfterDefaultTimeout, err
-	}
-
-	// obtain the registration token from gitlab
-	token, err := gitlabApiClient.Register(runner.Spec.RegistrationConfig)
-	if err != nil {
-		logger.Error(err, "cannot register the runner against gitlab api")
-		runner.Status.Error = fmt.Sprintf("Cannot register the runner on gitlab api. %s", err.Error())
-		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
-	}
-
-	// set the new auth token and record the reg details used for the operation (token and tags)
-	runner.Status.AuthenticationToken = token
-	runner.Status.LastRegistrationToken = *runner.Spec.RegistrationConfig.Token
-	runner.Status.LastRegistrationTags = runner.Spec.RegistrationConfig.TagList
-
-	logger.Info("registered a new runner on gitlab server")
-	return ctrl.Result{Requeue: true}, nil
-}
+//// RegisterNewRunnerOnGitlab registers runner against gitlab server and saves the value inside the status
+//func (r *RunnerReconciler) RegisterNewRunnerOnGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (ctrl.Result, error) {
+//	logger.Info("Registering new runner on gitlab")
+//
+//	// get the gitlab api client
+//	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
+//	if err != nil {
+//		return resultRequeueAfterDefaultTimeout, err
+//	}
+//
+//	// obtain the registration token from gitlab
+//	token, err := gitlabApiClient.Register(runner.Spec.RegistrationConfig)
+//	if err != nil {
+//		logger.Error(err, "cannot register the runner against gitlab api")
+//		runner.Status.Error = fmt.Sprintf("Cannot register the runner on gitlab api. %s", err.Error())
+//		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
+//	}
+//
+//	// set the new auth token and record the reg details used for the operation (token and tags)
+//	runner.Status.AuthenticationToken = token
+//	runner.Status.LastRegistrationToken = *runner.Spec.RegistrationConfig.Token
+//	runner.Status.LastRegistrationTags = runner.Spec.RegistrationConfig.TagList
+//
+//	logger.Info("registered a new runner on gitlab server")
+//	return ctrl.Result{Requeue: true}, nil
+//}
 
 // RemoveRunnerFromGitlab removes the runner from giltab server. Usually should happen when we delete our runner
 // or we are forced to redo the registration.
 func (r *RunnerReconciler) RemoveRunnerFromGitlab(ctx context.Context, runner *gitlabv1beta1.Runner, logger logr.Logger) (*ctrl.Result, error) {
-	// get the gitlab api client
-	gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
-	if err != nil {
-		return &resultRequeueAfterDefaultTimeout, err
-	}
-
-	// obtain the registration token from gitlab
-	res, err := gitlabApiClient.DeleteByToken(runner.Status.AuthenticationToken)
-	if err != nil {
-		logger.Error(err, "cannot remove runner from gitlab server", "response", res.Body)
-		runner.Status.Error = fmt.Sprintf("Cannot remove the runner on gitlab api. %s", err.Error())
-		return nil, err // even if we can't remove the runner, we do not want to interrupt the flow
-	}
-
-	logger.Info("removed runner from gitlab server")
+	//// get the gitlab api client
+	//gitlabApiClient, err := r.getGitlabApiClient(ctx, runner)
+	//if err != nil {
+	//	return &resultRequeueAfterDefaultTimeout, err
+	//}
+	//
+	//// obtain the registration token from gitlab
+	//res, err := gitlabApiClient.DeleteByToken(runner.Status.AuthenticationToken)
+	//if err != nil {
+	//	logger.Error(err, "cannot remove runner from gitlab server", "response", res.Body)
+	//	runner.Status.Error = fmt.Sprintf("Cannot remove the runner on gitlab api. %s", err.Error())
+	//	return nil, err // even if we can't remove the runner, we do not want to interrupt the flow
+	//}
+	//
+	//logger.Info("removed runner from gitlab server")
 	return nil, nil
 }
 

@@ -24,12 +24,13 @@ import (
 	"k8s.io/utils/pointer"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // RunnerSpec defines the desired state of Runner
 type RunnerSpec struct {
-	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
+	// +kubebuilder:validation:Optional
+	Token *string `url:"token" json:"token,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	TokenSecret string `json:"token_secret,omitempty"`
 
 	// +kubebuilder:validation:Optional
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
@@ -367,27 +368,6 @@ type Service struct {
 	Alias      string   `toml:"alias,omitempty" json:"alias,omitempty" long:"alias" description:"The alias of the service"`
 	Command    []string `toml:"command" json:"command" long:"command" description:"Command or script that should be used as the container’s command. Syntax is similar to https://docs.docker.com/engine/reference/builder/#cmd"`
 	Entrypoint []string `toml:"entrypoint" json:"entrypoint" long:"entrypoint" description:"Command or script that should be executed as the container’s entrypoint. syntax is similar to https://docs.docker.com/engine/reference/builder/#entrypoint"`
-}
-
-// RegisterNewRunnerOptions represents the available RegisterNewRunner()
-// options.
-//
-// GitLab API docs:
-// https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
-type RegisterNewRunnerOptions struct {
-	Token       *string                       `url:"token" json:"token,omitempty"`
-	TokenSecret string                        `json:"token_secret,omitempty"`
-	Description *string                       `url:"description,omitempty" json:"description,omitempty"`
-	Info        *RegisterNewRunnerInfoOptions `url:"info,omitempty" json:"info,omitempty"`
-	// Active is deprecated. use paused instead
-	Active          *bool     `url:"active,omitempty" json:"active,omitempty"`
-	Paused          *bool     `url:"paused,omitempty" json:"paused,omitempty"`
-	Locked          *bool     `url:"locked,omitempty" json:"locked,omitempty"`
-	RunUntagged     *bool     `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
-	TagList         *[]string `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
-	AccessLevel     *string   `url:"accessLevel,omitempty" json:"accessLevel,omitempty"`
-	MaximumTimeout  *int      `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
-	MaintenanceNote *string   `url:"maintenance_note,omitempty" json:"maintenance_note,omitempty"`
 }
 
 // RegisterNewRunnerInfoOptions represents the info hashmap parameter in

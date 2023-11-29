@@ -966,54 +966,10 @@ spec:
                 - info
                 - debug
                 type: string
-              registration_config:
-                description: "RegisterNewRunnerOptions represents the available RegisterNewRunner()
-                  options. \n GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
-                properties:
-                  accessLevel:
-                    type: string
-                  active:
-                    description: Active is deprecated. use paused instead
-                    type: boolean
-                  description:
-                    type: string
-                  info:
-                    description: "RegisterNewRunnerInfoOptions represents the info
-                      hashmap parameter in RegisterNewRunnerOptions. \n GitLab API
-                      docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
-                    properties:
-                      architecture:
-                        type: string
-                      name:
-                        type: string
-                      platform:
-                        type: string
-                      revision:
-                        type: string
-                      version:
-                        type: string
-                    type: object
-                  locked:
-                    type: boolean
-                  maintenance_note:
-                    type: string
-                  maximum_timeout:
-                    type: integer
-                  paused:
-                    type: boolean
-                  run_untagged:
-                    type: boolean
-                  tag_list:
-                    items:
-                      type: string
-                    type: array
-                  token:
-                    type: string
-                  token_secret:
-                    type: string
-                type: object
-            required:
-            - registration_config
+              token:
+                type: string
+              token_secret:
+                type: string
             type: object
           status:
             description: RunnerStatus defines the observed state of Runner

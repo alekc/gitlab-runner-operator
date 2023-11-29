@@ -24,7 +24,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
 // MultiRunnerReconciler reconciles a MultiRunner object
@@ -57,6 +57,6 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 // SetupWithManager sets up the controller with the Manager.
 func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabv1beta1.MultiRunner{}).
+		For(&gitlabv1beta2.MultiRunner{}).
 		Complete(r)
 }

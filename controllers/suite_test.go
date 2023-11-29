@@ -17,11 +17,8 @@ limitations under the License.
 package controllers
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"github.com/xanzy/go-gitlab"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -93,12 +90,12 @@ var _ = BeforeSuite(func() {
 			WithName("controllers").
 			WithName("GitlabRunner"),
 		GitlabApiClient: &api2.MockedGitlabClient{
-			OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
-				// here we create a unique hash representing a combination of registration token
-				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
-				hash := md5.Sum([]byte(*config.Token + strings.Join(*config.TagList, ",")))
-				return hex.EncodeToString(hash[:]), nil
-			},
+			//OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
+			//	// here we create a unique hash representing a combination of registration token
+			//	// and runner's tags, since any changes to these fields will cause the reregistration of the runner
+			//	hash := md5.Sum([]byte(*config.Token + strings.Join(*config.TagList, ",")))
+			//	return hex.EncodeToString(hash[:]), nil
+			//},
 			OnDeleteByTokens: func(token string) (*gitlab.Response, error) {
 				return &gitlab.Response{}, nil
 			},
