@@ -10,7 +10,7 @@ import (
 func TestGitlabApi_Register(t *testing.T) {
 	cl, _ := NewGitlabClient("9Bo36Uxwx6ay-cR-bCLh", "")
 	_, _ = cl.Register(v1beta1.RegisterNewRunnerOptions{
-		Token:          pointer.StringPtr("9Bo36Uxwx6ay-cR-bCLh"),
+		Token:          pointer.String("9Bo36Uxwx6ay-cR-bCLh"),
 		Description:    nil,
 		Info:           nil,
 		Active:         nil,

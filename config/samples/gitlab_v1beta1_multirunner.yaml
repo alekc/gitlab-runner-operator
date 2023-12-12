@@ -1,0 +1,27 @@
+apiVersion: gitlab.k8s.alekc.dev/v1beta1
+kind: MultiRunner
+metadata:
+  name: multirunner-simple
+spec:
+  concurrent: 10
+  gitlab_instance_url: https://gitlab.com/
+  entries:
+    - name: runner 1
+      registration_config:
+        tag_list:
+          - dev1
+          - test-gitlab-runner
+        token: xxx
+        description: "Runner 1desc"
+      executor_config:
+        memory_request: "50Mi"
+    - name: runner 2
+      registration_config:
+        tag_list:
+          - dev2
+          - runner2
+        token: xxx
+        description: "Runner 2 desc"
+
+
+

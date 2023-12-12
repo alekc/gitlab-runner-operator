@@ -1,0 +1,3 @@
+[submodule "source/gitlab-runner"]
+	path = source/gitlab-runner
+	url = https://gitlab.com/gitlab-org/gitlab-runner/

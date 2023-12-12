@@ -1,0 +1,1092 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: multirunners.gitlab.k8s.alekc.dev
+spec:
+  group: gitlab.k8s.alekc.dev
+  names:
+    kind: MultiRunner
+    listKind: MultiRunnerList
+    plural: multirunners
+    singular: multirunner
+  scope: Namespaced
+  versions:
+  - name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: MultiRunner is the Schema for the multirunners API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MultiRunnerSpec defines the desired state of MultiRunner
+            properties:
+              check_interval:
+                minimum: 3
+                type: integer
+              concurrent:
+                minimum: 1
+                type: integer
+              entries:
+                items:
+                  properties:
+                    environment:
+                      items:
+                        type: string
+                      type: array
+                    executor_config:
+                      properties:
+                        affinity:
+                          properties:
+                            node_affinity:
+                              properties:
+                                preferred_during_scheduling_ignored_during_execution:
+                                  items:
+                                    properties:
+                                      preference:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_fields:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                        type: object
+                                      weight:
+                                        format: int32
+                                        type: integer
+                                    required:
+                                    - preference
+                                    - weight
+                                    type: object
+                                  type: array
+                                required_during_scheduling_ignored_during_execution:
+                                  properties:
+                                    node_selector_terms:
+                                      items:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_fields:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                        type: object
+                                      type: array
+                                  required:
+                                  - node_selector_terms
+                                  type: object
+                              type: object
+                            pod_affinity:
+                              properties:
+                                preferred_during_scheduling_ignored_during_execution:
+                                  items:
+                                    properties:
+                                      pod_affinity_term:
+                                        properties:
+                                          label_selector:
+                                            properties:
+                                              match_expressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      type: string
+                                                    operator:
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                              match_labels:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                            type: object
+                                          namespace_selector:
+                                            properties:
+                                              match_expressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      type: string
+                                                    operator:
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                              match_labels:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                            type: object
+                                          namespaces:
+                                            items:
+                                              type: string
+                                            type: array
+                                          topology_key:
+                                            type: string
+                                        type: object
+                                      weight:
+                                        format: int32
+                                        type: integer
+                                    required:
+                                    - pod_affinity_term
+                                    - weight
+                                    type: object
+                                  type: array
+                                required_during_scheduling_ignored_during_execution:
+                                  items:
+                                    properties:
+                                      label_selector:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_labels:
+                                            additionalProperties:
+                                              type: string
+                                            type: object
+                                        type: object
+                                      namespace_selector:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_labels:
+                                            additionalProperties:
+                                              type: string
+                                            type: object
+                                        type: object
+                                      namespaces:
+                                        items:
+                                          type: string
+                                        type: array
+                                      topology_key:
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                            pod_anti_affinity:
+                              properties:
+                                preferred_during_scheduling_ignored_during_execution:
+                                  items:
+                                    properties:
+                                      pod_affinity_term:
+                                        properties:
+                                          label_selector:
+                                            properties:
+                                              match_expressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      type: string
+                                                    operator:
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                              match_labels:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                            type: object
+                                          namespace_selector:
+                                            properties:
+                                              match_expressions:
+                                                items:
+                                                  properties:
+                                                    key:
+                                                      type: string
+                                                    operator:
+                                                      type: string
+                                                    values:
+                                                      items:
+                                                        type: string
+                                                      type: array
+                                                  type: object
+                                                type: array
+                                              match_labels:
+                                                additionalProperties:
+                                                  type: string
+                                                type: object
+                                            type: object
+                                          namespaces:
+                                            items:
+                                              type: string
+                                            type: array
+                                          topology_key:
+                                            type: string
+                                        type: object
+                                      weight:
+                                        format: int32
+                                        type: integer
+                                    required:
+                                    - pod_affinity_term
+                                    - weight
+                                    type: object
+                                  type: array
+                                required_during_scheduling_ignored_during_execution:
+                                  items:
+                                    properties:
+                                      label_selector:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_labels:
+                                            additionalProperties:
+                                              type: string
+                                            type: object
+                                        type: object
+                                      namespace_selector:
+                                        properties:
+                                          match_expressions:
+                                            items:
+                                              properties:
+                                                key:
+                                                  type: string
+                                                operator:
+                                                  type: string
+                                                values:
+                                                  items:
+                                                    type: string
+                                                  type: array
+                                              type: object
+                                            type: array
+                                          match_labels:
+                                            additionalProperties:
+                                              type: string
+                                            type: object
+                                        type: object
+                                      namespaces:
+                                        items:
+                                          type: string
+                                        type: array
+                                      topology_key:
+                                        type: string
+                                    type: object
+                                  type: array
+                              type: object
+                          type: object
+                        allow_privilege_escalation:
+                          type: boolean
+                        allowed_images:
+                          items:
+                            type: string
+                          type: array
+                        allowed_pull_policies:
+                          items:
+                            type: string
+                          type: array
+                        allowed_services:
+                          items:
+                            type: string
+                          type: array
+                        bearer_token:
+                          type: string
+                        bearer_token_overwrite_allowed:
+                          type: boolean
+                        build_container_security_context:
+                          properties:
+                            allow_privilege_escalation:
+                              type: boolean
+                            capabilities:
+                              properties:
+                                add:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                                drop:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                              required:
+                              - add
+                              - drop
+                              type: object
+                            privileged:
+                              type: boolean
+                            read_only_root_filesystem:
+                              type: boolean
+                            run_as_group:
+                              format: int64
+                              type: integer
+                            run_as_non_root:
+                              type: boolean
+                            run_as_user:
+                              format: int64
+                              type: integer
+                          type: object
+                        ca_file:
+                          type: string
+                        cap_add:
+                          items:
+                            type: string
+                          type: array
+                        cap_drop:
+                          items:
+                            type: string
+                          type: array
+                        cert_file:
+                          type: string
+                        cleanup_grace_period_seconds:
+                          format: int64
+                          type: integer
+                        container_lifecycle:
+                          description: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.21/#lifecycle-v1-core
+                          properties:
+                            post_start:
+                              properties:
+                                exec:
+                                  properties:
+                                    command:
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - command
+                                  type: object
+                                http_get:
+                                  properties:
+                                    host:
+                                      type: string
+                                    http_headers:
+                                      items:
+                                        properties:
+                                          name:
+                                            type: string
+                                          value:
+                                            type: string
+                                        required:
+                                        - name
+                                        - value
+                                        type: object
+                                      type: array
+                                    path:
+                                      type: string
+                                    port:
+                                      type: integer
+                                    scheme:
+                                      type: string
+                                  required:
+                                  - host
+                                  - http_headers
+                                  - path
+                                  - port
+                                  - scheme
+                                  type: object
+                                tcp_socket:
+                                  properties:
+                                    host:
+                                      type: string
+                                    port:
+                                      type: integer
+                                  required:
+                                  - host
+                                  - port
+                                  type: object
+                              required:
+                              - exec
+                              - http_get
+                              - tcp_socket
+                              type: object
+                            pre_stop:
+                              properties:
+                                exec:
+                                  properties:
+                                    command:
+                                      items:
+                                        type: string
+                                      type: array
+                                  required:
+                                  - command
+                                  type: object
+                                http_get:
+                                  properties:
+                                    host:
+                                      type: string
+                                    http_headers:
+                                      items:
+                                        properties:
+                                          name:
+                                            type: string
+                                          value:
+                                            type: string
+                                        required:
+                                        - name
+                                        - value
+                                        type: object
+                                      type: array
+                                    path:
+                                      type: string
+                                    port:
+                                      type: integer
+                                    scheme:
+                                      type: string
+                                  required:
+                                  - host
+                                  - http_headers
+                                  - path
+                                  - port
+                                  - scheme
+                                  type: object
+                                tcp_socket:
+                                  properties:
+                                    host:
+                                      type: string
+                                    port:
+                                      type: integer
+                                  required:
+                                  - host
+                                  - port
+                                  type: object
+                              required:
+                              - exec
+                              - http_get
+                              - tcp_socket
+                              type: object
+                          type: object
+                        cpu_limit:
+                          type: string
+                        cpu_limit_overwrite_max_allowed:
+                          type: string
+                        cpu_request:
+                          type: string
+                        cpu_request_overwrite_max_allowed:
+                          type: string
+                        dns_config:
+                          properties:
+                            nameservers:
+                              items:
+                                type: string
+                              type: array
+                            options:
+                              items:
+                                properties:
+                                  name:
+                                    type: string
+                                  value:
+                                    type: string
+                                required:
+                                - name
+                                type: object
+                              type: array
+                            searches:
+                              items:
+                                type: string
+                              type: array
+                          type: object
+                        dns_policy:
+                          type: string
+                        ephemeral_storage_limit:
+                          type: string
+                        ephemeral_storage_limit_overwrite_max_allowed:
+                          type: string
+                        ephemeral_storage_request:
+                          type: string
+                        ephemeral_storage_request_overwrite_max_allowed:
+                          type: string
+                        helper_container_security_context:
+                          properties:
+                            allow_privilege_escalation:
+                              type: boolean
+                            capabilities:
+                              properties:
+                                add:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                                drop:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                              required:
+                              - add
+                              - drop
+                              type: object
+                            privileged:
+                              type: boolean
+                            read_only_root_filesystem:
+                              type: boolean
+                            run_as_group:
+                              format: int64
+                              type: integer
+                            run_as_non_root:
+                              type: boolean
+                            run_as_user:
+                              format: int64
+                              type: integer
+                          type: object
+                        helper_cpu_limit:
+                          type: string
+                        helper_cpu_limit_overwrite_max_allowed:
+                          type: string
+                        helper_cpu_request:
+                          type: string
+                        helper_cpu_request_overwrite_max_allowed:
+                          type: string
+                        helper_ephemeral_storage_limit:
+                          type: string
+                        helper_ephemeral_storage_limit_overwrite_max_allowed:
+                          type: string
+                        helper_ephemeral_storage_request:
+                          type: string
+                        helper_ephemeral_storage_request_overwrite_max_allowed:
+                          type: string
+                        helper_image:
+                          type: string
+                        helper_image_flavor:
+                          type: string
+                        helper_memory_limit:
+                          type: string
+                        helper_memory_limit_overwrite_max_allowed:
+                          type: string
+                        helper_memory_request:
+                          type: string
+                        helper_memory_request_overwrite_max_allowed:
+                          type: string
+                        host:
+                          type: string
+                        host_aliases:
+                          items:
+                            properties:
+                              hostnames:
+                                items:
+                                  type: string
+                                type: array
+                              ip:
+                                type: string
+                            required:
+                            - hostnames
+                            - ip
+                            type: object
+                          type: array
+                        image:
+                          type: string
+                        image_pull_secrets:
+                          items:
+                            type: string
+                          type: array
+                        init_permissions_container_security_context:
+                          properties:
+                            allow_privilege_escalation:
+                              type: boolean
+                            capabilities:
+                              properties:
+                                add:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                                drop:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                              required:
+                              - add
+                              - drop
+                              type: object
+                            privileged:
+                              type: boolean
+                            read_only_root_filesystem:
+                              type: boolean
+                            run_as_group:
+                              format: int64
+                              type: integer
+                            run_as_non_root:
+                              type: boolean
+                            run_as_user:
+                              format: int64
+                              type: integer
+                          type: object
+                        key_file:
+                          type: string
+                        memory_limit:
+                          type: string
+                        memory_limit_overwrite_max_allowed:
+                          type: string
+                        memory_request:
+                          type: string
+                        memory_request_overwrite_max_allowed:
+                          type: string
+                        namespace:
+                          type: string
+                        namespace_overwrite_allowed:
+                          type: string
+                        node_selector:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        node_selector_overwrite_allowed:
+                          type: string
+                        node_tolerations:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        pod_annotations:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        pod_annotations_overwrite_allowed:
+                          type: string
+                        pod_labels:
+                          additionalProperties:
+                            type: string
+                          type: object
+                        pod_labels_overwrite_allowed:
+                          type: string
+                        pod_security_context:
+                          properties:
+                            fs_group:
+                              format: int64
+                              type: integer
+                            run_as_group:
+                              format: int64
+                              type: integer
+                            run_as_non_root:
+                              type: boolean
+                            run_as_user:
+                              format: int64
+                              type: integer
+                            supplemental_groups:
+                              items:
+                                format: int64
+                                type: integer
+                              type: array
+                          type: object
+                        pod_termination_grace_period_seconds:
+                          format: int64
+                          type: integer
+                        poll_interval:
+                          type: integer
+                        poll_timeout:
+                          type: integer
+                        priority_class_name:
+                          type: string
+                        privileged:
+                          type: boolean
+                        pull_policy:
+                          items:
+                            type: string
+                          type: array
+                        resource_availability_check_max_attempts:
+                          type: integer
+                        runtime_class_name:
+                          type: string
+                        scheduler_name:
+                          type: string
+                        service_account:
+                          type: string
+                        service_account_overwrite_allowed:
+                          type: string
+                        service_container_security_context:
+                          properties:
+                            allow_privilege_escalation:
+                              type: boolean
+                            capabilities:
+                              properties:
+                                add:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                                drop:
+                                  items:
+                                    description: Capability represent POSIX capabilities
+                                      type
+                                    type: string
+                                  type: array
+                              required:
+                              - add
+                              - drop
+                              type: object
+                            privileged:
+                              type: boolean
+                            read_only_root_filesystem:
+                              type: boolean
+                            run_as_group:
+                              format: int64
+                              type: integer
+                            run_as_non_root:
+                              type: boolean
+                            run_as_user:
+                              format: int64
+                              type: integer
+                          type: object
+                        service_cpu_limit:
+                          type: string
+                        service_cpu_limit_overwrite_max_allowed:
+                          type: string
+                        service_cpu_request:
+                          type: string
+                        service_cpu_request_overwrite_max_allowed:
+                          type: string
+                        service_ephemeral_storage_limit:
+                          type: string
+                        service_ephemeral_storage_limit_overwrite_max_allowed:
+                          type: string
+                        service_ephemeral_storage_request:
+                          type: string
+                        service_ephemeral_storage_request_overwrite_max_allowed:
+                          type: string
+                        service_memory_limit:
+                          type: string
+                        service_memory_limit_overwrite_max_allowed:
+                          type: string
+                        service_memory_request:
+                          type: string
+                        service_memory_request_overwrite_max_allowed:
+                          type: string
+                        services:
+                          items:
+                            properties:
+                              alias:
+                                type: string
+                              command:
+                                items:
+                                  type: string
+                                type: array
+                              entrypoint:
+                                items:
+                                  type: string
+                                type: array
+                              name:
+                                type: string
+                            required:
+                            - command
+                            - entrypoint
+                            - name
+                            type: object
+                          type: array
+                        terminationGracePeriodSeconds:
+                          format: int64
+                          type: integer
+                        volumes:
+                          properties:
+                            config_map:
+                              items:
+                                properties:
+                                  items:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                            csi:
+                              items:
+                                properties:
+                                  driver:
+                                    type: string
+                                  fs_type:
+                                    type: string
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  sub_path:
+                                    type: string
+                                  volume_attributes:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                required:
+                                - driver
+                                - fs_type
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                            empty_dir:
+                              items:
+                                properties:
+                                  medium:
+                                    type: string
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                            host_path:
+                              items:
+                                properties:
+                                  host_path:
+                                    type: string
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                            pvc:
+                              items:
+                                properties:
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                            secret:
+                              items:
+                                properties:
+                                  items:
+                                    additionalProperties:
+                                      type: string
+                                    type: object
+                                  mount_path:
+                                    type: string
+                                  name:
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                type: object
+                              type: array
+                          type: object
+                      type: object
+                    name:
+                      type: string
+                    registration_config:
+                      description: "RegisterNewRunnerOptions represents the available
+                        RegisterNewRunner() options. \n GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
+                      properties:
+                        accessLevel:
+                          type: string
+                        active:
+                          description: Active is deprecated. use paused instead
+                          type: boolean
+                        description:
+                          type: string
+                        info:
+                          description: "RegisterNewRunnerInfoOptions represents the
+                            info hashmap parameter in RegisterNewRunnerOptions. \n
+                            GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
+                          properties:
+                            architecture:
+                              type: string
+                            name:
+                              type: string
+                            platform:
+                              type: string
+                            revision:
+                              type: string
+                            version:
+                              type: string
+                          type: object
+                        locked:
+                          type: boolean
+                        maintenance_note:
+                          type: string
+                        maximum_timeout:
+                          type: integer
+                        paused:
+                          type: boolean
+                        run_untagged:
+                          type: boolean
+                        tag_list:
+                          items:
+                            type: string
+                          type: array
+                        token:
+                          type: string
+                      type: object
+                  required:
+                  - name
+                  - registration_config
+                  type: object
+                type: array
+              gitlab_instance_url:
+                type: string
+              log_format:
+                enum:
+                - runner
+                - text
+                - json
+                type: string
+              log_level:
+                enum:
+                - panic
+                - fatal
+                - error
+                - warning
+                - info
+                - debug
+                type: string
+              sentry_dsn:
+                description: SentryDsn Enables tracking of all system level errors
+                  to Sentry.
+                type: string
+            required:
+            - entries
+            type: object
+          status:
+            description: MultiRunnerStatus defines the observed state of MultiRunner
+            properties:
+              auth_tokens:
+                additionalProperties:
+                  type: string
+                type: object
+              config_map_version:
+                type: string
+              error:
+                type: string
+              last_registration_tags:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                type: object
+              ready:
+                type: boolean
+            required:
+            - auth_tokens
+            - config_map_version
+            - error
+            - last_registration_tags
+            - ready
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

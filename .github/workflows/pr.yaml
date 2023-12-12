@@ -12,7 +12,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@master
         with:
-          go-version: 1.17.x
+          go-version: 1.20.x
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4

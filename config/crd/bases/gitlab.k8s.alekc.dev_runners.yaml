@@ -1,11 +1,9 @@
-
 ---
 apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.4.1
-  creationTimestamp: null
+    controller-gen.kubebuilder.io/version: v0.13.0
   name: runners.gitlab.k8s.alekc.dev
 spec:
   group: gitlab.k8s.alekc.dev
@@ -366,6 +364,10 @@ spec:
                     items:
                       type: string
                     type: array
+                  allowed_pull_policies:
+                    items:
+                      type: string
+                    type: array
                   allowed_services:
                     items:
                       type: string
@@ -408,10 +410,6 @@ spec:
                       run_as_user:
                         format: int64
                         type: integer
-                    required:
-                    - allow_privilege_escalation
-                    - privileged
-                    - read_only_root_filesystem
                     type: object
                   ca_file:
                     type: string
@@ -571,10 +569,6 @@ spec:
                         items:
                           type: string
                         type: array
-                    required:
-                    - nameservers
-                    - options
-                    - searches
                     type: object
                   dns_policy:
                     type: string
@@ -620,10 +614,6 @@ spec:
                       run_as_user:
                         format: int64
                         type: integer
-                    required:
-                    - allow_privilege_escalation
-                    - privileged
-                    - read_only_root_filesystem
                     type: object
                   helper_cpu_limit:
                     type: string
@@ -675,6 +665,41 @@ spec:
                     items:
                       type: string
                     type: array
+                  init_permissions_container_security_context:
+                    properties:
+                      allow_privilege_escalation:
+                        type: boolean
+                      capabilities:
+                        properties:
+                          add:
+                            items:
+                              description: Capability represent POSIX capabilities
+                                type
+                              type: string
+                            type: array
+                          drop:
+                            items:
+                              description: Capability represent POSIX capabilities
+                                type
+                              type: string
+                            type: array
+                        required:
+                        - add
+                        - drop
+                        type: object
+                      privileged:
+                        type: boolean
+                      read_only_root_filesystem:
+                        type: boolean
+                      run_as_group:
+                        format: int64
+                        type: integer
+                      run_as_non_root:
+                        type: boolean
+                      run_as_user:
+                        format: int64
+                        type: integer
+                    type: object
                   key_file:
                     type: string
                   memory_limit:
@@ -693,6 +718,8 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  node_selector_overwrite_allowed:
+                    type: string
                   node_tolerations:
                     additionalProperties:
                       type: string
@@ -707,6 +734,8 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  pod_labels_overwrite_allowed:
+                    type: string
                   pod_security_context:
                     properties:
                       fs_group:
@@ -733,12 +762,20 @@ spec:
                     type: integer
                   poll_timeout:
                     type: integer
+                  priority_class_name:
+                    type: string
                   privileged:
                     type: boolean
                   pull_policy:
                     items:
                       type: string
                     type: array
+                  resource_availability_check_max_attempts:
+                    type: integer
+                  runtime_class_name:
+                    type: string
+                  scheduler_name:
+                    type: string
                   service_account:
                     type: string
                   service_account_overwrite_allowed:
@@ -777,10 +814,6 @@ spec:
                       run_as_user:
                         format: int64
                         type: integer
-                    required:
-                    - allow_privilege_escalation
-                    - privileged
-                    - read_only_root_filesystem
                     type: object
                   service_cpu_limit:
                     type: string
@@ -948,16 +981,15 @@ spec:
                           - name
                           type: object
                         type: array
-                    required:
-                    - config_map
-                    - csi
-                    - empty_dir
-                    - host_path
-                    - pvc
-                    - secret
                     type: object
                 type: object
               gitlab_instance_url:
+                type: string
+              log_format:
+                enum:
+                - runner
+                - text
+                - json
                 type: string
               log_level:
                 enum:
@@ -1011,8 +1043,6 @@ spec:
                     type: array
                   token:
                     type: string
-                  token_secret:
-                    type: string
                 type: object
             required:
             - registration_config
@@ -1055,9 +1085,3 @@ spec:
     storage: true
     subresources:
       status: {}
-status:
-  acceptedNames:
-    kind: ""
-    plural: ""
-  conditions: []
-  storedVersions: []

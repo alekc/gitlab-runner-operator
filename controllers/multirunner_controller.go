@@ -19,9 +19,7 @@ package controllers
 import (
 	"context"
 	"reflect"
-	"time"
 
-	"github.com/go-logr/logr"
 	"gitlab.k8s.alekc.dev/internal/api"
 	"gitlab.k8s.alekc.dev/internal/crud"
 	"gitlab.k8s.alekc.dev/internal/generate"
@@ -41,33 +39,25 @@ import (
 	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 )
 
-const defaultTimeout = 15 * time.Second
-const configMapKeyName = "config.toml"
-const configVersionAnnotationKey = "config-version"
-
-// RunnerReconciler reconciles a Runner object
-type RunnerReconciler struct {
+// MultiRunnerReconciler reconciles a MultiRunner object
+type MultiRunnerReconciler struct {
 	client.Client
-	Log             logr.Logger
 	Scheme          *runtime.Scheme
 	GitlabApiClient api.GitlabClient
 }
 
-var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
-var resultRequeueNow = ctrl.Result{Requeue: true}
-
-// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
 
-func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
 	// find the object, in case we cannot find it just return.
-	runnerObj, err := crud.SingleRunner(ctx, r.Client, req.NamespacedName)
+	runnerObj, err := crud.MultiRunner(ctx, r.Client, req.NamespacedName)
 	if err != nil {
 		return *result.DontRequeue(), client.IgnoreNotFound(err)
 	}
@@ -104,7 +94,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// update the status when done processing in case there is anything pending
 	defer func() {
 		err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			newRunner, err := crud.SingleRunner(
+			newRunner, err := crud.MultiRunner(
 				context.Background(),
 				r.Client,
 				client.ObjectKey{
@@ -197,9 +187,10 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	const runnerOwnerCmKey = ".metadata.cmcontroller"
-	const runnerOwnerDpKey = ".metadata.dpcontroller"
+func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	const runnerOwnerCmKey = ".metadata.cmmrcontroller"
+	const runnerOwnerDpKey = ".metadata.dpmrcontroller"
+
 	ctx := context.Background()
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, runnerOwnerCmKey, func(object client.Object) []string {
 		// grab the configMap object, extract the owner...
@@ -210,7 +201,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we're dealing with a proper object
-		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "MultiRunner" {
 			return nil
 		}
 
@@ -218,8 +209,8 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+
 	// deployments
-	// todo : unify with configmap above
 	if err := mgr.GetFieldIndexer().IndexField(ctx, &appsv1.Deployment{}, runnerOwnerDpKey, func(rawObj client.Object) []string {
 		// grab the deployment object, extract the owner...
 		deployment := rawObj.(*appsv1.Deployment)
@@ -229,7 +220,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we're dealing with a proper object
-		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "MultiRunner" {
 			return nil
 		}
 
@@ -237,8 +228,9 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}); err != nil {
 		return err
 	}
+
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabv1beta1.Runner{}).
+		For(&gitlabv1beta1.MultiRunner{}).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				if e.ObjectOld == nil || e.ObjectNew == nil {
@@ -249,7 +241,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			DeleteFunc: func(event event.DeleteEvent) bool {
 				// The reconciler adds a finalizer when the delete timestamp is added.
 				// Avoid reconciling in case it's a runner, we still want to reconcile if it's a dependent object
-				if _, ok := event.Object.(*gitlabv1beta1.Runner); ok {
+				if _, ok := event.Object.(*gitlabv1beta1.MultiRunner); ok {
 					return false
 				}
 				return true

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/go-logr/logr"
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
 	"gitlab.k8s.alekc.dev/internal/result"
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"
@@ -17,19 +16,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.Runner, logger logr.Logger) (*ctrl.Result, error) {
-	labels := map[string]string{"deployment": runnerObj.Name}
+func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger) (*ctrl.Result, error) {
+	labels := map[string]string{"deployment": runnerObj.GetName()}
 	wantedDeployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      runnerObj.ChildName(),
-			Namespace: runnerObj.Namespace,
+			Namespace: runnerObj.GetNamespace(),
 			Annotations: map[string]string{
-				types.ConfigVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
+				types.ConfigVersionAnnotationKey: runnerObj.ConfigMapVersion(),
 			},
 			OwnerReferences: runnerObj.GenerateOwnerReference(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32Ptr(1),
+			Replicas: pointer.Int32(1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -37,7 +36,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 				ObjectMeta: metav1.ObjectMeta{
 					Labels: labels,
 					Annotations: map[string]string{
-						types.ConfigVersionAnnotationKey: runnerObj.Status.ConfigMapVersion,
+						types.ConfigVersionAnnotationKey: runnerObj.ConfigMapVersion(),
 					},
 				},
 				Spec: corev1.PodSpec{
@@ -51,7 +50,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 					}},
 					Containers: []corev1.Container{{
 						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:alpine-v14.8.2",
+						Image:           "gitlab/gitlab-runner:alpine-v15.9.1",
 						Resources:       corev1.ResourceRequirements{}, // todo:
 						ImagePullPolicy: "IfNotPresent",                // todo
 						VolumeMounts: []corev1.VolumeMount{{
@@ -67,7 +66,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 
 	var existingDeployment appsv1.Deployment
 	err := cl.Get(ctx, client.ObjectKey{
-		Namespace: runnerObj.Namespace,
+		Namespace: runnerObj.GetNamespace(),
 		Name:      runnerObj.ChildName(),
 	}, &existingDeployment)
 
@@ -86,8 +85,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 	}
 
 	// deployment exists. Check the configMap annotation
-	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.Status.
-		ConfigMapVersion || !equality.Semantic.DeepDerivative(wantedDeployment.Spec, existingDeployment.DeepCopy().Spec) {
+	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() || !equality.Semantic.DeepDerivative(wantedDeployment.Spec, existingDeployment.DeepCopy().Spec) {
 		logger.Info("deployment is different from our version, updating", "deployment_name", existingDeployment.Name)
 		err = cl.Update(ctx, &wantedDeployment)
 		if err != nil {
@@ -99,11 +97,11 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.
 	return nil, nil
 }
 
-func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.Runner, logger logr.Logger, gitlabRunnerTomlConfig string, configHashKey string) (*ctrl.Result, error) {
+func ConfigMap(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, configHashKey string) (*ctrl.Result, error) {
 	// fetch current config map
 	var configMap corev1.ConfigMap
 	err := cl.Get(ctx, client.ObjectKey{
-		Namespace: runnerObj.Namespace,
+		Namespace: runnerObj.GetNamespace(),
 		Name:      runnerObj.ChildName(),
 	}, &configMap)
 
@@ -118,17 +116,17 @@ func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.R
 		configMap = corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            runnerObj.ChildName(),
-				Namespace:       runnerObj.Namespace,
+				Namespace:       runnerObj.GetNamespace(),
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
 			},
 			Data: map[string]string{types.ConfigMapKeyName: gitlabRunnerTomlConfig},
 		}
 		if err = cl.Create(ctx, &configMap); err != nil {
-			runnerObj.Status.Error = "cannot create config map"
+			runnerObj.SetStatusError("cannot create config map")
 			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
 			return result.RequeueWithDefaultTimeout(), err
 		}
-		runnerObj.Status.ConfigMapVersion = configHashKey
+		runnerObj.SetConfigMapVersion(configHashKey)
 		return result.RequeueNow(), nil
 	}
 
@@ -139,11 +137,11 @@ func ConfigMap(ctx context.Context, cl client.Client, runnerObj *gitlabv1beta1.R
 		newObj.Data[types.ConfigMapKeyName] = gitlabRunnerTomlConfig
 		if err = cl.Update(ctx, newObj); err != nil {
 			const errMsg = "cannot update config map with the new configuration"
-			runnerObj.Status.Error = errMsg
+			runnerObj.SetStatusError(errMsg)
 			logger.Error(err, errMsg)
 			return &ctrl.Result{Requeue: true}, err
 		}
-		runnerObj.Status.ConfigMapVersion = configHashKey
+		runnerObj.SetConfigMapVersion(configHashKey)
 		return result.RequeueNow(), nil
 	}
 	return nil, nil
