@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"gitlab.k8s.alekc.dev/internal/types"
 	"reflect"
 	"time"
 
@@ -74,31 +75,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 
 	logger.Info("reconciling")
 	if runnerObj.IsBeingDeleted() {
-		logger.Info("runner is being deleted")
-
-		if !runnerObj.IsAuthenticated() {
-			logger.Info("removing runner/s from gitlab")
-			for _, reg := range runnerObj.RegistrationConfig() {
-				cl := r.GitlabApiClient
-				if cl == nil {
-					if cl, err = api.NewGitlabClient(*reg.Token, reg.GitlabUrl); err != nil {
-						logger.Error(err, "cannot get gitlab api client for deletion of the runner")
-						continue
-					}
-				}
-				if _, err = cl.DeleteByToken(reg.AuthToken); err != nil {
-					// do not interrupt execution flow, just report it
-					logger.Error(err, "warning: cannot delete token from gitlab")
-				}
-			}
-		}
-
-		runnerObj.RemoveFinalizer()
-		if err = runnerObj.Update(ctx, r); err != nil {
-			logger.Error(err, "cannot remove finalizer")
-			return resultRequeueAfterDefaultTimeout, err
-		}
-		return resultRequeueNow, nil
+		return r.manageDeletion(ctx, runnerObj, logger)
 	}
 
 	// update the status when done processing in case there is anything pending
@@ -257,4 +234,33 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Owns(&corev1.ConfigMap{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
+}
+
+func (r *RunnerReconciler) manageDeletion(ctx context.Context, runnerObj types.RunnerInfo, logger logr.Logger) (ctrl.Result, error) {
+	logger.Info("runner is being deleted")
+	var err error
+
+	if !runnerObj.IsAuthenticated() {
+		logger.Info("removing runner/s from gitlab")
+		for _, reg := range runnerObj.RegistrationConfig() {
+			cl := r.GitlabApiClient
+			if cl == nil {
+				if cl, err = api.NewGitlabClient(*reg.Token, reg.GitlabUrl); err != nil {
+					logger.Error(err, "cannot get gitlab api client for deletion of the runner")
+					continue
+				}
+			}
+			if _, err = cl.DeleteByToken(reg.AuthToken); err != nil {
+				// do not interrupt execution flow, just report it
+				logger.Error(err, "warning: cannot delete token from gitlab")
+			}
+		}
+	}
+
+	runnerObj.RemoveFinalizer()
+	if err = runnerObj.Update(ctx, r); err != nil {
+		logger.Error(err, "cannot remove finalizer")
+		return resultRequeueAfterDefaultTimeout, err
+	}
+	return resultRequeueNow, nil
 }

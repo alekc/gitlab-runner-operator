@@ -1,11 +1,11 @@
 package api
 
 import (
+	"gitlab.k8s.alekc.dev/internal/data/pointer"
 	"io"
 
 	"github.com/xanzy/go-gitlab"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
-	"gitlab.k8s.alekc.dev/internal/pointer"
 )
 
 type GitlabClient interface {

@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"gitlab.k8s.alekc.dev/internal/data/maps"
 
 	"github.com/go-logr/logr"
 	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
@@ -14,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// SingleRunner fetches single runner from k8s
+// SingleRunner init single runner from k8s
 func SingleRunner(ctx context.Context, client client.Client, nsName types.NamespacedName) (internalTypes.RunnerInfo, error) {
 	runnerObj := &gitlabv1beta1.Runner{}
 	err := client.Get(ctx, nsName, runnerObj)
@@ -27,13 +28,9 @@ func MultiRunner(ctx context.Context, client client.Client, nsName types.Namespa
 	runnerObj := &gitlabv1beta1.MultiRunner{}
 	err := client.Get(ctx, nsName, runnerObj)
 
-	// explicit init of the status maps
-	if runnerObj.Status.AuthTokens == nil {
-		runnerObj.Status.AuthTokens = make(map[string]string, 0)
-	}
-	if runnerObj.Status.LastRegistrationTags == nil {
-		runnerObj.Status.LastRegistrationTags = make(map[string][]string, 0)
-	}
+	maps.InitIfNil(&runnerObj.Status.AuthTokens)
+	maps.InitSliceIfNil(&runnerObj.Status.LastRegistrationTags)
+
 	return runnerObj, err
 }
 
