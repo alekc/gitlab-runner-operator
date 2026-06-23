@@ -20,8 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -60,6 +61,21 @@ type RunnerSpec struct {
 	// DefaultRunnerImage when empty.
 	// +optional
 	RunnerImage string `json:"runner_image,omitempty"`
+
+	// RunnerResources overrides the resource requests/limits of the runner
+	// manager container.
+	// +optional
+	RunnerResources *corev1.ResourceRequirements `json:"runner_resources,omitempty"`
+
+	// RunnerImagePullPolicy overrides the runner container image pull policy.
+	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
+	// +optional
+	RunnerImagePullPolicy corev1.PullPolicy `json:"runner_image_pull_policy,omitempty"`
+
+	// RunnerSecurityContext overrides the runner manager container security
+	// context.
+	// +optional
+	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
 }
 
 // DefaultRunnerImage is the gitlab-runner image used when the spec does not
@@ -84,6 +100,16 @@ type RunnerStatus struct {
 
 	ConfigMapVersion string `json:"config_map_version,omitempty"`
 
+	// ObservedGeneration is the spec generation the controller last acted on.
+	// +optional
+	ObservedGeneration int64 `json:"observed_generation,omitempty"`
+
+	// Conditions holds the latest observations of the runner state.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	// Ready indicates that all runner operations have completed and the object
 	// is ready to serve.
 	Ready bool `json:"ready"`
@@ -92,6 +118,8 @@ type RunnerStatus struct {
 // Runner is the Schema for the runners API
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type Runner struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -158,7 +186,7 @@ func (r *Runner) GenerateOwnerReference() []metav1.OwnerReference {
 		Kind:               "Runner",
 		Name:               r.Name,
 		UID:                r.UID,
-		Controller:         pointer.Bool(true),
+		Controller:         ptr.To(true),
 		BlockOwnerDeletion: nil,
 	}}
 }
@@ -219,4 +247,40 @@ func (r *Runner) RunnerImage() string {
 		return r.Spec.RunnerImage
 	}
 	return DefaultRunnerImage
+}
+
+// SetObservedGeneration records the spec generation the controller acted on.
+func (r *Runner) SetObservedGeneration(gen int64) {
+	r.Status.ObservedGeneration = gen
+}
+
+// SetReadyCondition updates the Ready condition on the runner status.
+func (r *Runner) SetReadyCondition(ready bool, reason, message string) {
+	setReadyCondition(&r.Status.Conditions, r.Generation, ready, reason, message)
+}
+
+// RunnerResources returns the configured runner container resources, or a sane
+// default.
+func (r *Runner) RunnerResources() corev1.ResourceRequirements {
+	if r.Spec.RunnerResources != nil {
+		return *r.Spec.RunnerResources
+	}
+	return defaultRunnerResources()
+}
+
+// RunnerImagePullPolicy returns the configured pull policy, or IfNotPresent.
+func (r *Runner) RunnerImagePullPolicy() corev1.PullPolicy {
+	if r.Spec.RunnerImagePullPolicy != "" {
+		return r.Spec.RunnerImagePullPolicy
+	}
+	return corev1.PullIfNotPresent
+}
+
+// RunnerSecurityContext returns the configured security context, or a hardened
+// default.
+func (r *Runner) RunnerSecurityContext() *corev1.SecurityContext {
+	if r.Spec.RunnerSecurityContext != nil {
+		return r.Spec.RunnerSecurityContext
+	}
+	return defaultRunnerSecurityContext()
 }

@@ -12,7 +12,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -29,7 +30,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 			OwnerReferences: runnerObj.GenerateOwnerReference(),
 		},
 		Spec: appsv1.DeploymentSpec{
-			Replicas: pointer.Int32(1),
+			Replicas: ptr.To[int32](1),
 			Selector: &metav1.LabelSelector{
 				MatchLabels: labels,
 			},
@@ -52,8 +53,27 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					Containers: []corev1.Container{{
 						Name:            "runner",
 						Image:           runnerObj.RunnerImage(),
-						Resources:       corev1.ResourceRequirements{}, // todo:
-						ImagePullPolicy: "IfNotPresent",                // todo
+						ImagePullPolicy: runnerObj.RunnerImagePullPolicy(),
+						Resources:       runnerObj.RunnerResources(),
+						SecurityContext: runnerObj.RunnerSecurityContext(),
+						Ports: []corev1.ContainerPort{{
+							Name:          "metrics",
+							ContainerPort: 9090,
+						}},
+						ReadinessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt32(9090)},
+							},
+							InitialDelaySeconds: 10,
+							PeriodSeconds:       20,
+						},
+						LivenessProbe: &corev1.Probe{
+							ProbeHandler: corev1.ProbeHandler{
+								TCPSocket: &corev1.TCPSocketAction{Port: intstr.FromInt32(9090)},
+							},
+							InitialDelaySeconds: 30,
+							PeriodSeconds:       30,
+						},
 						VolumeMounts: []corev1.VolumeMount{{
 							Name:      "config",
 							MountPath: "/etc/gitlab-runner/",

@@ -118,12 +118,14 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// reset the error; it is re-set below if anything fails this pass
 	runnerObj.SetStatusError("")
 	runnerObj.SetStatusReady(false)
+	runnerObj.SetObservedGeneration(runnerObj.GetGeneration())
 
 	// resolve auth and ensure managed runners exist on GitLab. Managed runner
 	// ids are persisted to status immediately inside ensureRunners.
 	tokens, requeueAfter, err := ensureRunners(ctx, r.Client, r.Status(), r.GitlabApiClient, runnerObj, logger)
 	if err != nil {
 		runnerObj.SetStatusError(err.Error())
+		runnerObj.SetReadyCondition(false, "AuthFailed", err.Error())
 		logger.Error(err, "cannot ensure runners against gitlab")
 		return resultRequeueAfterDefaultTimeout, err
 	}
@@ -131,6 +133,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// create required rbac credentials if they are missing
 	if err = crud.CreateRBACIfMissing(ctx, r.Client, runnerObj, logger); err != nil {
 		runnerObj.SetStatusError("Cannot create the rbac objects")
+		runnerObj.SetReadyCondition(false, "RBACFailed", err.Error())
 		logger.Error(err, "cannot create rbac objects")
 		return resultRequeueAfterDefaultTimeout, err
 	}
@@ -138,21 +141,30 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// render config.toml from the resolved tokens
 	generatedTomlConfig, configHashKey, err := generate.TomlConfig(runnerObj, tokens)
 	if err != nil {
+		runnerObj.SetStatusError(err.Error())
+		runnerObj.SetReadyCondition(false, "ConfigRenderFailed", err.Error())
 		logger.Error(err, "cannot generate runner config")
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
 	// reconcile the config Secret (config.toml plus the per-entry tokens)
 	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens, configHashKey); res != nil || err != nil {
+		if err != nil {
+			runnerObj.SetReadyCondition(false, "ConfigSecretFailed", err.Error())
+		}
 		return *res, err
 	}
 
 	// validate deployment data
 	if res, err := validate.Deployment(ctx, r.Client, runnerObj, logger); res != nil || err != nil {
+		if err != nil {
+			runnerObj.SetReadyCondition(false, "DeploymentFailed", err.Error())
+		}
 		return *res, err
 	}
 
 	runnerObj.SetStatusReady(true)
+	runnerObj.SetReadyCondition(true, "Reconciled", "runner is ready")
 	if requeueAfter > 0 {
 		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	}

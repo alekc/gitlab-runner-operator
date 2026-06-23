@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gitlab.k8s.alekc.dev/api/v1beta2"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -30,6 +31,11 @@ type RunnerInfo interface {
 	SetStatusReady(ready bool)
 	ConfigMapVersion() string
 	RunnerImage() string
+	RunnerResources() corev1.ResourceRequirements
+	RunnerImagePullPolicy() corev1.PullPolicy
+	RunnerSecurityContext() *corev1.SecurityContext
+	SetObservedGeneration(generation int64)
+	SetReadyCondition(ready bool, reason, message string)
 	RegistrationConfig() []v1beta2.GitlabRegInfo
 	StoreRunnerRegistration(v1beta2.GitlabRegInfo)
 }

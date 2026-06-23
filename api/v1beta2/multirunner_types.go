@@ -20,8 +20,9 @@ import (
 	"context"
 	"fmt"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
@@ -51,6 +52,21 @@ type MultiRunnerSpec struct {
 	// +optional
 	RunnerImage string `json:"runner_image,omitempty"`
 
+	// RunnerResources overrides the resource requests/limits of the runner
+	// manager container.
+	// +optional
+	RunnerResources *corev1.ResourceRequirements `json:"runner_resources,omitempty"`
+
+	// RunnerImagePullPolicy overrides the runner container image pull policy.
+	// +kubebuilder:validation:Enum=Always;Never;IfNotPresent
+	// +optional
+	RunnerImagePullPolicy corev1.PullPolicy `json:"runner_image_pull_policy,omitempty"`
+
+	// RunnerSecurityContext overrides the runner manager container security
+	// context.
+	// +optional
+	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
+
 	Entries []MultiRunnerEntry `json:"entries"`
 }
 
@@ -75,12 +91,24 @@ type MultiRunnerStatus struct {
 	// TokenExpiresAt holds the managed runner token expiry per entry name.
 	TokenExpiresAt map[string]metav1.Time `json:"token_expires_at,omitempty"`
 
+	// ObservedGeneration is the spec generation the controller last acted on.
+	// +optional
+	ObservedGeneration int64 `json:"observed_generation,omitempty"`
+
+	// Conditions holds the latest observations of the runner state.
+	// +listType=map
+	// +listMapKey=type
+	// +optional
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
+
 	Ready            bool   `json:"ready"`
 	ConfigMapVersion string `json:"config_map_version,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.status.ready`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // MultiRunner is the Schema for the multirunners API
 type MultiRunner struct {
@@ -143,6 +171,42 @@ func (r *MultiRunner) RunnerImage() string {
 	return DefaultRunnerImage
 }
 
+// SetObservedGeneration records the spec generation the controller acted on.
+func (r *MultiRunner) SetObservedGeneration(gen int64) {
+	r.Status.ObservedGeneration = gen
+}
+
+// SetReadyCondition updates the Ready condition on the runner status.
+func (r *MultiRunner) SetReadyCondition(ready bool, reason, message string) {
+	setReadyCondition(&r.Status.Conditions, r.Generation, ready, reason, message)
+}
+
+// RunnerResources returns the configured runner container resources, or a sane
+// default.
+func (r *MultiRunner) RunnerResources() corev1.ResourceRequirements {
+	if r.Spec.RunnerResources != nil {
+		return *r.Spec.RunnerResources
+	}
+	return defaultRunnerResources()
+}
+
+// RunnerImagePullPolicy returns the configured pull policy, or IfNotPresent.
+func (r *MultiRunner) RunnerImagePullPolicy() corev1.PullPolicy {
+	if r.Spec.RunnerImagePullPolicy != "" {
+		return r.Spec.RunnerImagePullPolicy
+	}
+	return corev1.PullIfNotPresent
+}
+
+// RunnerSecurityContext returns the configured security context, or a hardened
+// default.
+func (r *MultiRunner) RunnerSecurityContext() *corev1.SecurityContext {
+	if r.Spec.RunnerSecurityContext != nil {
+		return r.Spec.RunnerSecurityContext
+	}
+	return defaultRunnerSecurityContext()
+}
+
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {
 	var res []GitlabRegInfo
 	for _, entry := range r.Spec.Entries {
@@ -191,7 +255,7 @@ func (r *MultiRunner) GenerateOwnerReference() []metav1.OwnerReference {
 		Kind:               "MultiRunner",
 		Name:               r.Name,
 		UID:                r.UID,
-		Controller:         pointer.Bool(true),
+		Controller:         ptr.To(true),
 		BlockOwnerDeletion: nil,
 	}}
 }

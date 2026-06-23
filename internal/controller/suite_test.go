@@ -106,6 +106,18 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
+	err = (&MultiRunnerReconciler{
+		Client: k8sManager.GetClient(),
+		GitlabApiClient: &api2.MockedGitlabClient{
+			OnCreateRunner: func(opts gitlabv1beta2.RunnerCreateOptions) (api2.CreatedRunner, error) {
+				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
+				return api2.CreatedRunner{ID: 2, Token: hex.EncodeToString(hash[:])}, nil
+			},
+			OnDeleteRunner: func(id int) error { return nil },
+		},
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
 	// run the reconciler in a separate go routine
 	go func() {
 		err = k8sManager.Start(controllerruntime.SetupSignalHandler())
