@@ -175,24 +175,23 @@ func caseRBACCheck(tc *testCase) {
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
-		Expect(runner.Status.AuthenticationToken).ToNot(BeEmpty())
 		Expect(runner.Status.RunnerID).To(Equal(1))
 	}
 }
 
-// caseGeneratedConfigMap checks if a new config map is generated
+// caseGeneratedConfigMap checks that the config Secret is generated
 func caseGeneratedConfigMap(tc *testCase) {
 	ctx := context.Background()
 
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
-		var configMap corev1.ConfigMap
+		var secret corev1.Secret
 		Eventually(func() bool {
-			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &configMap) == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &secret) == nil
 		}, timeout, interval).Should(BeTrue())
 
-		Expect(configMap.OwnerReferences).NotTo(BeEmpty())
-		Expect(configMap.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
-		Expect(configMap.Data).Should(HaveKey(configMapKeyName), "Child config map should have %s data entry", configMapKeyName)
+		Expect(secret.OwnerReferences).NotTo(BeEmpty())
+		Expect(secret.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
+		Expect(secret.Data).Should(HaveKey(configMapKeyName), "child config secret should have %s data entry", configMapKeyName)
 		Expect(runner.Status.ConfigMapVersion).Should(Not(BeEmpty()))
 	}
 }
@@ -229,17 +228,17 @@ func caseEnvironmentIsSpecified(tc *testCase) {
 func caseTagsChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
+		oldHash := runner.Status.RegistrationHash
 
 		// update tags
 		runner.Spec.Authentication.CreateOptions.TagList = []string{"new", "tag", "list"}
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		// runner should get a new authentication token
+		// changing tags changes the create-options hash, forcing a recreate
 		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+			return err == nil && newRunner.Status.RegistrationHash != oldHash
 		}, timeout, interval).Should(BeTrue())
 	}
 }
@@ -267,7 +266,7 @@ func caseSpecChanged(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldConfigMapVersion := runner.Status.ConfigMapVersion
 		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
-		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
+		secret := getChangedConfigSecret(ctx, nameSpacedDependencyName(runner), "")
 
 		// update runner spec
 		runner.Spec.Concurrent = 2
@@ -279,14 +278,14 @@ func caseSpecChanged(tc *testCase) {
 			return err == nil && newRunner.Status.Ready && newRunner.Status.ConfigMapVersion != oldConfigMapVersion
 		}, timeout, interval).Should(BeTrue())
 
-		// wait until the configmap is updated and fetch the new version
+		// wait until the config secret is updated and fetch the new version
 		Eventually(func() bool {
-			var cm corev1.ConfigMap
-			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &cm); err != nil {
+			var s corev1.Secret
+			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &s); err != nil {
 				return false
 			}
-			return configMap.Data[configMapKeyName] != cm.Data[configMapKeyName]
-		}, timeout, interval).Should(BeTrue(), "configmap should have new toml config")
+			return string(secret.Data[configMapKeyName]) != string(s.Data[configMapKeyName])
+		}, timeout, interval).Should(BeTrue(), "config secret should have new toml config")
 
 		// verify that our deployment has been amended with a new version
 		Eventually(func() bool {
@@ -313,15 +312,15 @@ func getChangedDeployment(ctx context.Context, name types.NamespacedName, resour
 	return &dp
 }
 
-func getChangedConfigMap(ctx context.Context, name types.NamespacedName, resourceDiffersFrom string) *corev1.ConfigMap {
-	var configMap corev1.ConfigMap
+func getChangedConfigSecret(ctx context.Context, name types.NamespacedName, resourceDiffersFrom string) *corev1.Secret {
+	var secret corev1.Secret
 	Eventually(func() bool {
-		if err := k8sClient.Get(ctx, name, &configMap); err != nil {
+		if err := k8sClient.Get(ctx, name, &secret); err != nil {
 			return false
 		}
-		return configMap.ObjectMeta.ResourceVersion != resourceDiffersFrom
+		return secret.ObjectMeta.ResourceVersion != resourceDiffersFrom
 	}, timeout, interval).Should(BeTrue())
-	return &configMap
+	return &secret
 }
 
 func nameSpacedRunnerName(runner *v1beta2.Runner) types.NamespacedName {

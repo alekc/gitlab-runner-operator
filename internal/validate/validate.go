@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/go-logr/logr"
 	"gitlab.k8s.alekc.dev/internal/result"
@@ -43,8 +44,8 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
-							ConfigMap: &corev1.ConfigMapVolumeSource{
-								LocalObjectReference: corev1.LocalObjectReference{Name: runnerObj.ChildName()},
+							Secret: &corev1.SecretVolumeSource{
+								SecretName: runnerObj.ChildName(),
 							},
 						},
 					}},
@@ -97,46 +98,56 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 	return nil, nil
 }
 
-func ConfigMap(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, configHashKey string) (*ctrl.Result, error) {
-	// fetch current config map
-	var configMap corev1.ConfigMap
+// Secret renders the runner config.toml into an Opaque Secret named after the
+// runner, keeping each entry's authentication token under a dedicated
+// ConfigTokenKeyPrefix key so the controller can recover it on later
+// reconciles. The token never lands in a ConfigMap or in the CR status.
+func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, tokens map[string]string, configHashKey string) (*ctrl.Result, error) {
+	desired := map[string][]byte{
+		types.ConfigMapKeyName: []byte(gitlabRunnerTomlConfig),
+	}
+	for name, token := range tokens {
+		desired[types.ConfigTokenKeyPrefix+name] = []byte(token)
+	}
+
+	var secret corev1.Secret
 	err := cl.Get(ctx, client.ObjectKey{
 		Namespace: runnerObj.GetNamespace(),
 		Name:      runnerObj.ChildName(),
-	}, &configMap)
+	}, &secret)
 
-	// create config map if it doesn't exist (or report an error)
 	if err != nil && !errors.IsNotFound(err) {
-		logger.Error(err, "got an error while fetching config map")
+		logger.Error(err, "got an error while fetching config secret")
 		return result.RequeueWithDefaultTimeout(), err
 	}
 
 	if err != nil && errors.IsNotFound(err) {
-		// configmap doesn't exist, create it and requeue
-		configMap = corev1.ConfigMap{
+		// secret doesn't exist, create it and requeue
+		secret = corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:            runnerObj.ChildName(),
 				Namespace:       runnerObj.GetNamespace(),
 				OwnerReferences: runnerObj.GenerateOwnerReference(),
 			},
-			Data: map[string]string{types.ConfigMapKeyName: gitlabRunnerTomlConfig},
+			Type: corev1.SecretTypeOpaque,
+			Data: desired,
 		}
-		if err = cl.Create(ctx, &configMap); err != nil {
-			runnerObj.SetStatusError("cannot create config map")
-			logger.Error(err, "cannot create a config map", "configMapName", configMap.Name)
+		if err = cl.Create(ctx, &secret); err != nil {
+			runnerObj.SetStatusError("cannot create config secret")
+			logger.Error(err, "cannot create a config secret", "secretName", secret.Name)
 			return result.RequeueWithDefaultTimeout(), err
 		}
 		runnerObj.SetConfigMapVersion(configHashKey)
 		return result.RequeueNow(), nil
 	}
 
-	// configmap exists. Check the value for the config map is different
-	if configMap.Data[types.ConfigMapKeyName] != gitlabRunnerTomlConfig {
-		logger.Info("config map object has old config, needs updating", "configMapName", configMap.Name)
-		newObj := configMap.DeepCopy()
-		newObj.Data[types.ConfigMapKeyName] = gitlabRunnerTomlConfig
+	// secret exists. Update it if the rendered content differs
+	if !reflect.DeepEqual(secret.Data, desired) {
+		logger.Info("config secret has old content, needs updating", "secretName", secret.Name)
+		newObj := secret.DeepCopy()
+		newObj.Data = desired
 		if err = cl.Update(ctx, newObj); err != nil {
-			const errMsg = "cannot update config map with the new configuration"
+			const errMsg = "cannot update config secret with the new configuration"
 			runnerObj.SetStatusError(errMsg)
 			logger.Error(err, errMsg)
 			return &ctrl.Result{Requeue: true}, err

@@ -99,23 +99,6 @@ func (a GitlabAuth) Validate() error {
 	return nil
 }
 
-// authIsValid reports whether the recorded status already satisfies the desired
-// auth, letting the reconciler skip the registration step (and avoid a hot
-// loop). For a secret-sourced bring-your-own token the contents cannot be
-// compared here, so it is considered valid once a token has been resolved into
-// status; secret rotation is picked up on the next pod restart.
-func authIsValid(auth GitlabAuth, statusToken string, statusRunnerID int, statusHash string) bool {
-	switch {
-	case auth.IsManaged():
-		return statusToken != "" && statusRunnerID != 0 &&
-			statusHash == auth.CreateOptions.Hash()
-	case auth.AuthenticationToken != "":
-		return statusToken == auth.AuthenticationToken
-	default:
-		return statusToken != ""
-	}
-}
-
 // RunnerCreateOptions mirrors the POST /user/runners request body. It is only
 // used in managed mode.
 type RunnerCreateOptions struct {

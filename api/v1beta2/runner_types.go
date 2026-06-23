@@ -74,11 +74,6 @@ type RunnerStatus struct {
 	// through the access-token path. Zero for bring-your-own-token runners.
 	RunnerID int `json:"runner_id,omitempty"`
 
-	// AuthenticationToken is the runner authentication token written into the
-	// runner config: either the provided token, or the one GitLab returned on
-	// creation.
-	AuthenticationToken string `json:"authentication_token,omitempty"`
-
 	// TokenExpiresAt is GitLab's expiry for a managed runner token, if any.
 	// +optional
 	TokenExpiresAt *metav1.Time `json:"token_expires_at,omitempty"`
@@ -111,7 +106,6 @@ func (r *Runner) RegistrationConfig() []GitlabRegInfo {
 		Auth:             r.Spec.Authentication,
 		GitlabUrl:        r.Spec.GitlabInstanceURL,
 		RunnerID:         r.Status.RunnerID,
-		AuthToken:        r.Status.AuthenticationToken,
 		TokenExpiresAt:   r.Status.TokenExpiresAt,
 		RegistrationHash: r.Status.RegistrationHash,
 	}}
@@ -119,7 +113,6 @@ func (r *Runner) RegistrationConfig() []GitlabRegInfo {
 
 func (r *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
 	r.Status.RunnerID = info.RunnerID
-	r.Status.AuthenticationToken = info.AuthToken
 	r.Status.TokenExpiresAt = info.TokenExpiresAt
 	r.Status.RegistrationHash = info.RegistrationHash
 }
@@ -194,9 +187,6 @@ func (r *Runner) IsBeingDeleted() bool {
 	return !r.ObjectMeta.DeletionTimestamp.IsZero()
 }
 
-func (r *Runner) IsAuthenticated() bool {
-	return r.Status.AuthenticationToken != ""
-}
 func (r *Runner) RemoveFinalizer() {
 	controllerutil.RemoveFinalizer(r, r.finalizer())
 }
@@ -219,11 +209,6 @@ func (r *Runner) HasFinalizer() bool {
 func (r *Runner) SetStatusReady(ready bool) {
 	r.Status.Ready = ready
 }
-func (r *Runner) HasValidAuth() bool {
-	return authIsValid(r.Spec.Authentication, r.Status.AuthenticationToken,
-		r.Status.RunnerID, r.Status.RegistrationHash)
-}
-
 func (r *Runner) ConfigMapVersion() string {
 	return r.Status.ConfigMapVersion
 }

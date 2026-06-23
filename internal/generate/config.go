@@ -11,24 +11,28 @@ import (
 	"gitlab.k8s.alekc.dev/internal/types"
 )
 
-func TomlConfig(runner types.RunnerInfo) (gitlabConfig, configHashKey string, err error) {
+// TomlConfig renders the gitlab-runner config.toml for the object. Tokens are
+// the resolved authentication tokens keyed by runner/entry name (the token is
+// never read from status; the caller supplies it from the create/refresh result
+// or the existing config Secret).
+func TomlConfig(runner types.RunnerInfo, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
 	// ugly as hell, but its the best I can do for now to avoid the import loop.
 	// Blame the kubebuilder which cannot generate deepCopy for external workspace
 	switch r := runner.(type) {
 	case *v1beta2.Runner:
-		return SingleRunnerConfig(r)
+		return SingleRunnerConfig(r, tokens)
 	case *v1beta2.MultiRunner:
-		return MultiRunnerConfig(r)
+		return MultiRunnerConfig(r, tokens)
 	}
 	panic("unknown runner type")
 }
-func SingleRunnerConfig(r *v1beta2.Runner) (gitlabConfig, configHashKey string, err error) {
+func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:  r.Name,
 		Limit: 10,
 		RunnerCredentials: config.RunnerCredentials{
-			Token: r.Status.AuthenticationToken,
+			Token: tokens[r.Name],
 			URL:   r.Spec.GitlabInstanceURL,
 		},
 		RunnerSettings: config.RunnerSettings{
@@ -67,7 +71,7 @@ func SingleRunnerConfig(r *v1beta2.Runner) (gitlabConfig, configHashKey string, 
 }
 
 // MultiRunnerConfig initialize config for multiple runners object
-func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner) (gitlabConfig, configHashKey string, err error) {
+func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
 	// create configuration for the runners
 	var runners []*config.RunnerConfig
 	for _, entry := range runnerObject.Spec.Entries {
@@ -77,7 +81,7 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner) (gitlabConfig, configH
 			Name:  entry.Name,
 			Limit: 10,
 			RunnerCredentials: config.RunnerCredentials{
-				Token: runnerObject.Status.AuthTokens[entry.Name],
+				Token: tokens[entry.Name],
 				URL:   runnerObject.Spec.GitlabInstanceURL,
 			},
 			RunnerSettings: config.RunnerSettings{

@@ -9,14 +9,16 @@ import (
 )
 
 type RunnerInfo interface {
-	GetNamespace() string
+	// client.Object gives the metav1.Object + runtime.Object surface
+	// (name, namespace, annotations, deepcopy) used generically by the
+	// reconcilers (status writes, the delete-attempt annotation).
+	client.Object
+
 	ChildName() string
-	GetName() string
 	GetStatus() any
 
 	GenerateOwnerReference() []v1.OwnerReference
 	IsBeingDeleted() bool
-	IsAuthenticated() bool
 	HasFinalizer() bool
 	RemoveFinalizer()
 	AddFinalizer() (finalizerUpdated bool)
@@ -26,9 +28,6 @@ type RunnerInfo interface {
 	SetStatus(newStatus any)
 	UpdateStatus(ctx context.Context, writer client.StatusWriter) error
 	SetStatusReady(ready bool)
-	HasValidAuth() bool
-	// RegisterOnGitlab(api.GitlabClient, logr.Logger) (ctrl.Result, error)
-	// DeleteFromGitlab(apiClient api.GitlabClient, logger logr.Logger) error
 	ConfigMapVersion() string
 	RunnerImage() string
 	RegistrationConfig() []v1beta2.GitlabRegInfo

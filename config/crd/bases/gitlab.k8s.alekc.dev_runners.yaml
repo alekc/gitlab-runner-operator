@@ -1129,12 +1129,6 @@ spec:
           status:
             description: RunnerStatus defines the observed state of Runner
             properties:
-              authentication_token:
-                description: |-
-                  AuthenticationToken is the runner authentication token written into the
-                  runner config: either the provided token, or the one GitLab returned on
-                  creation.
-                type: string
               config_map_version:
                 type: string
               error:

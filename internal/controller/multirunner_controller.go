@@ -51,7 +51,7 @@ type MultiRunnerReconciler struct {
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=*
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
 func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
@@ -64,15 +64,7 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	logger.Info("reconciling")
 	if runnerObj.IsBeingDeleted() {
-		logger.Info("runner is being deleted")
-		removeManagedRunners(ctx, r.Client, r.GitlabApiClient, runnerObj, logger)
-
-		runnerObj.RemoveFinalizer()
-		if err = runnerObj.Update(ctx, r); err != nil {
-			logger.Error(err, "cannot remove finalizer")
-			return resultRequeueAfterDefaultTimeout, err
-		}
-		return resultRequeueNow, nil
+		return finalizeDeletion(ctx, r.Client, r.GitlabApiClient, runnerObj, logger)
 	}
 
 	// update the status when done processing in case there is anything pending
@@ -113,20 +105,17 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return resultRequeueNow, nil
 	}
 
-	// reset the error. If there is one still present we will get it later on
+	// reset the error; it is re-set below if anything fails this pass
 	runnerObj.SetStatusError("")
 	runnerObj.SetStatusReady(false)
 
-	// if the runner doesn't have a saved authentication token
-	// or the latest registration token/tags are different from the
-	// current one, we need to redo the registration
-	if !runnerObj.HasValidAuth() {
-		if err = reconcileRegistration(ctx, r.Client, r.GitlabApiClient, runnerObj, logger); err != nil {
-			runnerObj.SetStatusError(err.Error())
-			logger.Error(err, "cannot authenticate runner against gitlab")
-			return resultRequeueAfterDefaultTimeout, err
-		}
-		return resultRequeueNow, nil
+	// resolve auth and ensure managed runners exist on GitLab. Managed runner
+	// ids are persisted to status immediately inside ensureRunners.
+	tokens, requeueAfter, err := ensureRunners(ctx, r.Client, r.Status(), r.GitlabApiClient, runnerObj, logger)
+	if err != nil {
+		runnerObj.SetStatusError(err.Error())
+		logger.Error(err, "cannot ensure runners against gitlab")
+		return resultRequeueAfterDefaultTimeout, err
 	}
 
 	// create required rbac credentials if they are missing
@@ -136,38 +125,40 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
-	// generate a new config map based on the runner spec
-	generatedTomlConfig, configHashKey, err := generate.TomlConfig(runnerObj)
+	// render config.toml from the resolved tokens
+	generatedTomlConfig, configHashKey, err := generate.TomlConfig(runnerObj, tokens)
 	if err != nil {
-		logger.Error(err, "cannot generate config map")
+		logger.Error(err, "cannot generate runner config")
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
-	// if the config version differs, perform the upgrade
-	// set the status with a config map hash
-	if result, err := validate.ConfigMap(ctx, r.Client, runnerObj, logger, generatedTomlConfig, configHashKey); result != nil || err != nil {
-		return *result, err
+	// reconcile the config Secret (config.toml plus the per-entry tokens)
+	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens, configHashKey); res != nil || err != nil {
+		return *res, err
 	}
 
 	// validate deployment data
-	if result, err := validate.Deployment(ctx, r.Client, runnerObj, logger); result != nil || err != nil {
-		return *result, err
+	if res, err := validate.Deployment(ctx, r.Client, runnerObj, logger); res != nil || err != nil {
+		return *res, err
 	}
 
 	runnerObj.SetStatusReady(true)
+	if requeueAfter > 0 {
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
+	}
 	return *result.DontRequeue(), nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	const runnerOwnerCmKey = ".metadata.cmmrcontroller"
+	const runnerOwnerSecretKey = ".metadata.secretmrcontroller"
 	const runnerOwnerDpKey = ".metadata.dpmrcontroller"
 
 	ctx := context.Background()
-	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.ConfigMap{}, runnerOwnerCmKey, func(object client.Object) []string {
-		// grab the configMap object, extract the owner...
-		configMap := object.(*corev1.ConfigMap)
-		owner := metav1.GetControllerOf(configMap)
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &corev1.Secret{}, runnerOwnerSecretKey, func(object client.Object) []string {
+		// grab the secret object, extract the owner...
+		secret := object.(*corev1.Secret)
+		owner := metav1.GetControllerOf(secret)
 		if owner == nil {
 			return nil
 		}
@@ -218,7 +209,7 @@ func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				}
 				return true
 			}}).
-		Owns(&corev1.ConfigMap{}).
+		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

@@ -24,6 +24,16 @@ type GitlabClient interface {
 	CreateRunner(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error)
 	// DeleteRunner removes a runner by its numeric id.
 	DeleteRunner(id int) error
+	// VerifyToken reports whether the given runner authentication token is
+	// still accepted by GitLab. A false (with nil error) means the token was
+	// rejected (revoked/expired); a non-nil error means the check itself failed.
+	VerifyToken(token string) (bool, error)
+	// RefreshToken resets a managed runner's authentication token in place
+	// (without recreating the runner) and returns the new token and expiry.
+	RefreshToken(id int) (CreatedRunner, error)
+	// RunnerExists reports whether a runner with the given id still exists on
+	// GitLab.
+	RunnerExists(id int) (bool, error)
 }
 
 type gitlabApi struct {
@@ -77,6 +87,50 @@ func (g *gitlabApi) CreateRunner(opts v1beta2.RunnerCreateOptions) (CreatedRunne
 func (g *gitlabApi) DeleteRunner(id int) error {
 	_, err := g.gitlabApiClient.Runners.RemoveRunner(id)
 	return err
+}
+
+func (g *gitlabApi) VerifyToken(token string) (bool, error) {
+	resp, err := g.gitlabApiClient.Runners.VerifyRegisteredRunner(&gitlab.VerifyRegisteredRunnerOptions{
+		Token: gitlab.Ptr(token),
+	})
+	if err == nil {
+		return true, nil
+	}
+	// A 401/403 means GitLab rejected the token (revoked/expired); that is a
+	// definitive "not valid", not a transport failure.
+	if resp != nil && (resp.StatusCode == 401 || resp.StatusCode == 403) {
+		return false, nil
+	}
+	return false, err
+}
+
+func (g *gitlabApi) RefreshToken(id int) (CreatedRunner, error) {
+	tok, resp, err := g.gitlabApiClient.Runners.ResetRunnerAuthenticationToken(int64(id))
+	if err != nil {
+		return CreatedRunner{}, err
+	}
+	defer closeBody(resp)
+
+	refreshed := CreatedRunner{ID: id}
+	if tok.Token != nil {
+		refreshed.Token = *tok.Token
+	}
+	if tok.TokenExpiresAt != nil {
+		t := metav1.NewTime(*tok.TokenExpiresAt)
+		refreshed.TokenExpiresAt = &t
+	}
+	return refreshed, nil
+}
+
+func (g *gitlabApi) RunnerExists(id int) (bool, error) {
+	_, resp, err := g.gitlabApiClient.Runners.GetRunnerDetails(id)
+	if err == nil {
+		return true, nil
+	}
+	if resp != nil && resp.StatusCode == 404 {
+		return false, nil
+	}
+	return false, err
 }
 
 func closeBody(resp *gitlab.Response) {

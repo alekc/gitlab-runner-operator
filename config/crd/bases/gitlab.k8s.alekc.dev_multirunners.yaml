@@ -1159,12 +1159,6 @@ spec:
               MultiRunnerStatus defines the observed state of MultiRunner. The maps are
               keyed by entry name.
             properties:
-              auth_tokens:
-                additionalProperties:
-                  type: string
-                description: AuthTokens holds the runner authentication token per
-                  entry name.
-                type: object
               config_map_version:
                 type: string
               error:
@@ -1182,6 +1176,13 @@ spec:
                   type: integer
                 description: RunnerIDs holds the GitLab numeric id per entry name
                   for managed runners.
+                type: object
+              token_expires_at:
+                additionalProperties:
+                  format: date-time
+                  type: string
+                description: TokenExpiresAt holds the managed runner token expiry
+                  per entry name.
                 type: object
             required:
             - ready

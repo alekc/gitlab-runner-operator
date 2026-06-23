@@ -65,4 +65,10 @@ rules:
   - rolebindings
   - roles
   verbs:
-  - '*'
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

@@ -11,6 +11,27 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
+      path: /mutate-gitlab-k8s-alekc-dev-v1beta2-multirunner
+  failurePolicy: Fail
+  name: mmultirunner.kb.io
+  rules:
+  - apiGroups:
+    - gitlab.k8s.alekc.dev
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - multirunners
+  sideEffects: None
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
       path: /mutate-gitlab-k8s-alekc-dev-v1beta2-runner
   failurePolicy: Fail
   name: mrunner.kb.io
@@ -31,6 +52,27 @@ kind: ValidatingWebhookConfiguration
 metadata:
   name: validating-webhook-configuration
 webhooks:
+- admissionReviewVersions:
+  - v1
+  - v1beta1
+  clientConfig:
+    service:
+      name: webhook-service
+      namespace: system
+      path: /validate-gitlab-k8s-alekc-dev-v1beta2-multirunner
+  failurePolicy: Fail
+  name: vmultirunner.kb.io
+  rules:
+  - apiGroups:
+    - gitlab.k8s.alekc.dev
+    apiVersions:
+    - v1beta2
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - multirunners
+  sideEffects: None
 - admissionReviewVersions:
   - v1
   - v1beta1

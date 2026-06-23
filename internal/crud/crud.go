@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"strings"
 
 	"github.com/go-logr/logr"
 	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
@@ -27,17 +28,39 @@ func MultiRunner(ctx context.Context, client client.Client, nsName types.Namespa
 	runnerObj := &gitlabv1beta2.MultiRunner{}
 	err := client.Get(ctx, nsName, runnerObj)
 
-	if runnerObj.Status.AuthTokens == nil {
-		runnerObj.Status.AuthTokens = map[string]string{}
-	}
 	if runnerObj.Status.RunnerIDs == nil {
 		runnerObj.Status.RunnerIDs = map[string]int{}
 	}
 	if runnerObj.Status.RegistrationHashes == nil {
 		runnerObj.Status.RegistrationHashes = map[string]string{}
 	}
+	if runnerObj.Status.TokenExpiresAt == nil {
+		runnerObj.Status.TokenExpiresAt = map[string]metav1.Time{}
+	}
 
 	return runnerObj, err
+}
+
+// ExistingConfigTokens recovers the per-entry authentication tokens stored in
+// the runner's config Secret (keys prefixed with ConfigTokenKeyPrefix). It
+// returns an empty map when the Secret does not exist yet. The token lives only
+// in this Secret, never in the CR status.
+func ExistingConfigTokens(ctx context.Context, cl client.Client, namespace, childName string) (map[string]string, error) {
+	out := map[string]string{}
+	var secret corev1.Secret
+	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: childName}, &secret)
+	if errors.IsNotFound(err) {
+		return out, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	for k, v := range secret.Data {
+		if name, ok := strings.CutPrefix(k, internalTypes.ConfigTokenKeyPrefix); ok {
+			out[name] = string(v)
+		}
+	}
+	return out, nil
 }
 
 func CreateRBACIfMissing(ctx context.Context, cl client.Client, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
@@ -97,11 +120,31 @@ func CreateRoleIfMissing(ctx context.Context, cl client.Client, runnerObject int
 			Namespace:       runnerObject.GetNamespace(),
 			OwnerReferences: runnerObject.GenerateOwnerReference(),
 		},
-		Rules: []v1.PolicyRule{{
-			Verbs:     []string{"get", "list", "watch", "create", "patch", "delete", "update"},
-			APIGroups: []string{"*"},
-			Resources: []string{"pods", "pods/exec", "pods/attach", "secrets", "configmaps"},
-		}},
+		// Minimum permissions the gitlab-runner kubernetes executor needs in the
+		// build namespace. Scoped to the core API group, with verbs per resource;
+		// no wildcard apiGroup and no namespace-wide secret list/watch.
+		Rules: []v1.PolicyRule{
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods"},
+				Verbs:     []string{"get", "list", "watch", "create", "delete"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/exec", "pods/attach"},
+				Verbs:     []string{"create"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"pods/log"},
+				Verbs:     []string{"get"},
+			},
+			{
+				APIGroups: []string{""},
+				Resources: []string{"secrets", "configmaps"},
+				Verbs:     []string{"get", "create", "delete"},
+			},
+		},
 	}
 	err = cl.Create(ctx, role)
 	if err != nil {

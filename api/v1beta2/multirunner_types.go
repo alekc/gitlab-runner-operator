@@ -66,14 +66,14 @@ type MultiRunnerEntry struct {
 type MultiRunnerStatus struct {
 	Error string `json:"error,omitempty"`
 
-	// AuthTokens holds the runner authentication token per entry name.
-	AuthTokens map[string]string `json:"auth_tokens,omitempty"`
-
 	// RunnerIDs holds the GitLab numeric id per entry name for managed runners.
 	RunnerIDs map[string]int `json:"runner_ids,omitempty"`
 
 	// RegistrationHashes holds the create-options hash per entry name.
 	RegistrationHashes map[string]string `json:"registration_hashes,omitempty"`
+
+	// TokenExpiresAt holds the managed runner token expiry per entry name.
+	TokenExpiresAt map[string]metav1.Time `json:"token_expires_at,omitempty"`
 
 	Ready            bool   `json:"ready"`
 	ConfigMapVersion string `json:"config_map_version,omitempty"`
@@ -95,15 +95,6 @@ func (r *MultiRunner) GetStatus() any {
 	return r.Status
 }
 
-func (r *MultiRunner) IsAuthenticated() bool {
-	// every entry in our runner book must have its auth token
-	for _, entry := range r.Spec.Entries {
-		if r.Status.AuthTokens[entry.Name] == "" {
-			return false
-		}
-	}
-	return true
-}
 func (r *MultiRunner) finalizer() string {
 	return "gitlab.k8s.alekc.dev/mr-finalizer"
 }
@@ -140,18 +131,6 @@ func (r *MultiRunner) SetStatusReady(ready bool) {
 	r.Status.Ready = ready
 }
 
-// HasValidAuth reports whether every entry is already authenticated against its
-// desired configuration; a single stale entry forces the registration step.
-func (r *MultiRunner) HasValidAuth() bool {
-	for _, entry := range r.Spec.Entries {
-		if !authIsValid(entry.Authentication, r.Status.AuthTokens[entry.Name],
-			r.Status.RunnerIDs[entry.Name], r.Status.RegistrationHashes[entry.Name]) {
-			return false
-		}
-	}
-	return true
-}
-
 func (r *MultiRunner) ConfigMapVersion() string {
 	return r.Status.ConfigMapVersion
 }
@@ -167,31 +146,39 @@ func (r *MultiRunner) RunnerImage() string {
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {
 	var res []GitlabRegInfo
 	for _, entry := range r.Spec.Entries {
-		res = append(res, GitlabRegInfo{
+		reg := GitlabRegInfo{
 			Name:             entry.Name,
 			Auth:             entry.Authentication,
 			GitlabUrl:        r.Spec.GitlabInstanceURL,
 			RunnerID:         r.Status.RunnerIDs[entry.Name],
-			AuthToken:        r.Status.AuthTokens[entry.Name],
 			RegistrationHash: r.Status.RegistrationHashes[entry.Name],
-		})
+		}
+		if exp, ok := r.Status.TokenExpiresAt[entry.Name]; ok {
+			e := exp
+			reg.TokenExpiresAt = &e
+		}
+		res = append(res, reg)
 	}
 	return res
 }
 
 func (r *MultiRunner) StoreRunnerRegistration(info GitlabRegInfo) {
-	if r.Status.AuthTokens == nil {
-		r.Status.AuthTokens = map[string]string{}
-	}
 	if r.Status.RunnerIDs == nil {
 		r.Status.RunnerIDs = map[string]int{}
 	}
 	if r.Status.RegistrationHashes == nil {
 		r.Status.RegistrationHashes = map[string]string{}
 	}
-	r.Status.AuthTokens[info.Name] = info.AuthToken
+	if r.Status.TokenExpiresAt == nil {
+		r.Status.TokenExpiresAt = map[string]metav1.Time{}
+	}
 	r.Status.RunnerIDs[info.Name] = info.RunnerID
 	r.Status.RegistrationHashes[info.Name] = info.RegistrationHash
+	if info.TokenExpiresAt != nil {
+		r.Status.TokenExpiresAt[info.Name] = *info.TokenExpiresAt
+	} else {
+		delete(r.Status.TokenExpiresAt, info.Name)
+	}
 }
 
 func (r *MultiRunner) ChildName() string {

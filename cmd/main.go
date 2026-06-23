@@ -95,6 +95,10 @@ func main() {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)
 		}
+		if err = (&gitlabv1beta2.MultiRunner{}).SetupWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "MultiRunner")
+			os.Exit(1)
+		}
 	}
 	if err = (&controller.MultiRunnerReconciler{
 		Client: mgr.GetClient(),
