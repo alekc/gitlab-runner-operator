@@ -3,7 +3,7 @@ package api
 import (
 	"errors"
 
-	"github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
 )
 

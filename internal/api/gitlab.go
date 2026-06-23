@@ -4,7 +4,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/data/pointer"
 	"io"
 
-	"github.com/xanzy/go-gitlab"
+	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
 )
 
@@ -23,6 +23,12 @@ func (g *gitlabApi) DeleteByToken(token string) (*gitlab.Response, error) {
 	})
 }
 func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, error) {
+	// The SDK widened MaximumTimeout to *int64; convert from the CRD's *int.
+	var maximumTimeout *int64
+	if config.MaximumTimeout != nil {
+		v := int64(*config.MaximumTimeout)
+		maximumTimeout = &v
+	}
 	// sadly we cannot do a direct conversion due to the presence of additional field
 	convertedConfig := gitlab.RegisterNewRunnerOptions{
 		Token:          config.Token,
@@ -32,7 +38,7 @@ func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, e
 		Locked:         config.Locked,
 		RunUntagged:    config.RunUntagged,
 		TagList:        pointer.StringSlice(config.TagList),
-		MaximumTimeout: config.MaximumTimeout,
+		MaximumTimeout: maximumTimeout,
 	}
 	runner, resp, err := g.gitlabApiClient.Runners.RegisterNewRunner(&convertedConfig)
 	if err != nil {
