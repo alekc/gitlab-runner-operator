@@ -17,61 +17,54 @@ limitations under the License.
 package v1beta1
 
 import (
-	"k8s.io/apimachinery/pkg/runtime"
+	"context"
+
 	ctrl "sigs.k8s.io/controller-runtime"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
-// log is for logging in this package.
-var runnerlog = logf.Log.WithName("runner-resource")
-
+// SetupWebhookWithManager registers the defaulting and validating webhooks for
+// the Runner type with the manager.
 func (r *Runner) SetupWebhookWithManager(mgr ctrl.Manager) error {
-	return ctrl.NewWebhookManagedBy(mgr).
-		For(r).
+	return ctrl.NewWebhookManagedBy(mgr, r).
+		WithDefaulter(&RunnerWebhook{}).
+		WithValidator(&RunnerWebhook{}).
 		Complete()
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-
 // +kubebuilder:webhook:path=/mutate-gitlab-k8s-alekc-dev-v1beta1-runner,mutating=true,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta1,name=mrunner.kb.io,admissionReviewVersions={v1,v1beta1}
+// +kubebuilder:webhook:path=/validate-gitlab-k8s-alekc-dev-v1beta1-runner,mutating=false,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta1,name=vrunner.kb.io,admissionReviewVersions={v1,v1beta1}
 
-var _ webhook.Defaulter = &Runner{}
+// RunnerWebhook implements the controller-runtime defaulting and validating
+// webhook interfaces for the Runner type. controller-runtime 0.19+ moved these
+// off the API type onto a dedicated handler implementing the generic
+// Defaulter / Validator interfaces.
+type RunnerWebhook struct{}
 
-// Default implements webhook.Defaulter so a webhook will be registered for the type
-func (r *Runner) Default() {
+var (
+	_ admission.Defaulter[*Runner] = &RunnerWebhook{}
+	_ admission.Validator[*Runner] = &RunnerWebhook{}
+)
+
+// Default applies sane defaults to a Runner before it is persisted.
+func (w *RunnerWebhook) Default(_ context.Context, r *Runner) error {
 	if r.Spec.GitlabInstanceURL == "" {
 		r.Spec.GitlabInstanceURL = "https://gitlab.com/"
 	}
+	return nil
 }
 
-// TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
-// +kubebuilder:webhook:path=/validate-gitlab-k8s-alekc-dev-v1beta1-runner,mutating=false,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta1,name=vrunner.kb.io,admissionReviewVersions={v1,v1beta1}
-
-var _ webhook.Validator = &Runner{}
-
-// ValidateCreate implements webhook.Validator so a webhook will be registered for the type
-func (r *Runner) ValidateCreate() (admission.Warnings, error) {
-	// runnerlog.Info("validate create", "name", r.Name)
-
+// ValidateCreate is a no-op placeholder kept for future validation rules.
+func (w *RunnerWebhook) ValidateCreate(_ context.Context, _ *Runner) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateUpdate implements webhook.Validator so a webhook will be registered for the type
-func (r *Runner) ValidateUpdate(old runtime.Object) (admission.Warnings, error) {
-	// runnerlog.Info("validate update", "name", r.Name)
-
-	// we do not want to permit changing of the name of the runner (or better, we'd rather avoid dealing with cleaning)
-
-	// TODO(user): fill in your validation logic upon object update.
+// ValidateUpdate is a no-op placeholder kept for future validation rules.
+func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, _ *Runner) (admission.Warnings, error) {
 	return nil, nil
 }
 
-// ValidateDelete implements webhook.Validator so a webhook will be registered for the type
-func (r *Runner) ValidateDelete() (admission.Warnings, error) {
-	// runnerlog.Info("validate delete", "name", r.Name)
-
-	// TODO(user): fill in your validation logic upon object deletion.
+// ValidateDelete is a no-op placeholder kept for future validation rules.
+func (w *RunnerWebhook) ValidateDelete(_ context.Context, _ *Runner) (admission.Warnings, error) {
 	return nil, nil
 }

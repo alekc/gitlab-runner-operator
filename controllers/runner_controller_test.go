@@ -30,8 +30,7 @@ import (
 
 	v1 "k8s.io/api/rbac/v1"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"gitlab.k8s.alekc.dev/api/v1beta1"
 	"gitlab.k8s.alekc.dev/internal/generate"
@@ -103,7 +102,7 @@ var _ = Describe("Runner controller", func() {
 		}, client.PropagationPolicy(metav1.DeletePropagationBackground)), client.GracePeriodSeconds(0)).To(Succeed())
 	})
 
-	table.DescribeTable(
+	DescribeTable(
 		"When reconciling Gitlab Runner",
 		func(tweaks ...testCaseTweak) {
 			tc := &testCase{
@@ -135,14 +134,14 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
-		table.Entry("Should support setting of env var for build env", caseEnvironmentIsSpecified),
-		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
-		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
-		table.Entry("Should have created required RBAC", caseRBACCheck),
-		table.Entry("Should have generated config map", caseGeneratedConfigMap),
-		table.Entry("Should have generated deployment", caseCheckDeployment),
-		table.Entry("On spec change, config map should be updated", caseSpecChanged),
+		Entry("Should support setting of env var for build env", caseEnvironmentIsSpecified),
+		Entry("Should have created a different registration on tag update", caseTagsChanged),
+		Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
+		Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		Entry("Should have created required RBAC", caseRBACCheck),
+		Entry("Should have generated config map", caseGeneratedConfigMap),
+		Entry("Should have generated deployment", caseCheckDeployment),
+		Entry("On spec change, config map should be updated", caseSpecChanged),
 	)
 })
 
