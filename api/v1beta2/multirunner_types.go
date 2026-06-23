@@ -46,6 +46,11 @@ type MultiRunnerSpec struct {
 
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
 
+	// RunnerImage overrides the gitlab-runner container image. Defaults to
+	// DefaultRunnerImage when empty.
+	// +optional
+	RunnerImage string `json:"runner_image,omitempty"`
+
 	Entries []MultiRunnerEntry `json:"entries"`
 }
 
@@ -149,6 +154,14 @@ func (r *MultiRunner) HasValidAuth() bool {
 
 func (r *MultiRunner) ConfigMapVersion() string {
 	return r.Status.ConfigMapVersion
+}
+
+// RunnerImage returns the configured gitlab-runner image, or the default.
+func (r *MultiRunner) RunnerImage() string {
+	if r.Spec.RunnerImage != "" {
+		return r.Spec.RunnerImage
+	}
+	return DefaultRunnerImage
 }
 
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {

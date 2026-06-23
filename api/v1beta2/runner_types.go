@@ -55,7 +55,16 @@ type RunnerSpec struct {
 	// +kubebuilder:validation:Optional
 	// Environment contains custom environment variables injected to build environment
 	Environment []string `json:"environment,omitempty"`
+
+	// RunnerImage overrides the gitlab-runner container image. Defaults to
+	// DefaultRunnerImage when empty.
+	// +optional
+	RunnerImage string `json:"runner_image,omitempty"`
 }
+
+// DefaultRunnerImage is the gitlab-runner image used when the spec does not
+// set RunnerImage.
+const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.1.0"
 
 // RunnerStatus defines the observed state of Runner
 type RunnerStatus struct {
@@ -217,4 +226,12 @@ func (r *Runner) HasValidAuth() bool {
 
 func (r *Runner) ConfigMapVersion() string {
 	return r.Status.ConfigMapVersion
+}
+
+// RunnerImage returns the configured gitlab-runner image, or the default.
+func (r *Runner) RunnerImage() string {
+	if r.Spec.RunnerImage != "" {
+		return r.Spec.RunnerImage
+	}
+	return DefaultRunnerImage
 }

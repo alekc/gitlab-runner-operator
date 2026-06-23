@@ -1070,6 +1070,11 @@ spec:
                 - info
                 - debug
                 type: string
+              runner_image:
+                description: |-
+                  RunnerImage overrides the gitlab-runner container image. Defaults to
+                  DefaultRunnerImage when empty.
+                type: string
             required:
             - authentication
             type: object

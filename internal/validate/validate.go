@@ -50,7 +50,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					}},
 					Containers: []corev1.Container{{
 						Name:            "runner",
-						Image:           "gitlab/gitlab-runner:alpine-v15.9.1",
+						Image:           runnerObj.RunnerImage(),
 						Resources:       corev1.ResourceRequirements{}, // todo:
 						ImagePullPolicy: "IfNotPresent",                // todo
 						VolumeMounts: []corev1.VolumeMount{{
