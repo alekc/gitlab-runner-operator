@@ -54,14 +54,14 @@ func (w *RunnerWebhook) Default(_ context.Context, r *Runner) error {
 	return nil
 }
 
-// ValidateCreate is a no-op placeholder kept for future validation rules.
-func (w *RunnerWebhook) ValidateCreate(_ context.Context, _ *Runner) (admission.Warnings, error) {
-	return nil, nil
+// ValidateCreate enforces that exactly one auth mode is configured.
+func (w *RunnerWebhook) ValidateCreate(_ context.Context, r *Runner) (admission.Warnings, error) {
+	return nil, r.Spec.Authentication.Validate()
 }
 
-// ValidateUpdate is a no-op placeholder kept for future validation rules.
-func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, _ *Runner) (admission.Warnings, error) {
-	return nil, nil
+// ValidateUpdate re-runs auth validation against the updated object.
+func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *Runner) (admission.Warnings, error) {
+	return nil, newObj.Spec.Authentication.Validate()
 }
 
 // ValidateDelete is a no-op placeholder kept for future validation rules.

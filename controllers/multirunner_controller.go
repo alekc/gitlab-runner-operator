@@ -65,23 +65,7 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	logger.Info("reconciling")
 	if runnerObj.IsBeingDeleted() {
 		logger.Info("runner is being deleted")
-
-		if !runnerObj.IsAuthenticated() {
-			logger.Info("removing runner/s from gitlab")
-			for _, reg := range runnerObj.RegistrationConfig() {
-				cl := r.GitlabApiClient
-				if cl == nil {
-					if cl, err = api.NewGitlabClient(*reg.Token, reg.GitlabUrl); err != nil {
-						logger.Error(err, "cannot get gitlab api client for deletion of the runner")
-						continue
-					}
-				}
-				if _, err = cl.DeleteByToken(reg.AuthToken); err != nil {
-					// do not interrupt execution flow, just report it
-					logger.Error(err, "warning: cannot delete token from gitlab")
-				}
-			}
-		}
+		removeManagedRunners(ctx, r.Client, r.GitlabApiClient, runnerObj, logger)
 
 		runnerObj.RemoveFinalizer()
 		if err = runnerObj.Update(ctx, r); err != nil {
@@ -137,22 +121,10 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// or the latest registration token/tags are different from the
 	// current one, we need to redo the registration
 	if !runnerObj.HasValidAuth() {
-		// todo: add reg removal
-		for _, regConfig := range runnerObj.RegistrationConfig() {
-			gitlabClient := r.GitlabApiClient
-			if gitlabClient == nil {
-				if gitlabClient, err = api.NewGitlabClient(*regConfig.Token, regConfig.GitlabUrl); err != nil {
-					logger.Error(err, "cannot get gitlab api client")
-					return resultRequeueAfterDefaultTimeout, err
-				}
-			}
-			regConfig.AuthToken, err = gitlabClient.Register(regConfig.RegisterNewRunnerOptions)
-			if err != nil {
-				logger.Error(err, "cannot register on gitlab")
-				return resultRequeueAfterDefaultTimeout, err
-			}
-			logger.Info("registered new runner on the gitlab", "token", regConfig.Token)
-			runnerObj.StoreRunnerRegistration(regConfig)
+		if err = reconcileRegistration(ctx, r.Client, r.GitlabApiClient, runnerObj, logger); err != nil {
+			runnerObj.SetStatusError(err.Error())
+			logger.Error(err, "cannot authenticate runner against gitlab")
+			return resultRequeueAfterDefaultTimeout, err
 		}
 		return resultRequeueNow, nil
 	}

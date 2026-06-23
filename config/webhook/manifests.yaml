@@ -11,14 +11,14 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-gitlab-k8s-alekc-dev-v1beta1-runner
+      path: /mutate-gitlab-k8s-alekc-dev-v1beta2-runner
   failurePolicy: Fail
   name: mrunner.kb.io
   rules:
   - apiGroups:
     - gitlab.k8s.alekc.dev
     apiVersions:
-    - v1beta1
+    - v1beta2
     operations:
     - CREATE
     - UPDATE
@@ -38,14 +38,14 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-gitlab-k8s-alekc-dev-v1beta1-runner
+      path: /validate-gitlab-k8s-alekc-dev-v1beta2-runner
   failurePolicy: Fail
   name: vrunner.kb.io
   rules:
   - apiGroups:
     - gitlab.k8s.alekc.dev
     apiVersions:
-    - v1beta1
+    - v1beta2
     operations:
     - CREATE
     - UPDATE

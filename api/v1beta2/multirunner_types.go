@@ -19,7 +19,6 @@ package v1beta2
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -51,19 +50,28 @@ type MultiRunnerSpec struct {
 }
 
 type MultiRunnerEntry struct {
-	Name               string                   `json:"name"`
-	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
-	ExecutorConfig     KubernetesConfig         `json:"executor_config,omitempty"`
-	Environment        []string                 `json:"environment,omitempty"`
+	Name           string           `json:"name"`
+	Authentication GitlabAuth       `json:"authentication"`
+	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
+	Environment    []string         `json:"environment,omitempty"`
 }
 
-// MultiRunnerStatus defines the observed state of MultiRunner
+// MultiRunnerStatus defines the observed state of MultiRunner. The maps are
+// keyed by entry name.
 type MultiRunnerStatus struct {
-	Error                string              `json:"error"`
-	AuthTokens           map[string]string   `json:"auth_tokens"`
-	LastRegistrationTags map[string][]string `json:"last_registration_tags"`
-	Ready                bool                `json:"ready"`
-	ConfigMapVersion     string              `json:"config_map_version"`
+	Error string `json:"error,omitempty"`
+
+	// AuthTokens holds the runner authentication token per entry name.
+	AuthTokens map[string]string `json:"auth_tokens,omitempty"`
+
+	// RunnerIDs holds the GitLab numeric id per entry name for managed runners.
+	RunnerIDs map[string]int `json:"runner_ids,omitempty"`
+
+	// RegistrationHashes holds the create-options hash per entry name.
+	RegistrationHashes map[string]string `json:"registration_hashes,omitempty"`
+
+	Ready            bool   `json:"ready"`
+	ConfigMapVersion string `json:"config_map_version,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -83,9 +91,9 @@ func (r *MultiRunner) GetStatus() any {
 }
 
 func (r *MultiRunner) IsAuthenticated() bool {
-	// every entry r our runner book must have its auth
+	// every entry in our runner book must have its auth token
 	for _, entry := range r.Spec.Entries {
-		if _, found := r.Status.AuthTokens[*entry.RegistrationConfig.Token]; !found {
+		if r.Status.AuthTokens[entry.Name] == "" {
 			return false
 		}
 	}
@@ -127,17 +135,12 @@ func (r *MultiRunner) SetStatusReady(ready bool) {
 	r.Status.Ready = ready
 }
 
-// HasValidAuth verify if one or more entries from registration has to be registered again
+// HasValidAuth reports whether every entry is already authenticated against its
+// desired configuration; a single stale entry forces the registration step.
 func (r *MultiRunner) HasValidAuth() bool {
-	// every entry r our runner book must have its auth
 	for _, entry := range r.Spec.Entries {
-		// do we have a valid token?
-		token := *entry.RegistrationConfig.Token
-		if _, found := r.Status.AuthTokens[token]; !found {
-			return false
-		}
-		// old tags must be stored and they need to match the present one
-		if oldTags, found := r.Status.LastRegistrationTags[token]; !found || !reflect.DeepEqual(oldTags, entry.RegistrationConfig.TagList) {
+		if !authIsValid(entry.Authentication, r.Status.AuthTokens[entry.Name],
+			r.Status.RunnerIDs[entry.Name], r.Status.RegistrationHashes[entry.Name]) {
 			return false
 		}
 	}
@@ -151,20 +154,31 @@ func (r *MultiRunner) ConfigMapVersion() string {
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {
 	var res []GitlabRegInfo
 	for _, entry := range r.Spec.Entries {
-		token := *entry.RegistrationConfig.Token
 		res = append(res, GitlabRegInfo{
-			RegisterNewRunnerOptions: entry.RegistrationConfig,
-			AuthToken:                r.Status.AuthTokens[token],
-			GitlabUrl:                r.Spec.GitlabInstanceURL,
+			Name:             entry.Name,
+			Auth:             entry.Authentication,
+			GitlabUrl:        r.Spec.GitlabInstanceURL,
+			RunnerID:         r.Status.RunnerIDs[entry.Name],
+			AuthToken:        r.Status.AuthTokens[entry.Name],
+			RegistrationHash: r.Status.RegistrationHashes[entry.Name],
 		})
 	}
 	return res
 }
 
 func (r *MultiRunner) StoreRunnerRegistration(info GitlabRegInfo) {
-	token := *info.RegisterNewRunnerOptions.Token
-	r.Status.AuthTokens[token] = info.AuthToken
-	r.Status.LastRegistrationTags[token] = info.TagList
+	if r.Status.AuthTokens == nil {
+		r.Status.AuthTokens = map[string]string{}
+	}
+	if r.Status.RunnerIDs == nil {
+		r.Status.RunnerIDs = map[string]int{}
+	}
+	if r.Status.RegistrationHashes == nil {
+		r.Status.RegistrationHashes = map[string]string{}
+	}
+	r.Status.AuthTokens[info.Name] = info.AuthToken
+	r.Status.RunnerIDs[info.Name] = info.RunnerID
+	r.Status.RegistrationHashes[info.Name] = info.RegistrationHash
 }
 
 func (r *MultiRunner) ChildName() string {
@@ -174,7 +188,7 @@ func (r *MultiRunner) ChildName() string {
 func (r *MultiRunner) GenerateOwnerReference() []metav1.OwnerReference {
 	return []metav1.OwnerReference{{
 		APIVersion:         GroupVersion.String(), // due to https://github.com/kubernetes/client-go/issues/541 type meta is empty
-		Kind:               "MultirRunner",
+		Kind:               "MultiRunner",
 		Name:               r.Name,
 		UID:                r.UID,
 		Controller:         pointer.Bool(true),

@@ -23,8 +23,6 @@ import (
 	"strings"
 	"testing"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -97,15 +95,13 @@ var _ = BeforeSuite(func() {
 			WithName("controllers").
 			WithName("GitlabRunner"),
 		GitlabApiClient: &api2.MockedGitlabClient{
-			OnRegister: func(config gitlabv1beta2.RegisterNewRunnerOptions) (string, error) {
-				// here we create a unique hash representing a combination of registration token
-				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
-				hash := md5.Sum([]byte(*config.Token + strings.Join(config.TagList, ",")))
-				return hex.EncodeToString(hash[:]), nil
+			OnCreateRunner: func(opts gitlabv1beta2.RunnerCreateOptions) (api2.CreatedRunner, error) {
+				// deterministic token derived from the create options so that
+				// changing them yields a new token and triggers a recreate
+				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
+				return api2.CreatedRunner{ID: 1, Token: hex.EncodeToString(hash[:])}, nil
 			},
-			OnDeleteByTokens: func(token string) (*gitlab.Response, error) {
-				return &gitlab.Response{}, nil
-			},
+			OnDeleteRunner: func(id int) error { return nil },
 		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())

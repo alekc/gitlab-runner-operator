@@ -77,7 +77,7 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner) (gitlabConfig, configH
 			Name:  entry.Name,
 			Limit: 10,
 			RunnerCredentials: config.RunnerCredentials{
-				Token: runnerObject.Status.AuthTokens[*entry.RegistrationConfig.Token],
+				Token: runnerObject.Status.AuthTokens[entry.Name],
 				URL:   runnerObject.Spec.GitlabInstanceURL,
 			},
 			RunnerSettings: config.RunnerSettings{

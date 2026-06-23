@@ -19,7 +19,6 @@ package v1beta2
 import (
 	"context"
 	"fmt"
-	"reflect"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
@@ -32,7 +31,8 @@ import (
 
 // RunnerSpec defines the desired state of Runner
 type RunnerSpec struct {
-	RegistrationConfig RegisterNewRunnerOptions `json:"registration_config"`
+	// Authentication configures how the runner authenticates to GitLab.
+	Authentication GitlabAuth `json:"authentication"`
 
 	// +kubebuilder:validation:Optional
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
@@ -59,19 +59,29 @@ type RunnerSpec struct {
 
 // RunnerStatus defines the observed state of Runner
 type RunnerStatus struct {
-	Error string `json:"error"`
+	Error string `json:"error,omitempty"`
 
-	// LastRegistrationToken is the last token used for a successful authentication
-	LastRegistrationToken string `json:"last_registration_token"`
+	// RunnerID is the numeric id GitLab assigned to a managed runner created
+	// through the access-token path. Zero for bring-your-own-token runners.
+	RunnerID int `json:"runner_id,omitempty"`
 
-	// LastRegistrationTags are last tags used in successful registration
-	LastRegistrationTags []string `json:"last_registration_tags"`
+	// AuthenticationToken is the runner authentication token written into the
+	// runner config: either the provided token, or the one GitLab returned on
+	// creation.
+	AuthenticationToken string `json:"authentication_token,omitempty"`
 
-	// AuthenticationToken obtained from the gitlab which can be used in runner configuration for authentication
-	AuthenticationToken string `json:"authentication_token"`
-	ConfigMapVersion    string `json:"config_map_version"`
+	// TokenExpiresAt is GitLab's expiry for a managed runner token, if any.
+	// +optional
+	TokenExpiresAt *metav1.Time `json:"token_expires_at,omitempty"`
 
-	// Ready indicates that all runner operation has been completed and final object is ready to serve
+	// RegistrationHash captures the create options that produced the current
+	// managed runner; a change forces a recreate.
+	RegistrationHash string `json:"registration_hash,omitempty"`
+
+	ConfigMapVersion string `json:"config_map_version,omitempty"`
+
+	// Ready indicates that all runner operations have completed and the object
+	// is ready to serve.
 	Ready bool `json:"ready"`
 }
 
@@ -88,20 +98,21 @@ type Runner struct {
 
 func (r *Runner) RegistrationConfig() []GitlabRegInfo {
 	return []GitlabRegInfo{{
-		RegisterNewRunnerOptions: r.Spec.RegistrationConfig,
-		AuthToken:                r.Status.AuthenticationToken,
-		GitlabUrl:                r.Spec.GitlabInstanceURL,
+		Name:             r.Name,
+		Auth:             r.Spec.Authentication,
+		GitlabUrl:        r.Spec.GitlabInstanceURL,
+		RunnerID:         r.Status.RunnerID,
+		AuthToken:        r.Status.AuthenticationToken,
+		TokenExpiresAt:   r.Status.TokenExpiresAt,
+		RegistrationHash: r.Status.RegistrationHash,
 	}}
 }
 
 func (r *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
+	r.Status.RunnerID = info.RunnerID
 	r.Status.AuthenticationToken = info.AuthToken
-	r.Status.LastRegistrationToken = *info.Token
-	r.Status.LastRegistrationTags = info.TagList
-}
-
-func (r *Runner) GitlabRegTokens() []string {
-	return []string{r.Status.AuthenticationToken}
+	r.Status.TokenExpiresAt = info.TokenExpiresAt
+	r.Status.RegistrationHash = info.RegistrationHash
 }
 
 func (r *Runner) GetStatus() any {
@@ -200,42 +211,9 @@ func (r *Runner) SetStatusReady(ready bool) {
 	r.Status.Ready = ready
 }
 func (r *Runner) HasValidAuth() bool {
-	return !(r.Status.AuthenticationToken == "" ||
-		r.Status.LastRegistrationToken != *r.Spec.RegistrationConfig.Token ||
-		!reflect.DeepEqual(r.Status.LastRegistrationTags, r.Spec.RegistrationConfig.TagList))
+	return authIsValid(r.Spec.Authentication, r.Status.AuthenticationToken,
+		r.Status.RunnerID, r.Status.RegistrationHash)
 }
-
-// func (r *Runner) RegisterOnGitlab(gitlabClient api2.GitlabClient, logger logr.Logger) (ctrl.Result, error) {
-// 	// since we are doing a new registration, IF the runner already has an authentication token, delete it from gitlab server
-// 	if r.Status.AuthenticationToken != "" {
-// 		_, err := gitlabClient.DeleteByToken(r.Status.AuthenticationToken)
-// 		if err != nil {
-// 			logger.Error(err, "cannot remove gitlab runner registration")
-// 			return ctrl.Result{Requeue: true, RequeueAfter: time.Second * 30}, err
-// 		}
-// 	}
-// 	token, err := gitlabClient.Register(r.Spec.RegistrationConfig)
-// 	if err != nil {
-// 		logger.Error(err, "cannot register runner on the gitlab")
-// 		r.Status.Error = fmt.Sprintf("Cannot register the runner on gitlab api. %s", err.Error())
-// 		return ctrl.Result{Requeue: true, RequeueAfter: 1 * time.Minute}, err
-// 	}
-// 	r.Status.AuthenticationToken = token
-// 	r.Status.LastRegistrationToken = *r.Spec.RegistrationConfig.Token
-// 	r.Status.LastRegistrationTags = r.Spec.RegistrationConfig.TagList
-//
-// 	logger.Info("registered a new runner on gitlab")
-// 	return ctrl.Result{Requeue: true}, nil
-// }
-
-// func (r *Runner) DeleteFromGitlab(apiClient api2.GitlabClient, logger logr.Logger) error {
-// 	// _, err := apiClient.DeleteByToken(r.Status.AuthenticationToken)
-// 	// if err != nil {
-// 	// 	logger.Error(err, "cannot remove gitlab runner from the gitlab server")
-// 	// }
-// 	// return err
-// 	return nil
-// }
 
 func (r *Runner) ConfigMapVersion() string {
 	return r.Status.ConfigMapVersion

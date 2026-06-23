@@ -5,18 +5,6 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
   - ""
   resources:
   - configmaps
@@ -31,9 +19,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - gitlab.k8s.alekc.dev
+  - apps
   resources:
-  - multirunners
+  - deployments
   verbs:
   - create
   - delete
@@ -45,20 +33,7 @@ rules:
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
-  - multirunners/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - gitlab.k8s.alekc.dev
-  resources:
-  - multirunners/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - gitlab.k8s.alekc.dev
-  resources:
+  - multirunners
   - runners
   verbs:
   - create
@@ -71,12 +46,14 @@ rules:
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - multirunners/finalizers
   - runners/finalizers
   verbs:
   - update
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - multirunners/status
   - runners/status
   verbs:
   - get

@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.13.0
+    controller-gen.kubebuilder.io/version: v0.21.0
   name: multirunners.gitlab.k8s.alekc.dev
 spec:
   group: gitlab.k8s.alekc.dev
@@ -14,20 +14,25 @@ spec:
     singular: multirunner
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - name: v1beta2
     schema:
       openAPIV3Schema:
         description: MultiRunner is the Schema for the multirunners API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
             type: string
           metadata:
             type: object
@@ -43,6 +48,87 @@ spec:
               entries:
                 items:
                   properties:
+                    authentication:
+                      description: |-
+                        GitlabAuth configures how a runner authenticates to GitLab. GitLab removed
+                        the legacy registration-token workflow (deprecated in 16.0, disabled by
+                        default from 18.0); runners now authenticate with a runner authentication
+                        token (the "glrt-" token). Exactly one of two modes must be provided:
+
+                          - Bring-your-own token: set AuthenticationToken (or
+                            AuthenticationTokenSecret) to a runner authentication token created in
+                            the GitLab UI or via the API. The operator performs no GitLab API calls
+                            and writes the token straight into the runner config.
+
+                          - Managed: set AccessToken (or AccessTokenSecret) to a personal, group, or
+                            project access token holding the "create_runner" scope, together with a
+                            CreateOptions block. The operator creates the runner through
+                            POST /user/runners, stores the returned token, and deletes the runner
+                            from GitLab when the object is removed.
+                      properties:
+                        access_token:
+                          description: |-
+                            AccessToken is a personal, group, or project access token with the
+                            "create_runner" scope. Required for the managed mode.
+                          type: string
+                        access_token_secret:
+                          description: |-
+                            AccessTokenSecret names a secret in the runner's namespace whose "token"
+                            key holds the access token used for the managed mode.
+                          type: string
+                        authentication_token:
+                          description: |-
+                            AuthenticationToken is a pre-created runner authentication token
+                            ("glrt-..."). Mutually exclusive with the managed (CreateOptions) mode.
+                          type: string
+                        authentication_token_secret:
+                          description: |-
+                            AuthenticationTokenSecret names a secret in the runner's namespace whose
+                            "token" key holds the runner authentication token.
+                          type: string
+                        create_options:
+                          description: |-
+                            CreateOptions describes the runner to create. When set, the operator runs
+                            in managed mode and owns the runner's lifecycle on GitLab.
+                          properties:
+                            access_level:
+                              type: string
+                            description:
+                              type: string
+                            group_id:
+                              description: GroupID is required when RunnerType is
+                                group_type.
+                              type: integer
+                            locked:
+                              type: boolean
+                            maintenance_note:
+                              type: string
+                            maximum_timeout:
+                              type: integer
+                            paused:
+                              type: boolean
+                            project_id:
+                              description: ProjectID is required when RunnerType is
+                                project_type.
+                              type: integer
+                            run_untagged:
+                              type: boolean
+                            runner_type:
+                              description: RunnerType selects the scope of the runner
+                                to create.
+                              enum:
+                              - instance_type
+                              - group_type
+                              - project_type
+                              type: string
+                            tag_list:
+                              items:
+                                type: string
+                              type: array
+                          required:
+                          - runner_type
+                          type: object
+                      type: object
                     environment:
                       items:
                         type: string
@@ -986,53 +1072,9 @@ spec:
                       type: object
                     name:
                       type: string
-                    registration_config:
-                      description: "RegisterNewRunnerOptions represents the available
-                        RegisterNewRunner() options. \n GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
-                      properties:
-                        accessLevel:
-                          type: string
-                        active:
-                          description: Active is deprecated. use paused instead
-                          type: boolean
-                        description:
-                          type: string
-                        info:
-                          description: "RegisterNewRunnerInfoOptions represents the
-                            info hashmap parameter in RegisterNewRunnerOptions. \n
-                            GitLab API docs: https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner"
-                          properties:
-                            architecture:
-                              type: string
-                            name:
-                              type: string
-                            platform:
-                              type: string
-                            revision:
-                              type: string
-                            version:
-                              type: string
-                          type: object
-                        locked:
-                          type: boolean
-                        maintenance_note:
-                          type: string
-                        maximum_timeout:
-                          type: integer
-                        paused:
-                          type: boolean
-                        run_untagged:
-                          type: boolean
-                        tag_list:
-                          items:
-                            type: string
-                          type: array
-                        token:
-                          type: string
-                      type: object
                   required:
+                  - authentication
                   - name
-                  - registration_config
                   type: object
                 type: array
               gitlab_instance_url:
@@ -1060,29 +1102,35 @@ spec:
             - entries
             type: object
           status:
-            description: MultiRunnerStatus defines the observed state of MultiRunner
+            description: |-
+              MultiRunnerStatus defines the observed state of MultiRunner. The maps are
+              keyed by entry name.
             properties:
               auth_tokens:
                 additionalProperties:
                   type: string
+                description: AuthTokens holds the runner authentication token per
+                  entry name.
                 type: object
               config_map_version:
                 type: string
               error:
                 type: string
-              last_registration_tags:
-                additionalProperties:
-                  items:
-                    type: string
-                  type: array
-                type: object
               ready:
                 type: boolean
+              registration_hashes:
+                additionalProperties:
+                  type: string
+                description: RegistrationHashes holds the create-options hash per
+                  entry name.
+                type: object
+              runner_ids:
+                additionalProperties:
+                  type: integer
+                description: RunnerIDs holds the GitLab numeric id per entry name
+                  for managed runners.
+                type: object
             required:
-            - auth_tokens
-            - config_map_version
-            - error
-            - last_registration_tags
             - ready
             type: object
         type: object

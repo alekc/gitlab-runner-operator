@@ -2,7 +2,6 @@ package crud
 
 import (
 	"context"
-	"gitlab.k8s.alekc.dev/internal/data/maps"
 
 	"github.com/go-logr/logr"
 	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
@@ -28,8 +27,15 @@ func MultiRunner(ctx context.Context, client client.Client, nsName types.Namespa
 	runnerObj := &gitlabv1beta2.MultiRunner{}
 	err := client.Get(ctx, nsName, runnerObj)
 
-	maps.InitIfNil(&runnerObj.Status.AuthTokens)
-	maps.InitSliceIfNil(&runnerObj.Status.LastRegistrationTags)
+	if runnerObj.Status.AuthTokens == nil {
+		runnerObj.Status.AuthTokens = map[string]string{}
+	}
+	if runnerObj.Status.RunnerIDs == nil {
+		runnerObj.Status.RunnerIDs = map[string]int{}
+	}
+	if runnerObj.Status.RegistrationHashes == nil {
+		runnerObj.Status.RegistrationHashes = map[string]string{}
+	}
 
 	return runnerObj, err
 }

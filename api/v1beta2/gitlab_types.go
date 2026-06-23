@@ -285,36 +285,3 @@ type Service struct {
 	Command    []string `toml:"command" json:"command" long:"command" description:"Command or script that should be used as the container’s command. Syntax is similar to https://docs.docker.com/engine/reference/builder/#cmd"`
 	Entrypoint []string `toml:"entrypoint" json:"entrypoint" long:"entrypoint" description:"Command or script that should be executed as the container’s entrypoint. syntax is similar to https://docs.docker.com/engine/reference/builder/#entrypoint"`
 }
-
-// RegisterNewRunnerOptions represents the available RegisterNewRunner()
-// options.
-//
-// GitLab API docs:
-// https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
-type RegisterNewRunnerOptions struct {
-	Token       *string                       `url:"token" json:"token,omitempty"`
-	Description *string                       `url:"description,omitempty" json:"description,omitempty"`
-	Info        *RegisterNewRunnerInfoOptions `url:"info,omitempty" json:"info,omitempty"`
-	// Active is deprecated. use paused instead
-	Active          *bool    `url:"active,omitempty" json:"active,omitempty"`
-	Paused          *bool    `url:"paused,omitempty" json:"paused,omitempty"`
-	Locked          *bool    `url:"locked,omitempty" json:"locked,omitempty"`
-	RunUntagged     *bool    `url:"run_untagged,omitempty" json:"run_untagged,omitempty"`
-	TagList         []string `url:"tag_list[],omitempty" json:"tag_list,omitempty"`
-	AccessLevel     *string  `url:"accessLevel,omitempty" json:"accessLevel,omitempty"`
-	MaximumTimeout  *int     `url:"maximum_timeout,omitempty" json:"maximum_timeout,omitempty"`
-	MaintenanceNote *string  `url:"maintenance_note,omitempty" json:"maintenance_note,omitempty"`
-}
-
-// RegisterNewRunnerInfoOptions represents the info hashmap parameter in
-// RegisterNewRunnerOptions.
-//
-// GitLab API docs:
-// https://docs.gitlab.com/ce/api/runners.html#register-a-new-runner
-type RegisterNewRunnerInfoOptions struct {
-	Name         *string `url:"name,omitempty" json:"name,omitempty"`
-	Version      *string `url:"version,omitempty" json:"version,omitempty"`
-	Revision     *string `url:"revision,omitempty" json:"revision,omitempty"`
-	Platform     *string `url:"platform,omitempty" json:"platform,omitempty"`
-	Architecture *string `url:"architecture,omitempty" json:"architecture,omitempty"`
-}

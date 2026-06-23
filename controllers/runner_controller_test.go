@@ -39,7 +39,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -171,11 +170,13 @@ func caseRBACCheck(tc *testCase) {
 	}
 }
 
-// caseTestAuthToken checks if our runner gets registration form gitlab server
+// caseTestAuthToken checks that a managed runner records the token and id that
+// GitLab (the mock) returned.
 func caseTestAuthToken(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
-		Expect(runner.Status.AuthenticationToken).To(BeEquivalentTo("95ef6f888cb2280a3a070186cf55b04f"))
+		Expect(runner.Status.AuthenticationToken).ToNot(BeEmpty())
+		Expect(runner.Status.RunnerID).To(Equal(1))
 	}
 }
 
@@ -223,17 +224,18 @@ func caseEnvironmentIsSpecified(tc *testCase) {
 	}
 }
 
-// caseTagsChanged deals with situation when we change tags for an existing runner
+// caseTagsChanged changes the tag list of a managed runner; the operator must
+// recreate it and obtain a fresh token.
 func caseTagsChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldAuth := runner.Status.AuthenticationToken
 
 		// update tags
-		runner.Spec.RegistrationConfig.TagList = []string{"new", "tag", "list"}
+		runner.Spec.Authentication.CreateOptions.TagList = []string{"new", "tag", "list"}
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		// runner should get a new hash version
+		// runner should get a new authentication token
 		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
@@ -242,23 +244,21 @@ func caseTagsChanged(tc *testCase) {
 	}
 }
 
-// caseRegistrationTokenChanged deals with scenario where we change our registration token
+// caseRegistrationTokenChanged changes a create option (description) and checks
+// the operator recreates the managed runner (the registration hash changes).
 func caseRegistrationTokenChanged(tc *testCase) {
 	ctx := context.Background()
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
+		oldHash := runner.Status.RegistrationHash
 
-		// update tags
-		runner.Spec.RegistrationConfig.Token = pointer.StringPtr("new reg token")
+		runner.Spec.Authentication.CreateOptions.Description = "changed description"
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		// runner should get a new hash version
 		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+			return err == nil && newRunner.Status.RegistrationHash != oldHash
 		}, timeout, interval).Should(BeTrue())
-		Expect(newRunner.Status.LastRegistrationToken).To(Equal(*runner.Spec.RegistrationConfig.Token))
 	}
 }
 
@@ -347,7 +347,8 @@ func CreateNamespace(c client.Client) (string, error) {
 	return ns.Name, nil
 }
 
-// defaultRunner returns an instance of gitlab runner with default values
+// defaultRunner returns a managed runner (operator creates it on GitLab via the
+// access-token path), exercising the mocked CreateRunner call.
 func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
 	return &v1beta2.Runner{
 		TypeMeta: metav1.TypeMeta{
@@ -359,9 +360,12 @@ func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
 			Namespace: nameSpace,
 		},
 		Spec: v1beta2.RunnerSpec{
-			RegistrationConfig: v1beta2.RegisterNewRunnerOptions{
-				Token:   pointer.String("zTS6g2Q8bp8y13_ynfpN"),
-				TagList: []string{"default-tag"},
+			Authentication: v1beta2.GitlabAuth{
+				AccessToken: "glpat-test-access-token",
+				CreateOptions: &v1beta2.RunnerCreateOptions{
+					RunnerType: "instance_type",
+					TagList:    []string{"default-tag"},
+				},
 			},
 		},
 	}

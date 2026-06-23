@@ -3,25 +3,25 @@ package api
 import (
 	"errors"
 
-	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
+// MockedGitlabClient is a test double for GitlabClient.
 type MockedGitlabClient struct {
-	OnRegister       func(config v1beta2.RegisterNewRunnerOptions) (string, error)
-	OnDeleteByTokens func(token string) (*gitlab.Response, error)
+	OnCreateRunner func(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error)
+	OnDeleteRunner func(id int) error
 }
 
-func (m *MockedGitlabClient) Register(config v1beta2.RegisterNewRunnerOptions) (string, error) {
-	if m.OnRegister == nil {
-		return "", errors.New("call is not defined")
+func (m *MockedGitlabClient) CreateRunner(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error) {
+	if m.OnCreateRunner == nil {
+		return CreatedRunner{}, errors.New("call is not defined")
 	}
-	return m.OnRegister(config)
+	return m.OnCreateRunner(opts)
 }
 
-func (m *MockedGitlabClient) DeleteByToken(token string) (*gitlab.Response, error) {
-	if m.OnDeleteByTokens == nil {
-		return &gitlab.Response{}, errors.New("call is not defined")
+func (m *MockedGitlabClient) DeleteRunner(id int) error {
+	if m.OnDeleteRunner == nil {
+		return errors.New("call is not defined")
 	}
-	return m.OnDeleteByTokens(token)
+	return m.OnDeleteRunner(id)
 }
