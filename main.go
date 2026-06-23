@@ -32,7 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/controllers"
 	// +kubebuilder:scaffold:imports
 )
@@ -45,7 +45,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(gitlabv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gitlabv1beta2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }
 
@@ -91,7 +91,7 @@ func main() {
 	}
 	// disable webhooks if needed
 	if !disableWebhooks {
-		if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&gitlabv1beta2.Runner{}).SetupWebhookWithManager(mgr); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)
 		}

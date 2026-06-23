@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 import (
 	"context"
@@ -32,8 +32,8 @@ func (r *Runner) SetupWebhookWithManager(mgr ctrl.Manager) error {
 		Complete()
 }
 
-// +kubebuilder:webhook:path=/mutate-gitlab-k8s-alekc-dev-v1beta1-runner,mutating=true,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta1,name=mrunner.kb.io,admissionReviewVersions={v1,v1beta1}
-// +kubebuilder:webhook:path=/validate-gitlab-k8s-alekc-dev-v1beta1-runner,mutating=false,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta1,name=vrunner.kb.io,admissionReviewVersions={v1,v1beta1}
+// +kubebuilder:webhook:path=/mutate-gitlab-k8s-alekc-dev-v1beta2-runner,mutating=true,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta2,name=mrunner.kb.io,admissionReviewVersions={v1,v1beta1}
+// +kubebuilder:webhook:path=/validate-gitlab-k8s-alekc-dev-v1beta2-runner,mutating=false,failurePolicy=fail,sideEffects=None,groups=gitlab.k8s.alekc.dev,resources=runners,verbs=create;update,versions=v1beta2,name=vrunner.kb.io,admissionReviewVersions={v1,v1beta1}
 
 // RunnerWebhook implements the controller-runtime defaulting and validating
 // webhook interfaces for the Runner type. controller-runtime 0.19+ moved these

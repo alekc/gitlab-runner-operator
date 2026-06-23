@@ -5,7 +5,7 @@ import (
 	"math"
 
 	"github.com/BurntSushi/toml"
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/config"
 	"gitlab.k8s.alekc.dev/internal/crypto"
 	"gitlab.k8s.alekc.dev/internal/types"
@@ -15,14 +15,14 @@ func TomlConfig(runner types.RunnerInfo) (gitlabConfig, configHashKey string, er
 	// ugly as hell, but its the best I can do for now to avoid the import loop.
 	// Blame the kubebuilder which cannot generate deepCopy for external workspace
 	switch r := runner.(type) {
-	case *v1beta1.Runner:
+	case *v1beta2.Runner:
 		return SingleRunnerConfig(r)
-	case *v1beta1.MultiRunner:
+	case *v1beta2.MultiRunner:
 		return MultiRunnerConfig(r)
 	}
 	panic("unknown runner type")
 }
-func SingleRunnerConfig(r *v1beta1.Runner) (gitlabConfig, configHashKey string, err error) {
+func SingleRunnerConfig(r *v1beta2.Runner) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:  r.Name,
@@ -67,7 +67,7 @@ func SingleRunnerConfig(r *v1beta1.Runner) (gitlabConfig, configHashKey string, 
 }
 
 // MultiRunnerConfig initialize config for multiple runners object
-func MultiRunnerConfig(runnerObject *v1beta1.MultiRunner) (gitlabConfig, configHashKey string, err error) {
+func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner) (gitlabConfig, configHashKey string, err error) {
 	// create configuration for the runners
 	var runners []*config.RunnerConfig
 	for _, entry := range runnerObject.Spec.Entries {

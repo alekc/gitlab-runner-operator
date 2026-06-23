@@ -5,11 +5,11 @@ import (
 	"io"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
 type GitlabClient interface {
-	Register(config v1beta1.RegisterNewRunnerOptions) (string, error)
+	Register(config v1beta2.RegisterNewRunnerOptions) (string, error)
 	DeleteByToken(token string) (*gitlab.Response, error)
 }
 
@@ -22,7 +22,7 @@ func (g *gitlabApi) DeleteByToken(token string) (*gitlab.Response, error) {
 		Token: pointer.String(token),
 	})
 }
-func (g *gitlabApi) Register(config v1beta1.RegisterNewRunnerOptions) (string, error) {
+func (g *gitlabApi) Register(config v1beta2.RegisterNewRunnerOptions) (string, error) {
 	// The SDK widened MaximumTimeout to *int64; convert from the CRD's *int.
 	var maximumTimeout *int64
 	if config.MaximumTimeout != nil {

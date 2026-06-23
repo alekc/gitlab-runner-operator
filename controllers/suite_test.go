@@ -37,7 +37,7 @@ import (
 
 	api2 "gitlab.k8s.alekc.dev/internal/api"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -72,10 +72,10 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	// ensure that the schema is the latest up and running
-	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
+	err = gitlabv1beta2.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
+	err = gitlabv1beta2.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -97,7 +97,7 @@ var _ = BeforeSuite(func() {
 			WithName("controllers").
 			WithName("GitlabRunner"),
 		GitlabApiClient: &api2.MockedGitlabClient{
-			OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
+			OnRegister: func(config gitlabv1beta2.RegisterNewRunnerOptions) (string, error) {
 				// here we create a unique hash representing a combination of registration token
 				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
 				hash := md5.Sum([]byte(*config.Token + strings.Join(config.TagList, ",")))

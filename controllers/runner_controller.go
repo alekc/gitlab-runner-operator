@@ -39,7 +39,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
 const defaultTimeout = 15 * time.Second
@@ -187,7 +187,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we're dealing with a proper object
-		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta2.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -206,7 +206,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		}
 
 		// ensure that we're dealing with a proper object
-		if owner.APIVersion != gitlabv1beta1.GroupVersion.String() || owner.Kind != "Runner" {
+		if owner.APIVersion != gitlabv1beta2.GroupVersion.String() || owner.Kind != "Runner" {
 			return nil
 		}
 
@@ -215,7 +215,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		return err
 	}
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabv1beta1.Runner{}).
+		For(&gitlabv1beta2.Runner{}).
 		WithEventFilter(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				if e.ObjectOld == nil || e.ObjectNew == nil {
@@ -226,7 +226,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			DeleteFunc: func(event event.DeleteEvent) bool {
 				// The reconciler adds a finalizer when the delete timestamp is added.
 				// Avoid reconciling in case it's a runner, we still want to reconcile if it's a dependent object
-				if _, ok := event.Object.(*gitlabv1beta1.Runner); ok {
+				if _, ok := event.Object.(*gitlabv1beta2.Runner); ok {
 					return false
 				}
 				return true

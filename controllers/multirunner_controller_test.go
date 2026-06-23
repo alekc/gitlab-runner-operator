@@ -8,7 +8,7 @@ package controllers
 // 	"strconv"
 // 	"time"
 //
-// 	"gitlab.k8s.alekc.dev/api/v1beta1"
+// 	"gitlab.k8s.alekc.dev/api/v1beta2"
 // 	"gitlab.k8s.alekc.dev/internal/generate"
 // 	corev1 "k8s.io/api/core/v1"
 // 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"

@@ -5,7 +5,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/data/maps"
 
 	"github.com/go-logr/logr"
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 	internalTypes "gitlab.k8s.alekc.dev/internal/types"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
@@ -17,7 +17,7 @@ import (
 
 // SingleRunner init single runner from k8s
 func SingleRunner(ctx context.Context, client client.Client, nsName types.NamespacedName) (internalTypes.RunnerInfo, error) {
-	runnerObj := &gitlabv1beta1.Runner{}
+	runnerObj := &gitlabv1beta2.Runner{}
 	err := client.Get(ctx, nsName, runnerObj)
 	return runnerObj, err
 }
@@ -25,7 +25,7 @@ func SingleRunner(ctx context.Context, client client.Client, nsName types.Namesp
 // MultiRunner fetches multirunner from k8s
 // todo: generics?
 func MultiRunner(ctx context.Context, client client.Client, nsName types.NamespacedName) (internalTypes.RunnerInfo, error) {
-	runnerObj := &gitlabv1beta1.MultiRunner{}
+	runnerObj := &gitlabv1beta2.MultiRunner{}
 	err := client.Get(ctx, nsName, runnerObj)
 
 	maps.InitIfNil(&runnerObj.Status.AuthTokens)

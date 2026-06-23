@@ -3,7 +3,7 @@ package types
 import (
 	"context"
 
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -30,6 +30,6 @@ type RunnerInfo interface {
 	// RegisterOnGitlab(api.GitlabClient, logr.Logger) (ctrl.Result, error)
 	// DeleteFromGitlab(apiClient api.GitlabClient, logger logr.Logger) error
 	ConfigMapVersion() string
-	RegistrationConfig() []v1beta1.GitlabRegInfo
-	StoreRunnerRegistration(v1beta1.GitlabRegInfo)
+	RegistrationConfig() []v1beta2.GitlabRegInfo
+	StoreRunnerRegistration(v1beta2.GitlabRegInfo)
 }
