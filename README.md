@@ -160,3 +160,7 @@ spec:
 
 See `config/samples/gitlab_v1beta2_multirunner.yaml` for a `MultiRunner`
 example that mixes both authentication modes across entries.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
