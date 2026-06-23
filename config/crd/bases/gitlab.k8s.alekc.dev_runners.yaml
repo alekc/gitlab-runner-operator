@@ -610,6 +610,12 @@ spec:
                         - tcp_socket
                         type: object
                     type: object
+                  context:
+                    description: |-
+                      Fields below were synced from gitlab-runner v19.1.0. Custom-typed options
+                      (cleanup_resources_timeout, retry_limit(s), retry_backoff_max, autoscaler)
+                      are intentionally omitted: they need bespoke CRD type handling.
+                    type: string
                   cpu_limit:
                     type: string
                   cpu_limit_overwrite_max_allowed:
@@ -703,6 +709,8 @@ spec:
                     type: string
                   helper_image:
                     type: string
+                  helper_image_autoset_arch_and_os:
+                    type: boolean
                   helper_image_flavor:
                     type: string
                   helper_memory_limit:
@@ -772,6 +780,8 @@ spec:
                     type: object
                   key_file:
                     type: string
+                  logs_base_dir:
+                    type: string
                   memory_limit:
                     type: string
                   memory_limit_overwrite_max_allowed:
@@ -784,6 +794,8 @@ spec:
                     type: string
                   namespace_overwrite_allowed:
                     type: string
+                  namespace_per_job:
+                    type: boolean
                   node_selector:
                     additionalProperties:
                       type: string
@@ -794,17 +806,35 @@ spec:
                     additionalProperties:
                       type: string
                     type: object
+                  node_tolerations_overwrite_allowed:
+                    type: string
                   pod_annotations:
                     additionalProperties:
                       type: string
                     type: object
                   pod_annotations_overwrite_allowed:
                     type: string
+                  pod_cpu_limit:
+                    type: string
+                  pod_cpu_limit_overwrite_max_allowed:
+                    type: string
+                  pod_cpu_request:
+                    type: string
+                  pod_cpu_request_overwrite_max_allowed:
+                    type: string
                   pod_labels:
                     additionalProperties:
                       type: string
                     type: object
                   pod_labels_overwrite_allowed:
+                    type: string
+                  pod_memory_limit:
+                    type: string
+                  pod_memory_limit_overwrite_max_allowed:
+                    type: string
+                  pod_memory_request:
+                    type: string
+                  pod_memory_request_overwrite_max_allowed:
                     type: string
                   pod_security_context:
                     properties:
@@ -825,6 +855,22 @@ spec:
                           type: integer
                         type: array
                     type: object
+                  pod_spec:
+                    items:
+                      description: |-
+                        KubernetesPodSpec is an experimental gitlab-runner option that patches the
+                        generated build pod spec. PatchType is one of merge, json, or strategic.
+                      properties:
+                        name:
+                          type: string
+                        patch:
+                          type: string
+                        patch_path:
+                          type: string
+                        patch_type:
+                          type: string
+                      type: object
+                    type: array
                   pod_termination_grace_period_seconds:
                     format: int64
                     type: integer
@@ -845,6 +891,8 @@ spec:
                   runtime_class_name:
                     type: string
                   scheduler_name:
+                    type: string
+                  scripts_base_dir:
                     type: string
                   service_account:
                     type: string

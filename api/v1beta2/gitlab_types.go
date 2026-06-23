@@ -89,6 +89,34 @@ type KubernetesConfig struct {
 	DNSConfig                                         *KubernetesDNSConfig                `toml:"dns_config" json:"dns_config,omitempty" description:"Pod DNS config"`
 	ContainerLifecycle                                *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                                 string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
+
+	// Fields below were synced from gitlab-runner v19.1.0. Custom-typed options
+	// (cleanup_resources_timeout, retry_limit(s), retry_backoff_max, autoscaler)
+	// are intentionally omitted: they need bespoke CRD type handling.
+	Context                             string              `toml:"context,omitempty" json:"context,omitempty"`
+	NamespacePerJob                     bool                `toml:"namespace_per_job,omitempty" json:"namespace_per_job,omitempty"`
+	PodCPULimit                         string              `toml:"pod_cpu_limit,omitempty" json:"pod_cpu_limit,omitempty"`
+	PodCPULimitOverwriteMaxAllowed      string              `toml:"pod_cpu_limit_overwrite_max_allowed,omitempty" json:"pod_cpu_limit_overwrite_max_allowed,omitempty"`
+	PodCPURequest                       string              `toml:"pod_cpu_request,omitempty" json:"pod_cpu_request,omitempty"`
+	PodCPURequestOverwriteMaxAllowed    string              `toml:"pod_cpu_request_overwrite_max_allowed,omitempty" json:"pod_cpu_request_overwrite_max_allowed,omitempty"`
+	PodMemoryLimit                      string              `toml:"pod_memory_limit,omitempty" json:"pod_memory_limit,omitempty"`
+	PodMemoryLimitOverwriteMaxAllowed   string              `toml:"pod_memory_limit_overwrite_max_allowed,omitempty" json:"pod_memory_limit_overwrite_max_allowed,omitempty"`
+	PodMemoryRequest                    string              `toml:"pod_memory_request,omitempty" json:"pod_memory_request,omitempty"`
+	PodMemoryRequestOverwriteMaxAllowed string              `toml:"pod_memory_request_overwrite_max_allowed,omitempty" json:"pod_memory_request_overwrite_max_allowed,omitempty"`
+	NodeTolerationsOverwriteAllowed     string              `toml:"node_tolerations_overwrite_allowed,omitempty" json:"node_tolerations_overwrite_allowed,omitempty"`
+	HelperImageAutosetArchAndOS         bool                `toml:"helper_image_autoset_arch_and_os,omitempty" json:"helper_image_autoset_arch_and_os,omitempty"`
+	LogsBaseDir                         string              `toml:"logs_base_dir,omitempty" json:"logs_base_dir,omitempty"`
+	ScriptsBaseDir                      string              `toml:"scripts_base_dir,omitempty" json:"scripts_base_dir,omitempty"`
+	PodSpec                             []KubernetesPodSpec `toml:"pod_spec,omitempty" json:"pod_spec,omitempty"`
+}
+
+// KubernetesPodSpec is an experimental gitlab-runner option that patches the
+// generated build pod spec. PatchType is one of merge, json, or strategic.
+type KubernetesPodSpec struct {
+	Name      string `toml:"name,omitempty" json:"name,omitempty"`
+	PatchPath string `toml:"patch_path,omitempty" json:"patch_path,omitempty"`
+	Patch     string `toml:"patch,omitempty" json:"patch,omitempty"`
+	PatchType string `toml:"patch_type,omitempty" json:"patch_type,omitempty"`
 }
 
 type KubernetesDNSConfig struct {
