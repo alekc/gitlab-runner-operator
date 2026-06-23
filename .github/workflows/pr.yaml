@@ -3,7 +3,25 @@ name: dev-release
 on: pull_request
 
 jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
   goreleaser:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -12,7 +30,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@master
         with:
-          go-version: 1.20.x
+          go-version: 1.26.x
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@v4
