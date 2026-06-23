@@ -33,7 +33,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
-	"gitlab.k8s.alekc.dev/controllers"
+	"gitlab.k8s.alekc.dev/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -82,7 +82,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.RunnerReconciler{
+	if err = (&controller.RunnerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -96,7 +96,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	if err = (&controllers.MultiRunnerReconciler{
+	if err = (&controller.MultiRunnerReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {

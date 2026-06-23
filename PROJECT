@@ -1,6 +1,6 @@
 domain: k8s.alekc.dev
 layout:
-- go.kubebuilder.io/v3
+- go.kubebuilder.io/v4
 projectName: gitlab-runner-operator
 repo: gitlab.k8s.alekc.dev
 resources:

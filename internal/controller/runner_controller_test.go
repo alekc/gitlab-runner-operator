@@ -19,7 +19,7 @@ limitations under the License.
 /*
 As usual, we start with the necessary imports. We also define some utility variables.
 */
-package controllers
+package controller
 
 import (
 	"context"
