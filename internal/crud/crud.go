@@ -86,8 +86,8 @@ func ExistingConfigTokens(ctx context.Context, cl client.Client, namespace, chil
 // executor entries target, binding that SA to the shared ClusterRole. The SA
 // stays in the runner's namespace (the manager Deployment mounts it).
 // RoleBindings in namespaces no longer targeted are pruned.
-func CreateRBACIfMissing(ctx context.Context, cl client.Client, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	if err := ensureExecutorClusterRole(ctx, cl, log); err != nil {
+func CreateRBACIfMissing(ctx context.Context, cl client.Client, apiReader client.Reader, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
+	if err := ensureExecutorClusterRole(ctx, apiReader, cl, log); err != nil {
 		return err
 	}
 	if err := CreateSaIfMissing(ctx, cl, runnerObject, log); err != nil {
@@ -107,11 +107,14 @@ func CreateRBACIfMissing(ctx context.Context, cl client.Client, runnerObject int
 // created once, then updated only when the rules drift, so a rule change in the
 // operator reaches every runner at once. The operator holds these permissions
 // itself (manager ClusterRole), so the API server's escalation check permits
-// both writing this ClusterRole and binding runner SAs to it.
-func ensureExecutorClusterRole(ctx context.Context, cl client.Client, log logr.Logger) error {
+// both writing this ClusterRole and binding runner SAs to it. The read uses the
+// uncached APIReader so the operator does not spin up a cluster-wide informer on
+// every ClusterRole (a type it neither owns nor watches); writes go through the
+// regular cached client.
+func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
 	desired := desiredRoleRules()
 	existing := &v1.ClusterRole{}
-	err := cl.Get(ctx, client.ObjectKey{Name: executorClusterRoleName}, existing)
+	err := apiReader.Get(ctx, client.ObjectKey{Name: executorClusterRoleName}, existing)
 	switch {
 	case errors.IsNotFound(err):
 		role := &v1.ClusterRole{

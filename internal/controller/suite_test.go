@@ -90,7 +90,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&RunnerReconciler{
-		Client: k8sManager.GetClient(),
+		Client:    k8sManager.GetClient(),
+		APIReader: k8sManager.GetAPIReader(),
 		Log: controllerruntime.Log.
 			WithName("controllers").
 			WithName("GitlabRunner"),
@@ -107,7 +108,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&MultiRunnerReconciler{
-		Client: k8sManager.GetClient(),
+		Client:    k8sManager.GetClient(),
+		APIReader: k8sManager.GetAPIReader(),
 		GitlabApiClient: &api2.MockedGitlabClient{
 			OnCreateRunner: func(opts gitlabv1beta2.RunnerCreateOptions) (api2.CreatedRunner, error) {
 				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))

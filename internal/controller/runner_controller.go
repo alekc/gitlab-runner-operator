@@ -29,6 +29,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/validate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
@@ -48,6 +49,10 @@ const configVersionAnnotationKey = "config-version"
 // RunnerReconciler reconciles a Runner object
 type RunnerReconciler struct {
 	client.Client
+	// APIReader is the uncached reader (mgr.GetAPIReader); used for reads of
+	// resources the operator does not watch, to avoid spinning up their
+	// cluster-wide informers (e.g. the shared executor ClusterRole).
+	APIReader       client.Reader
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
 	GitlabApiClient api.GitlabClient
@@ -144,7 +149,7 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	}
 
 	// create required rbac credentials if they are missing
-	if err = crud.CreateRBACIfMissing(ctx, r.Client, runnerObj, logger); err != nil {
+	if err = crud.CreateRBACIfMissing(ctx, r.Client, r.APIReader, runnerObj, logger); err != nil {
 		runnerObj.SetStatusError("Cannot create the rbac objects")
 		runnerObj.SetReadyCondition(false, "RBACFailed", err.Error())
 		logger.Error(err, "cannot create rbac objects")
@@ -244,5 +249,7 @@ func (r *RunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}}).
 		Owns(&corev1.Secret{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.ServiceAccount{}).
+		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)
 }
