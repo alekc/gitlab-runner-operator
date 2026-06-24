@@ -17,6 +17,7 @@ limitations under the License.
 package controller
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"path/filepath"
@@ -32,6 +33,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	api2 "gitlab.k8s.alekc.dev/internal/api"
 
@@ -45,6 +47,8 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ctx context.Context
+var cancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -54,6 +58,11 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+
+	// Create the suite context up front so AfterSuite can always cancel it,
+	// even when BeforeSuite fails before the manager is wired up. Otherwise a
+	// nil cancel would panic in teardown and mask the real BeforeSuite error.
+	ctx, cancel = context.WithCancel(context.TODO())
 
 	// Expect(os.Setenv("USE_EXISTING_CLUSTER", "true")).To(Succeed())
 
@@ -86,6 +95,9 @@ var _ = BeforeSuite(func() {
 	// we also do need the manager
 	k8sManager, err := controllerruntime.NewManager(cfg, controllerruntime.Options{
 		Scheme: scheme.Scheme,
+		// Disable the metrics listener so parallel package test binaries do not
+		// contend for the default :8080.
+		Metrics: metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).ToNot(HaveOccurred())
 
@@ -120,14 +132,18 @@ var _ = BeforeSuite(func() {
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	// run the reconciler in a separate go routine
+	// run the manager under the suite-scoped context (created at the top of
+	// BeforeSuite) so AfterSuite can stop it cleanly. SetupSignalHandler would
+	// leave it running into teardown and make Start return an error once the
+	// apiserver goes away.
 	go func() {
-		err = k8sManager.Start(controllerruntime.SetupSignalHandler())
-		Expect(err).ToNot(HaveOccurred())
+		defer GinkgoRecover()
+		Expect(k8sManager.Start(ctx)).To(Succeed(), "failed to run manager")
 	}()
 })
 
 var _ = AfterSuite(func() {
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

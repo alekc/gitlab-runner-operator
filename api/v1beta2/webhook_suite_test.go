@@ -21,7 +21,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"os"
 	"path/filepath"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"testing"
@@ -39,6 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
@@ -57,8 +57,8 @@ func TestAPIs(t *testing.T) {
 }
 
 var _ = BeforeSuite(func() {
-	// a bit of a dirty hack for the goland
-	_ = os.Setenv("KUBEBUILDER_ASSETS", "../../testbin/bin/")
+	// KUBEBUILDER_ASSETS is provided by the caller (make test / setup-envtest).
+	// Do not override it with a hardcoded path here.
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
@@ -99,6 +99,9 @@ var _ = BeforeSuite(func() {
 			Port:    webhookInstallOptions.LocalServingPort,
 			CertDir: webhookInstallOptions.LocalServingCertDir,
 		}),
+		// Disable the metrics listener so parallel package test binaries do not
+		// contend for the default :8080.
+		Metrics:        metricsserver.Options{BindAddress: "0"},
 		LeaderElection: false,
 	})
 	Expect(err).NotTo(HaveOccurred())

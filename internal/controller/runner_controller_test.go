@@ -148,25 +148,27 @@ func caseRBACCheck(tc *testCase) {
 	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		ctx := context.TODO()
 
-		// service  account should be created
+		// per-runner ServiceAccount should be created
 		var sa corev1.ServiceAccount
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &sa)
-			return err == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &sa) == nil
 		}, timeout, interval).Should(BeTrue())
 
-		// fetch created role
-		var role v1.Role
+		// the single shared executor ClusterRole should exist
+		var clusterRole v1.ClusterRole
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &role)
-			return err == nil
+			return k8sClient.Get(ctx, types.NamespacedName{Name: "gitlab-runner-operator-executor"}, &clusterRole) == nil
 		}, timeout, interval).Should(BeTrue())
 
+		// a per-runner RoleBinding should bind that SA to the shared ClusterRole
 		var roleBinding v1.RoleBinding
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &roleBinding)
-			return err == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &roleBinding) == nil
 		}, timeout, interval).Should(BeTrue())
+		Expect(roleBinding.RoleRef.Kind).To(Equal("ClusterRole"))
+		Expect(roleBinding.RoleRef.Name).To(Equal("gitlab-runner-operator-executor"))
+		Expect(roleBinding.Subjects).To(HaveLen(1))
+		Expect(roleBinding.Subjects[0].Name).To(Equal(runner.ChildName()))
 	}
 }
 
