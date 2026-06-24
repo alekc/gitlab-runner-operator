@@ -24,11 +24,13 @@ import (
 )
 
 // SetupWebhookWithManager registers the defaulting and validating webhooks for
-// the Runner type with the manager.
-func (r *Runner) SetupWebhookWithManager(mgr ctrl.Manager) error {
+// the Runner type with the manager. allowedBuildNamespaces lists the namespaces
+// (besides a runner's own) where executor RBAC may be provisioned.
+func (r *Runner) SetupWebhookWithManager(mgr ctrl.Manager, allowedBuildNamespaces []string) error {
+	w := &RunnerWebhook{AllowedBuildNamespaces: allowedBuildNamespaces}
 	return ctrl.NewWebhookManagedBy(mgr, r).
-		WithDefaulter(&RunnerWebhook{}).
-		WithValidator(&RunnerWebhook{}).
+		WithDefaulter(w).
+		WithValidator(w).
 		Complete()
 }
 
@@ -39,7 +41,12 @@ func (r *Runner) SetupWebhookWithManager(mgr ctrl.Manager) error {
 // webhook interfaces for the Runner type. controller-runtime 0.19+ moved these
 // off the API type onto a dedicated handler implementing the generic
 // Defaulter / Validator interfaces.
-type RunnerWebhook struct{}
+type RunnerWebhook struct {
+	// AllowedBuildNamespaces are namespaces (besides a runner's own) the
+	// operator may provision executor RBAC in. Empty means own-namespace only;
+	// "*" allows any namespace.
+	AllowedBuildNamespaces []string
+}
 
 var (
 	_ admission.Defaulter[*Runner] = &RunnerWebhook{}
@@ -60,7 +67,7 @@ func (w *RunnerWebhook) ValidateCreate(_ context.Context, r *Runner) (admission.
 	if err := r.Spec.Authentication.Validate(); err != nil {
 		return nil, err
 	}
-	return nil, validateKubernetesExecutor(&r.Spec.ExecutorConfig)
+	return nil, validateKubernetesExecutor(&r.Spec.ExecutorConfig, r.Namespace, w.AllowedBuildNamespaces)
 }
 
 // ValidateUpdate re-runs auth and executor validation against the updated object.
@@ -68,7 +75,7 @@ func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *Runner) (ad
 	if err := newObj.Spec.Authentication.Validate(); err != nil {
 		return nil, err
 	}
-	return nil, validateKubernetesExecutor(&newObj.Spec.ExecutorConfig)
+	return nil, validateKubernetesExecutor(&newObj.Spec.ExecutorConfig, newObj.Namespace, w.AllowedBuildNamespaces)
 }
 
 // ValidateDelete is a no-op placeholder kept for future validation rules.

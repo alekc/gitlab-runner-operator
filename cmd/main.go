@@ -19,6 +19,7 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -49,14 +50,30 @@ func init() {
 	// +kubebuilder:scaffold:scheme
 }
 
+// splitAndTrim turns a comma-separated flag value into a slice, dropping empty
+// entries and surrounding whitespace.
+func splitAndTrim(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
 func main() {
 	var metricsAddr string
 	var enableLeaderElection bool
 	var probeAddr string
 	var disableWebhooks bool
+	var allowedBuildNamespacesRaw string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
 	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable mutating and validating webhooks.")
+	flag.StringVar(&allowedBuildNamespacesRaw, "allowed-build-namespaces", "",
+		"Comma-separated namespaces (besides a runner's own) where the operator may provision executor RBAC. "+
+			"Use '*' to allow any. Empty (default) restricts each runner to its own namespace.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -67,6 +84,8 @@ func main() {
 	flag.Parse()
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
+
+	allowedBuildNamespaces := splitAndTrim(allowedBuildNamespacesRaw)
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme: scheme,
@@ -92,11 +111,11 @@ func main() {
 	}
 	// disable webhooks if needed
 	if !disableWebhooks {
-		if err = (&gitlabv1beta2.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&gitlabv1beta2.Runner{}).SetupWebhookWithManager(mgr, allowedBuildNamespaces); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)
 		}
-		if err = (&gitlabv1beta2.MultiRunner{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&gitlabv1beta2.MultiRunner{}).SetupWebhookWithManager(mgr, allowedBuildNamespaces); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "MultiRunner")
 			os.Exit(1)
 		}

@@ -192,12 +192,20 @@ effective grant is confined to the build namespace; nothing cluster-scoped is
 granted to a runner.
 
 Job pods run in `executor_config.namespace` when set, otherwise in the runner's
-own namespace. When that namespace differs from the runner's, the operator
-creates the RoleBinding there too (the ServiceAccount stays in the runner
-namespace) and removes it when the runner is deleted. Because the operator
-pre-provisions RBAC for a known namespace, `namespace_per_job` and
-`namespace_overwrite_allowed` are rejected at admission: both make the build
-namespace dynamic, which would require cluster-scoped RBAC.
+own namespace. By default a runner may only target its **own** namespace: a
+Runner author choosing an arbitrary namespace would otherwise have the operator
+bind their ServiceAccount (and run their jobs) in, say, `kube-system`, a
+privilege-escalation path. To permit specific build namespaces, start the
+operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any);
+the webhook rejects any other `executor_config.namespace`. When an allowed build
+namespace differs from the runner's, the operator creates the RoleBinding there
+too (the ServiceAccount stays in the runner namespace) and removes it when the
+runner is deleted.
+
+Because the operator pre-provisions RBAC for a known namespace,
+`namespace_per_job` and `namespace_overwrite_allowed` are also rejected at
+admission: both make the build namespace dynamic, which would require
+cluster-scoped RBAC.
 
 ## License
 

@@ -25,11 +25,13 @@ import (
 )
 
 // SetupWebhookWithManager registers the defaulting and validating webhooks for
-// the MultiRunner type with the manager.
-func (r *MultiRunner) SetupWebhookWithManager(mgr ctrl.Manager) error {
+// the MultiRunner type with the manager. allowedBuildNamespaces lists the
+// namespaces (besides a runner's own) where executor RBAC may be provisioned.
+func (r *MultiRunner) SetupWebhookWithManager(mgr ctrl.Manager, allowedBuildNamespaces []string) error {
+	w := &MultiRunnerWebhook{AllowedBuildNamespaces: allowedBuildNamespaces}
 	return ctrl.NewWebhookManagedBy(mgr, r).
-		WithDefaulter(&MultiRunnerWebhook{}).
-		WithValidator(&MultiRunnerWebhook{}).
+		WithDefaulter(w).
+		WithValidator(w).
 		Complete()
 }
 
@@ -38,7 +40,12 @@ func (r *MultiRunner) SetupWebhookWithManager(mgr ctrl.Manager) error {
 
 // MultiRunnerWebhook implements the controller-runtime defaulting and
 // validating webhook interfaces for the MultiRunner type.
-type MultiRunnerWebhook struct{}
+type MultiRunnerWebhook struct {
+	// AllowedBuildNamespaces are namespaces (besides a runner's own) the
+	// operator may provision executor RBAC in. Empty means own-namespace only;
+	// "*" allows any namespace.
+	AllowedBuildNamespaces []string
+}
 
 var (
 	_ admission.Defaulter[*MultiRunner] = &MultiRunnerWebhook{}
@@ -55,12 +62,12 @@ func (w *MultiRunnerWebhook) Default(_ context.Context, r *MultiRunner) error {
 
 // ValidateCreate validates every entry's auth and entry-name uniqueness.
 func (w *MultiRunnerWebhook) ValidateCreate(_ context.Context, r *MultiRunner) (admission.Warnings, error) {
-	return nil, validateEntries(r)
+	return nil, validateEntries(r, w.AllowedBuildNamespaces)
 }
 
 // ValidateUpdate re-runs entry validation against the updated object.
 func (w *MultiRunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *MultiRunner) (admission.Warnings, error) {
-	return nil, validateEntries(newObj)
+	return nil, validateEntries(newObj, w.AllowedBuildNamespaces)
 }
 
 // ValidateDelete is a no-op placeholder kept for future validation rules.
@@ -68,7 +75,7 @@ func (w *MultiRunnerWebhook) ValidateDelete(_ context.Context, _ *MultiRunner) (
 	return nil, nil
 }
 
-func validateEntries(r *MultiRunner) error {
+func validateEntries(r *MultiRunner, allowedBuildNamespaces []string) error {
 	if len(r.Spec.Entries) == 0 {
 		return fmt.Errorf("a multirunner requires at least one entry")
 	}
@@ -84,7 +91,7 @@ func validateEntries(r *MultiRunner) error {
 		if err := entry.Authentication.Validate(); err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
-		if err := validateKubernetesExecutor(&r.Spec.Entries[i].ExecutorConfig); err != nil {
+		if err := validateKubernetesExecutor(&r.Spec.Entries[i].ExecutorConfig, r.Namespace, allowedBuildNamespaces); err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
 	}
@@ -92,11 +99,16 @@ func validateEntries(r *MultiRunner) error {
 }
 
 // validateKubernetesExecutor rejects executor settings that make the build
-// namespace dynamic. The operator pre-provisions namespaced RBAC for the
-// runner ServiceAccount, so it cannot cover a namespace chosen at job time;
-// supporting these would require cluster-scoped RBAC the operator does not
-// grant. Failing at admission is clearer than a forbidden error at job time.
-func validateKubernetesExecutor(cfg *KubernetesConfig) error {
+// namespace dynamic, and confines the static build namespace to one the
+// operator is allowed to provision RBAC in. The operator pre-provisions
+// namespaced RBAC for the runner ServiceAccount, so a dynamic namespace cannot
+// be covered (would need cluster-scoped RBAC), and an arbitrary cross-namespace
+// target is a privilege-escalation vector: a Runner author could bind their SA
+// into another namespace. By default only the runner's own namespace is
+// allowed; an operator admin opts into others via allowedBuildNamespaces ("*"
+// allows any). Failing at admission is clearer than a forbidden error at job
+// time.
+func validateKubernetesExecutor(cfg *KubernetesConfig, ownNamespace string, allowedBuildNamespaces []string) error {
 	if cfg == nil {
 		return nil
 	}
@@ -106,5 +118,23 @@ func validateKubernetesExecutor(cfg *KubernetesConfig) error {
 	if cfg.NamespaceOverwriteAllowed != "" {
 		return fmt.Errorf("namespace_overwrite_allowed is not supported: the build namespace must be static so the operator can provision RBAC for it")
 	}
+	if !buildNamespaceAllowed(cfg.Namespace, ownNamespace, allowedBuildNamespaces) {
+		return fmt.Errorf("executor_config.namespace %q is not permitted: it must be the runner's own namespace (%q) or one of the operator's allowed-build-namespaces", cfg.Namespace, ownNamespace)
+	}
 	return nil
+}
+
+// buildNamespaceAllowed reports whether the executor may run in namespace ns: an
+// empty value or the runner's own namespace is always allowed, otherwise ns
+// must appear in allowed (or allowed must contain "*").
+func buildNamespaceAllowed(ns, ownNamespace string, allowed []string) bool {
+	if ns == "" || ns == ownNamespace {
+		return true
+	}
+	for _, a := range allowed {
+		if a == "*" || a == ns {
+			return true
+		}
+	}
+	return false
 }
