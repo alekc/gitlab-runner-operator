@@ -43,9 +43,9 @@ jobs:
         with:
           go-version: 1.26.x
       - name: govulncheck
-        # Advisory for now: govulncheck currently crashes on the go 1.26
-        # toolchain. The step is allowed to fail so the check stays green; the
-        # crash is still visible in the logs. Remove continue-on-error to make
-        # it required once govulncheck supports 1.26.
-        continue-on-error: true
+        # Required gate. Runs govulncheck in binary mode (see the Makefile
+        # target) because source mode panics on go 1.26. setup-go installs the
+        # latest 1.26 patch, so standard-library CVEs fixed in a released patch
+        # are already resolved; a failure here means a reachable CVE in our code
+        # or dependencies that we must address.
         run: make govulncheck

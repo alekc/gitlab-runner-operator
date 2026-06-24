@@ -70,9 +70,14 @@ test-e2e: ## Run the live e2e suite against the current kube context. Requires a
 lint: golangci-lint ## Run golangci-lint.
 	$(GOLANGCI_LINT) run
 
+# Source mode (govulncheck ./...) panics on go 1.26: x/tools mishandles generic
+# type params during SSA analysis. Binary mode reads the compiled binary's
+# symbols instead, works on go 1.26, and still flags reachable CVEs. Revisit
+# source mode once x/vuln / x/tools ship a go 1.26 compatible release.
 .PHONY: govulncheck
-govulncheck: ## Scan for known Go vulnerabilities (reachable symbols only). Note: the tool may not yet support a brand-new Go toolchain.
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+govulncheck: $(LOCALBIN) ## Scan the built manager binary for known Go CVEs.
+	go build -o $(LOCALBIN)/manager-vulnscan ./cmd
+	go run golang.org/x/vuln/cmd/govulncheck@latest -mode binary $(LOCALBIN)/manager-vulnscan
 
 ##@ Build
 
