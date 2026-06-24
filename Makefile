@@ -127,6 +127,27 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | kubectl delete --ignore-not-found=$(ignore-not-found) -f -
 
+##@ Local cluster
+
+# Name of the local kind cluster. Matches the cluster the e2e workflow creates,
+# so `make deploy` / `make test-e2e` target it once it is the current context.
+KIND_CLUSTER_NAME ?= kind
+# Optional node image pin, e.g. KIND_K8S_VERSION=v1.31.4. Empty uses kind's
+# bundled default node image for the installed kind version.
+KIND_K8S_VERSION ?=
+
+.PHONY: kind-create
+kind-create: kind ## Create the local kind cluster (idempotent). Override KIND_CLUSTER_NAME / KIND_K8S_VERSION.
+	@if $(KIND) get clusters 2>/dev/null | grep -qx $(KIND_CLUSTER_NAME); then \
+		echo "kind cluster '$(KIND_CLUSTER_NAME)' already exists"; \
+	else \
+		$(KIND) create cluster --name $(KIND_CLUSTER_NAME) $(if $(KIND_K8S_VERSION),--image kindest/node:$(KIND_K8S_VERSION),); \
+	fi
+
+.PHONY: kind-destroy
+kind-destroy: kind ## Delete the local kind cluster.
+	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to
@@ -138,10 +159,12 @@ $(LOCALBIN):
 KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
+KIND ?= $(LOCALBIN)/kind
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
+KIND_VERSION ?= v0.32.0
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -158,3 +181,8 @@ $(CONTROLLER_GEN): $(LOCALBIN)
 envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
 $(ENVTEST): $(LOCALBIN)
 	test -s $(LOCALBIN)/setup-envtest || GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+
+.PHONY: kind
+kind: $(KIND) ## Download kind locally if necessary.
+$(KIND): $(LOCALBIN)
+	test -s $(LOCALBIN)/kind || GOBIN=$(LOCALBIN) go install sigs.k8s.io/kind@$(KIND_VERSION)
