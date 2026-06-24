@@ -1,20 +1,67 @@
 name: e2e
 
+# The e2e suite stands up a kind cluster and talks to a real GitLab, so it does
+# not run on every push. A maintainer launches it by commenting "/launch e2e" on
+# a pull request, or via manual workflow_dispatch.
 on:
-  pull_request:
+  issue_comment:
+    types: [created]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Git ref (branch, tag, or SHA) to test"
+        required: false
+        default: ""
 
 concurrency:
-  group: e2e-${{ github.ref }}
+  group: e2e-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
+  pull-requests: read
+  issues: write # to react to the launch comment
 
 jobs:
-  # Dynamically pick the latest patch of each recent Kubernetes minor that has a
-  # published kindest/node image. Reused from alekc/terraform-provider-kubectl.
+  authorize:
+    # Run only on manual dispatch, or when a repo collaborator (OWNER / MEMBER /
+    # COLLABORATOR) comments "/launch e2e" on a pull request. This gates the
+    # secret-using e2e to maintainers and is the approval step for fork PRs.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      ( github.event.issue.pull_request != null &&
+        contains(github.event.comment.body, '/launch e2e') &&
+        contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) )
+    runs-on: ubuntu-latest
+    outputs:
+      ref: ${{ steps.resolve.outputs.ref }}
+    steps:
+      - name: Resolve ref to test
+        id: resolve
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            if (context.eventName === 'workflow_dispatch') {
+              core.setOutput('ref', context.payload.inputs.ref || context.ref);
+              return;
+            }
+            // Acknowledge the command, then test the PR's head commit.
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content: 'rocket',
+            });
+            const pr = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            core.setOutput('ref', pr.data.head.sha);
+
+  # Latest patch of each recent Kubernetes minor that has a kindest/node image.
   k8s_versions:
+    needs: authorize
     runs-on: ubuntu-latest
     steps:
       - uses: imjasonh/setup-crane@59c71e96a00b28651f10369ba3359a6d730740a0 # v0.6
@@ -23,18 +70,13 @@ jobs:
         run: |
           set -euo pipefail
           k8s_cycles="$(curl -sSfL https://endoflife.date/api/kubernetes.json | jq -rc '[sort_by(.releaseDate) | reverse | .[0:4] | .[].cycle]')"
-          # Drop cycles for which kindest/node has not published a tag yet, so
-          # the matrix never renders an unusable `kindest/node:v` entry.
           kind_versions="$(crane ls docker.io/kindest/node | jq -sRrc --argjson cycles "${k8s_cycles}" 'split("\n") | [.[] | match("^v((\\d+\\.\\d+)\\.\\d+)$").captures | {cycle: .[1].string, version: .[0].string}] | group_by(.cycle) | [.[] | .[-1] | {(.cycle): {"version": .version}}] | reduce .[] as $item ({}; . *= $item) | . as $versions | [$cycles | .[] | select($versions[.] != null) | $versions[.].version]')"
           echo "k8s_versions=${kind_versions}" >> "${GITHUB_OUTPUT}"
     outputs:
       k8s_versions: ${{ steps.matrix.outputs.k8s_versions }}
 
   e2e:
-    needs: k8s_versions
-    # Secrets are not available to fork PRs; only run for same-repo branches and
-    # manual dispatch. Fork PRs would otherwise build/deploy then skip the tests.
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    needs: [authorize, k8s_versions]
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
@@ -42,8 +84,10 @@ jobs:
       matrix:
         k8s_version: ${{ fromJson(needs.k8s_versions.outputs.k8s_versions) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ needs.authorize.outputs.ref }}
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: 1.26.x
 
