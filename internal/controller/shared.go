@@ -183,46 +183,23 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		return persistRunner(ctx, statusW, obj, reg, created, desiredHash, logger, "created")
 
 	case reg.RegistrationHash != desiredHash:
-		gc, err := gitlabClient()
-		if err != nil {
-			return "", nil, err
-		}
-		// Recreate: delete the old runner FIRST. If that fails do NOT create a
-		// replacement (it would orphan the old runner on GitLab); return the
-		// error and let the reconcile retry.
-		if err := gc.DeleteRunner(reg.RunnerID); err != nil {
-			return "", nil, fmt.Errorf("cannot delete stale runner %q (id %d) before recreate: %w", reg.Name, reg.RunnerID, err)
-		}
-		created, err := gc.CreateRunner(*reg.Auth.CreateOptions)
-		if err != nil {
-			return "", nil, fmt.Errorf("cannot recreate runner %q on gitlab: %w", reg.Name, err)
-		}
-		return persistRunner(ctx, statusW, obj, reg, created, desiredHash, logger, "recreated")
+		return recreateManagedRunner(ctx, statusW, gitlabClient, obj, reg, recoveredToken, desiredHash, logger, "recreated (create options changed)")
 
 	case reg.TokenExpiresAt != nil && time.Until(reg.TokenExpiresAt.Time) < tokenRefreshThreshold:
-		gc, err := gitlabClient()
-		if err != nil {
-			return "", nil, err
-		}
-		refreshed, err := gc.RefreshToken(reg.RunnerID)
-		if err != nil {
-			return "", nil, fmt.Errorf("cannot refresh token for runner %q: %w", reg.Name, err)
-		}
-		return persistRunner(ctx, statusW, obj, reg, refreshed, desiredHash, logger, "token refreshed")
+		// GitLab has no reset-by-token endpoint, and resetting by id needs the
+		// api scope; recreate instead so create_runner stays sufficient.
+		return recreateManagedRunner(ctx, statusW, gitlabClient, obj, reg, recoveredToken, desiredHash, logger, "recreated (token near expiry)")
 
 	default:
-		// Steady state. Recover the token from the existing Secret; if it is
-		// gone, reset it. Otherwise verify it is still accepted by GitLab.
+		// Steady state. Without the token we can neither verify nor delete it by
+		// token, so recreate (the old runner may be orphaned). Otherwise verify
+		// the token and recreate only if GitLab has rejected it.
+		if recoveredToken == "" {
+			return recreateManagedRunner(ctx, statusW, gitlabClient, obj, reg, "", desiredHash, logger, "recreated (token missing from config secret)")
+		}
 		gc, err := gitlabClient()
 		if err != nil {
 			return "", nil, err
-		}
-		if recoveredToken == "" {
-			refreshed, err := gc.RefreshToken(reg.RunnerID)
-			if err != nil {
-				return "", nil, fmt.Errorf("cannot recover token for runner %q: %w", reg.Name, err)
-			}
-			return persistRunner(ctx, statusW, obj, reg, refreshed, desiredHash, logger, "token recovered")
 		}
 		valid, err := gc.VerifyToken(recoveredToken)
 		if err != nil {
@@ -230,14 +207,7 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		}
 		if !valid {
 			logger.Info("managed runner token rejected by gitlab, recreating", "name", reg.Name, "id", reg.RunnerID)
-			if err := gc.DeleteRunner(reg.RunnerID); err != nil {
-				return "", nil, fmt.Errorf("cannot delete invalid runner %q (id %d) before recreate: %w", reg.Name, reg.RunnerID, err)
-			}
-			created, err := gc.CreateRunner(*reg.Auth.CreateOptions)
-			if err != nil {
-				return "", nil, fmt.Errorf("cannot recreate runner %q after invalid token: %w", reg.Name, err)
-			}
-			return persistRunner(ctx, statusW, obj, reg, created, desiredHash, logger, "recreated")
+			return recreateManagedRunner(ctx, statusW, gitlabClient, obj, reg, recoveredToken, desiredHash, logger, "recreated (token rejected)")
 		}
 		var expiry *time.Time
 		if reg.TokenExpiresAt != nil {
@@ -246,6 +216,32 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		}
 		return recoveredToken, expiry, nil
 	}
+}
+
+// recreateManagedRunner deletes the existing managed runner from GitLab using
+// its own authentication token (DELETE /runners by token, which needs no api
+// scope) and creates a fresh one. The delete happens FIRST so a failure does
+// not leave two runners registered. When the old token is unavailable the old
+// runner cannot be deleted (that would require the api scope); a new runner is
+// created and the old one is logged as possibly orphaned.
+func recreateManagedRunner(ctx context.Context, statusW client.StatusWriter, gitlabClient func() (api.GitlabClient, error), obj types.RunnerInfo, reg *v1beta2.GitlabRegInfo, oldToken, desiredHash string, logger logr.Logger, verb string) (string, *time.Time, error) {
+	gc, err := gitlabClient()
+	if err != nil {
+		return "", nil, err
+	}
+	switch {
+	case oldToken != "":
+		if err := gc.DeleteRunner(oldToken); err != nil {
+			return "", nil, fmt.Errorf("cannot delete stale runner %q before recreate: %w", reg.Name, err)
+		}
+	case reg.RunnerID != 0:
+		logger.Info("old managed runner token unavailable; creating a new runner, the old one may be orphaned on gitlab", "name", reg.Name, "old_id", reg.RunnerID)
+	}
+	created, err := gc.CreateRunner(*reg.Auth.CreateOptions)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot recreate runner %q on gitlab: %w", reg.Name, err)
+	}
+	return persistRunner(ctx, statusW, obj, reg, created, desiredHash, logger, verb)
 }
 
 // persistRunner records the create/recreate/refresh result in status and writes
@@ -271,38 +267,37 @@ func persistRunner(ctx context.Context, statusW client.StatusWriter, obj types.R
 }
 
 // removeManagedRunners deletes managed runners from GitLab when the owning
-// object is being deleted. A runner that is already gone counts as deleted. It
-// returns the first error encountered so the caller can retry before dropping
-// the finalizer (bring-your-own-token units are never touched).
+// object is being deleted, using each runner's own authentication token
+// recovered from the config Secret. Deleting by token needs no access token and
+// no api scope, and the config Secret still exists at finalization (the
+// finalizer blocks the object's, and so the Secret's, garbage collection). A
+// runner whose token cannot be recovered cannot be deleted and is logged as
+// possibly orphaned. Returns the first hard error so the caller can retry before
+// dropping the finalizer (bring-your-own-token units are never touched).
 func removeManagedRunners(ctx context.Context, cl client.Client, injected api.GitlabClient, obj types.RunnerInfo, logger logr.Logger) error {
-	namespace := obj.GetNamespace()
+	tokens, err := crud.ExistingConfigTokens(ctx, cl, obj.GetNamespace(), obj.ChildName())
+	if err != nil {
+		return fmt.Errorf("cannot read config secret to recover runner tokens: %w", err)
+	}
 	var firstErr error
 	for _, reg := range obj.RegistrationConfig() {
 		if !reg.Auth.IsManaged() || reg.RunnerID == 0 {
 			continue
 		}
+		runnerToken := tokens[reg.Name]
+		if runnerToken == "" {
+			// No token to authenticate a delete-by-token, and deleting by id
+			// would need the api scope. Log and move on rather than wedge the
+			// finalizer on something we cannot act on.
+			logger.Info("managed runner token not found in config secret; cannot delete it from gitlab, it may be orphaned", "name", reg.Name, "id", reg.RunnerID)
+			continue
+		}
 		gc := injected
 		if gc == nil {
-			accessToken, err := resolveTokenSource(ctx, cl, namespace, reg.Auth.AccessToken)
+			// The runner token in the request body authenticates the delete, so
+			// the client itself needs no access token.
+			gc, err = api.NewGitlabClient("", reg.GitlabUrl)
 			if err != nil {
-				logger.Error(err, "cannot resolve access token for runner deletion", "name", reg.Name)
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			// An optional access_token secret can resolve to empty; building a
-			// client with an empty token would 401 on DeleteRunner and orphan
-			// the runner on GitLab. Treat it as a retryable error instead.
-			if accessToken == "" {
-				err := fmt.Errorf("managed runner %q has no resolvable access_token; cannot delete it from gitlab", reg.Name)
-				logger.Error(err, "missing access token for runner deletion", "name", reg.Name)
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-			if gc, err = api.NewGitlabClient(accessToken, reg.GitlabUrl); err != nil {
 				logger.Error(err, "cannot build gitlab client for runner deletion", "name", reg.Name)
 				if firstErr == nil {
 					firstErr = err
@@ -310,11 +305,7 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 				continue
 			}
 		}
-		if err := gc.DeleteRunner(reg.RunnerID); err != nil {
-			// If the runner is already gone, treat the deletion as complete.
-			if exists, exErr := gc.RunnerExists(reg.RunnerID); exErr == nil && !exists {
-				continue
-			}
+		if err := gc.DeleteRunner(runnerToken); err != nil {
 			logger.Error(err, "cannot delete runner from gitlab", "name", reg.Name, "id", reg.RunnerID)
 			if firstErr == nil {
 				firstErr = err

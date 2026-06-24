@@ -102,7 +102,7 @@ var _ = BeforeSuite(func() {
 				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
 				return api2.CreatedRunner{ID: 1, Token: hex.EncodeToString(hash[:])}, nil
 			},
-			OnDeleteRunner: func(id int) error { return nil },
+			OnDeleteRunner: func(token string) error { return nil },
 		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
@@ -115,7 +115,7 @@ var _ = BeforeSuite(func() {
 				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
 				return api2.CreatedRunner{ID: 2, Token: hex.EncodeToString(hash[:])}, nil
 			},
-			OnDeleteRunner: func(id int) error { return nil },
+			OnDeleteRunner: func(token string) error { return nil },
 		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
