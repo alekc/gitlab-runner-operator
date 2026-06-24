@@ -223,6 +223,13 @@ func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				if e.ObjectOld == nil || e.ObjectNew == nil {
 					return false
 				}
+				// Reconcile when the object is being deleted so the finalizer
+				// runs promptly: marking deletion sets deletionTimestamp but
+				// does not bump generation, so the generation check below would
+				// otherwise drop it (leaving the object stuck in Terminating).
+				if !e.ObjectNew.GetDeletionTimestamp().IsZero() {
+					return true
+				}
 				return e.ObjectNew.GetGeneration() != e.ObjectOld.GetGeneration()
 			},
 			DeleteFunc: func(event.DeleteEvent) bool { return false },
