@@ -20,6 +20,9 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Test (unit + envtest)
+        run: make test
+
   goreleaser:
     needs: verify
     runs-on: ubuntu-latest
