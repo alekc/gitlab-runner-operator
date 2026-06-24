@@ -47,9 +47,13 @@ default from 18.0 onward, so this operator uses runner authentication tokens
    project) that holds the `create_runner` scope plus a `create_options` block.
    The operator creates the runner through `POST /user/runners`, stores the
    returned token, and deletes the runner from GitLab when the object is
-   removed. `create_runner` is sufficient for the whole lifecycle: deletion uses
-   the runner's own authentication token (`DELETE /runners` by token), so the
-   access token needs no broader scope (in particular not `api`).
+   removed. Deletion first uses the runner's own authentication token
+   (`DELETE /runners` by token), which needs no access-token scope, so
+   `create_runner` alone is enough for the normal lifecycle. If that fails or
+   the token is unavailable, the operator falls back to deleting by runner id
+   with the access token (`DELETE /runners/:id`), which succeeds only when the
+   access token also holds the `api` scope; otherwise the runner is logged as
+   possibly orphaned.
 
 Exactly one of the two modes must be configured; the admission webhook rejects
 objects that set both or neither.

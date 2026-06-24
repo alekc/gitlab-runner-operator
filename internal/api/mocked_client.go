@@ -10,9 +10,10 @@ import (
 // permissive defaults (token valid) so tests that only exercise create/delete
 // need not configure the verify hook.
 type MockedGitlabClient struct {
-	OnCreateRunner func(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error)
-	OnDeleteRunner func(token string) error
-	OnVerifyToken  func(token string) (bool, error)
+	OnCreateRunner     func(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error)
+	OnDeleteRunner     func(token string) error
+	OnDeleteRunnerByID func(id int) error
+	OnVerifyToken      func(token string) (bool, error)
 }
 
 func (m *MockedGitlabClient) CreateRunner(opts v1beta2.RunnerCreateOptions) (CreatedRunner, error) {
@@ -27,6 +28,13 @@ func (m *MockedGitlabClient) DeleteRunner(token string) error {
 		return errors.New("call is not defined")
 	}
 	return m.OnDeleteRunner(token)
+}
+
+func (m *MockedGitlabClient) DeleteRunnerByID(id int) error {
+	if m.OnDeleteRunnerByID == nil {
+		return errors.New("call is not defined")
+	}
+	return m.OnDeleteRunnerByID(id)
 }
 
 func (m *MockedGitlabClient) VerifyToken(token string) (bool, error) {

@@ -232,10 +232,21 @@ func recreateManagedRunner(ctx context.Context, statusW client.StatusWriter, git
 	switch {
 	case oldToken != "":
 		if err := gc.DeleteRunner(oldToken); err != nil {
-			return "", nil, fmt.Errorf("cannot delete stale runner %q before recreate: %w", reg.Name, err)
+			// Fall back to delete-by-id with the operator access token (needs the
+			// api scope) before giving up; do not create a replacement while the
+			// old runner may still be registered.
+			logger.Info("delete by token failed during recreate, falling back to delete by id", "name", reg.Name, "error", err.Error())
+			if err := gc.DeleteRunnerByID(reg.RunnerID); err != nil {
+				return "", nil, fmt.Errorf("cannot delete stale runner %q before recreate (by token and by id): %w", reg.Name, err)
+			}
 		}
 	case reg.RunnerID != 0:
-		logger.Info("old managed runner token unavailable; creating a new runner, the old one may be orphaned on gitlab", "name", reg.Name, "old_id", reg.RunnerID)
+		// No token to delete by; try the access-token by-id fallback. If it also
+		// fails (token lacks api), proceed and log the old runner as possibly
+		// orphaned rather than blocking the recreate forever.
+		if err := gc.DeleteRunnerByID(reg.RunnerID); err != nil {
+			logger.Info("old managed runner token unavailable and delete by id failed; creating a new runner, the old one may be orphaned on gitlab", "name", reg.Name, "old_id", reg.RunnerID, "error", err.Error())
+		}
 	}
 	created, err := gc.CreateRunner(*reg.Auth.CreateOptions)
 	if err != nil {
@@ -284,28 +295,7 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 		if !reg.Auth.IsManaged() || reg.RunnerID == 0 {
 			continue
 		}
-		runnerToken := tokens[reg.Name]
-		if runnerToken == "" {
-			// No token to authenticate a delete-by-token, and deleting by id
-			// would need the api scope. Log and move on rather than wedge the
-			// finalizer on something we cannot act on.
-			logger.Info("managed runner token not found in config secret; cannot delete it from gitlab, it may be orphaned", "name", reg.Name, "id", reg.RunnerID)
-			continue
-		}
-		gc := injected
-		if gc == nil {
-			// The runner token in the request body authenticates the delete, so
-			// the client itself needs no access token.
-			gc, err = api.NewGitlabClient("", reg.GitlabUrl)
-			if err != nil {
-				logger.Error(err, "cannot build gitlab client for runner deletion", "name", reg.Name)
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
-			}
-		}
-		if err := gc.DeleteRunner(runnerToken); err != nil {
+		if err := deleteManagedRunner(ctx, cl, injected, obj.GetNamespace(), reg, tokens[reg.Name], logger); err != nil {
 			logger.Error(err, "cannot delete runner from gitlab", "name", reg.Name, "id", reg.RunnerID)
 			if firstErr == nil {
 				firstErr = err
@@ -313,6 +303,54 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 		}
 	}
 	return firstErr
+}
+
+// deleteManagedRunner removes one managed runner from GitLab, preferring its own
+// authentication token (DELETE /runners by token, which needs no access-token
+// scope) and falling back to the operator access token by runner id (DELETE
+// /runners/:id, which needs the api scope) when the token is missing or the
+// token-based delete is rejected. When neither path succeeds the runner may be
+// left orphaned and an error is returned so the finalizer can retry.
+func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.GitlabClient, namespace string, reg v1beta2.GitlabRegInfo, token string, logger logr.Logger) error {
+	// Preferred path: delete by the runner's own token (no access-token scope).
+	if token != "" {
+		gc := injected
+		if gc == nil {
+			c, err := api.NewGitlabClient("", reg.GitlabUrl)
+			if err != nil {
+				return err
+			}
+			gc = c
+		}
+		err := gc.DeleteRunner(token)
+		if err == nil {
+			return nil
+		}
+		logger.Info("delete by token failed, falling back to the operator access token (delete by id, needs api scope)", "name", reg.Name, "error", err.Error())
+	} else {
+		logger.Info("no runner token in config secret, falling back to the operator access token (delete by id, needs api scope)", "name", reg.Name, "id", reg.RunnerID)
+	}
+
+	// Fallback: delete by id with the operator access token (needs api scope).
+	gc := injected
+	if gc == nil {
+		accessToken, err := resolveTokenSource(ctx, cl, namespace, reg.Auth.AccessToken)
+		if err != nil {
+			return err
+		}
+		if accessToken == "" {
+			return fmt.Errorf("runner %q: no usable runner token and no access_token for the delete-by-id fallback; it may be orphaned on gitlab", reg.Name)
+		}
+		c, err := api.NewGitlabClient(accessToken, reg.GitlabUrl)
+		if err != nil {
+			return err
+		}
+		gc = c
+	}
+	if err := gc.DeleteRunnerByID(reg.RunnerID); err != nil {
+		return fmt.Errorf("runner %q: delete by id fallback failed: %w", reg.Name, err)
+	}
+	return nil
 }
 
 // finalizeDeletion removes managed runners from GitLab, then the finalizer. On

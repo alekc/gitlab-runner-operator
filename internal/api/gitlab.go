@@ -28,6 +28,11 @@ type GitlabClient interface {
 	// request, so no access-token scope (in particular not api) is needed. A
 	// runner that is already gone counts as deleted.
 	DeleteRunner(token string) error
+	// DeleteRunnerByID removes a runner by its numeric id (DELETE /runners/:id).
+	// This needs the api scope on the access token and is used only as a
+	// fallback when delete-by-token is impossible (token lost) or rejected. A
+	// runner that is already gone counts as deleted.
+	DeleteRunnerByID(id int) error
 	// VerifyToken reports whether the given runner authentication token is
 	// still accepted by GitLab. A false (with nil error) means the token was
 	// rejected (revoked/expired); a non-nil error means the check itself failed.
@@ -92,6 +97,18 @@ func (g *gitlabApi) DeleteRunner(token string) error {
 	// A 403/404 means the token no longer maps to a live runner, i.e. it is
 	// already gone; treat that as a completed deletion.
 	if resp != nil && (resp.StatusCode == 403 || resp.StatusCode == 404) {
+		return nil
+	}
+	return err
+}
+
+func (g *gitlabApi) DeleteRunnerByID(id int) error {
+	resp, err := g.gitlabApiClient.Runners.RemoveRunner(id)
+	if err == nil {
+		return nil
+	}
+	// Already gone counts as deleted.
+	if resp != nil && resp.StatusCode == 404 {
 		return nil
 	}
 	return err
