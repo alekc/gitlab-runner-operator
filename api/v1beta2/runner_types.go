@@ -196,6 +196,11 @@ func (r *Runner) ChildName() string {
 	return fmt.Sprintf("gitlab-runner-%s", r.Name)
 }
 
+// ExecutorConfigs returns the runner's single kubernetes executor config.
+func (r *Runner) ExecutorConfigs() []*KubernetesConfig {
+	return []*KubernetesConfig{&r.Spec.ExecutorConfig}
+}
+
 // Namespace returns namespace of the runner
 func (r *Runner) GetNamespace() string {
 	return r.Namespace

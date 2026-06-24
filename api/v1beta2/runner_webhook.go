@@ -54,14 +54,21 @@ func (w *RunnerWebhook) Default(_ context.Context, r *Runner) error {
 	return nil
 }
 
-// ValidateCreate enforces that exactly one auth mode is configured.
+// ValidateCreate enforces that exactly one auth mode is configured and that the
+// executor namespacing is supportable.
 func (w *RunnerWebhook) ValidateCreate(_ context.Context, r *Runner) (admission.Warnings, error) {
-	return nil, r.Spec.Authentication.Validate()
+	if err := r.Spec.Authentication.Validate(); err != nil {
+		return nil, err
+	}
+	return nil, validateKubernetesExecutor(&r.Spec.ExecutorConfig)
 }
 
-// ValidateUpdate re-runs auth validation against the updated object.
+// ValidateUpdate re-runs auth and executor validation against the updated object.
 func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *Runner) (admission.Warnings, error) {
-	return nil, newObj.Spec.Authentication.Validate()
+	if err := newObj.Spec.Authentication.Validate(); err != nil {
+		return nil, err
+	}
+	return nil, validateKubernetesExecutor(&newObj.Spec.ExecutorConfig)
 }
 
 // ValidateDelete is a no-op placeholder kept for future validation rules.

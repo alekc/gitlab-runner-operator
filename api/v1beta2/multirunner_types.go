@@ -249,6 +249,15 @@ func (r *MultiRunner) ChildName() string {
 	return fmt.Sprintf("gitlab-mrunner-%s", r.Name)
 }
 
+// ExecutorConfigs returns the kubernetes executor config of every entry.
+func (r *MultiRunner) ExecutorConfigs() []*KubernetesConfig {
+	out := make([]*KubernetesConfig, 0, len(r.Spec.Entries))
+	for i := range r.Spec.Entries {
+		out = append(out, &r.Spec.Entries[i].ExecutorConfig)
+	}
+	return out
+}
+
 func (r *MultiRunner) GenerateOwnerReference() []metav1.OwnerReference {
 	return []metav1.OwnerReference{{
 		APIVersion:         GroupVersion.String(), // due to https://github.com/kubernetes/client-go/issues/541 type meta is empty

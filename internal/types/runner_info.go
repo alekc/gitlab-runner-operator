@@ -38,4 +38,8 @@ type RunnerInfo interface {
 	SetReadyCondition(ready bool, reason, message string)
 	RegistrationConfig() []v1beta2.GitlabRegInfo
 	StoreRunnerRegistration(v1beta2.GitlabRegInfo)
+	// ExecutorConfigs returns the kubernetes executor config for each runner
+	// unit (one for a Runner, one per entry for a MultiRunner). Used to derive
+	// the build namespaces the runner ServiceAccount needs RBAC in.
+	ExecutorConfigs() []*v1beta2.KubernetesConfig
 }

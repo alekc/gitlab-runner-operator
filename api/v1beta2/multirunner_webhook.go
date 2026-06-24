@@ -84,6 +84,27 @@ func validateEntries(r *MultiRunner) error {
 		if err := entry.Authentication.Validate(); err != nil {
 			return fmt.Errorf("entry %q: %w", entry.Name, err)
 		}
+		if err := validateKubernetesExecutor(&r.Spec.Entries[i].ExecutorConfig); err != nil {
+			return fmt.Errorf("entry %q: %w", entry.Name, err)
+		}
+	}
+	return nil
+}
+
+// validateKubernetesExecutor rejects executor settings that make the build
+// namespace dynamic. The operator pre-provisions namespaced RBAC for the
+// runner ServiceAccount, so it cannot cover a namespace chosen at job time;
+// supporting these would require cluster-scoped RBAC the operator does not
+// grant. Failing at admission is clearer than a forbidden error at job time.
+func validateKubernetesExecutor(cfg *KubernetesConfig) error {
+	if cfg == nil {
+		return nil
+	}
+	if cfg.NamespacePerJob {
+		return fmt.Errorf("namespace_per_job is not supported: it would need cluster-scoped RBAC the operator does not grant")
+	}
+	if cfg.NamespaceOverwriteAllowed != "" {
+		return fmt.Errorf("namespace_overwrite_allowed is not supported: the build namespace must be static so the operator can provision RBAC for it")
 	}
 	return nil
 }

@@ -173,6 +173,28 @@ spec:
 See `config/samples/gitlab_v1beta2_multirunner.yaml` for a `MultiRunner`
 example that mixes both authentication modes across entries.
 
+## RBAC and namespaces
+
+For each Runner or MultiRunner the operator provisions one ServiceAccount, plus
+a Role and RoleBinding granting the kubernetes executor the permissions it needs
+to create and drive job pods (pods and pods/exec, pods/attach, pods/log,
+services, secrets, configmaps, serviceaccounts, events). A MultiRunner shares a
+single ServiceAccount across all its entries. The rules are reconciled on every
+change, so upgrading the operator updates existing runners, not only new ones.
+
+The operator can only grant a runner what the operator itself holds (it has no
+RBAC `escalate` verb), so the manager ClusterRole is the explicit ceiling for
+runner permissions. The Role is namespaced, so nothing cluster-scoped can be
+granted.
+
+Job pods run in `executor_config.namespace` when set, otherwise in the runner's
+own namespace. When that namespace differs from the runner's, the operator
+creates the Role and RoleBinding there too (the ServiceAccount stays in the
+runner namespace) and removes them when the runner is deleted. Because the
+operator pre-provisions RBAC for a known namespace, `namespace_per_job` and
+`namespace_overwrite_allowed` are rejected at admission: both make the build
+namespace dynamic, which would require cluster-scoped RBAC.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).

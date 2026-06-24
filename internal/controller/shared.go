@@ -28,13 +28,15 @@ import (
 	"gitlab.k8s.alekc.dev/internal/crud"
 	"gitlab.k8s.alekc.dev/internal/types"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
-	// secretTokenKey is the data key read from a referenced token secret.
-	secretTokenKey = "token"
+	// defaultSecretTokenKey is the Secret data key read when a TokenSource's
+	// SecretKeyRef does not specify one.
+	defaultSecretTokenKey = "token"
 	// tokenRefreshThreshold: a managed token within this window of expiry is
 	// refreshed in place (no recreate).
 	tokenRefreshThreshold = 24 * time.Hour
@@ -50,22 +52,45 @@ const (
 	deleteAttemptsAnnotation = "gitlab.k8s.alekc.dev/delete-attempts"
 )
 
-// resolveToken returns the inline token if set, otherwise the value of the
-// "token" key from the named secret in namespace. It returns an empty string
-// (no error) when neither source is configured.
-func resolveToken(ctx context.Context, cl client.Client, namespace, inline, secretName string) (string, error) {
-	if inline != "" {
-		return inline, nil
-	}
-	if secretName == "" {
+// resolveTokenSource resolves a TokenSource to its literal token. An inline
+// value wins; otherwise the SecretKeyRef's key (defaulting to "token") is read
+// from a Secret in namespace. When the ref is marked optional a missing secret
+// or key yields an empty token instead of an error. A nil or empty source
+// returns an empty string with no error.
+func resolveTokenSource(ctx context.Context, cl client.Client, namespace string, src *v1beta2.TokenSource) (string, error) {
+	if src == nil {
 		return "", nil
 	}
-	var secret corev1.Secret
-	key := client.ObjectKey{Namespace: namespace, Name: secretName}
-	if err := cl.Get(ctx, key, &secret); err != nil {
-		return "", fmt.Errorf("cannot read secret %q: %w", secretName, err)
+	if src.Value != "" {
+		return src.Value, nil
 	}
-	return string(secret.Data[secretTokenKey]), nil
+	ref := src.SecretKeyRef
+	if ref == nil {
+		return "", nil
+	}
+	optional := ref.Optional != nil && *ref.Optional
+
+	var secret corev1.Secret
+	key := client.ObjectKey{Namespace: namespace, Name: ref.Name}
+	if err := cl.Get(ctx, key, &secret); err != nil {
+		if optional && apierrors.IsNotFound(err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("cannot read secret %q: %w", ref.Name, err)
+	}
+
+	dataKey := ref.Key
+	if dataKey == "" {
+		dataKey = defaultSecretTokenKey
+	}
+	value, ok := secret.Data[dataKey]
+	if !ok {
+		if optional {
+			return "", nil
+		}
+		return "", fmt.Errorf("secret %q has no key %q", ref.Name, dataKey)
+	}
+	return string(value), nil
 }
 
 // ensureRunners makes sure every runner unit is authenticated and returns the
@@ -85,12 +110,12 @@ func ensureRunners(ctx context.Context, cl client.Client, statusW client.StatusW
 	for _, reg := range obj.RegistrationConfig() {
 		reg := reg
 		if !reg.Auth.IsManaged() {
-			token, err := resolveToken(ctx, cl, namespace, reg.Auth.AuthenticationToken, reg.Auth.AuthenticationTokenSecret)
+			token, err := resolveTokenSource(ctx, cl, namespace, reg.Auth.Token)
 			if err != nil {
 				return nil, 0, err
 			}
 			if token == "" {
-				return nil, 0, fmt.Errorf("runner %q requires authentication_token or authentication_token_secret", reg.Name)
+				return nil, 0, fmt.Errorf("runner %q requires a token (value or secret_key_ref)", reg.Name)
 			}
 			tokens[reg.Name] = token
 			logger.Info("using provided authentication token", "name", reg.Name)
@@ -135,12 +160,12 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		if injected != nil {
 			return injected, nil
 		}
-		accessToken, err := resolveToken(ctx, cl, obj.GetNamespace(), reg.Auth.AccessToken, reg.Auth.AccessTokenSecret)
+		accessToken, err := resolveTokenSource(ctx, cl, obj.GetNamespace(), reg.Auth.AccessToken)
 		if err != nil {
 			return nil, err
 		}
 		if accessToken == "" {
-			return nil, fmt.Errorf("managed runner %q requires access_token or access_token_secret", reg.Name)
+			return nil, fmt.Errorf("managed runner %q requires an access_token (value or secret_key_ref)", reg.Name)
 		}
 		return api.NewGitlabClient(accessToken, reg.GitlabUrl)
 	}
@@ -258,7 +283,7 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 		}
 		gc := injected
 		if gc == nil {
-			accessToken, err := resolveToken(ctx, cl, namespace, reg.Auth.AccessToken, reg.Auth.AccessTokenSecret)
+			accessToken, err := resolveTokenSource(ctx, cl, namespace, reg.Auth.AccessToken)
 			if err != nil {
 				logger.Error(err, "cannot resolve access token for runner deletion", "name", reg.Name)
 				if firstErr == nil {
@@ -305,6 +330,15 @@ func finalizeDeletion(ctx context.Context, cl client.Client, injected api.Gitlab
 			return resultRequeueAfterDefaultTimeout, err
 		}
 		logger.Error(err, "giving up deleting managed runner(s) from gitlab after max attempts; removing finalizer, gitlab-side runners may be orphaned", "attempts", attempts)
+	}
+
+	// Clean up RBAC the operator created in build namespaces other than the
+	// runner's own; those lack owner references so Kubernetes will not garbage
+	// collect them. Same-namespace RBAC is owner-referenced and collected on
+	// object deletion. Keep the finalizer and requeue on failure.
+	if err := crud.DeleteRBACExcept(ctx, cl, obj, []string{obj.GetNamespace()}, logger); err != nil {
+		logger.Error(err, "cannot clean up cross-namespace runner RBAC, will retry")
+		return resultRequeueAfterDefaultTimeout, err
 	}
 
 	obj.RemoveFinalizer()

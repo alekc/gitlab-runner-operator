@@ -63,6 +63,16 @@ var resultRequeueNow = ctrl.Result{Requeue: true}
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
 
+// The operator delegates the kubernetes executor permission set to each runner
+// ServiceAccount. It has no rbac "escalate" verb, so it must itself hold these
+// to create the per-runner Role on clusters that enforce RBAC escalation
+// prevention. This is the explicit ceiling for what a runner can be granted.
+// +kubebuilder:rbac:groups="core",resources=pods,verbs=get;list;watch;create;delete
+// +kubebuilder:rbac:groups="core",resources=pods/exec;pods/attach,verbs=get;create;patch;delete
+// +kubebuilder:rbac:groups="core",resources=pods/log,verbs=get;list
+// +kubebuilder:rbac:groups="core",resources=services,verbs=get;create
+// +kubebuilder:rbac:groups="core",resources=events,verbs=list;watch
+
 func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 
