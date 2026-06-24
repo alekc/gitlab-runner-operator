@@ -62,7 +62,7 @@ jobs:
           kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s
 
       - name: Build operator image
-        run: docker build -t gitlab-runner-operator:e2e .
+        run: docker build -f Dockerfile.e2e -t gitlab-runner-operator:e2e .
 
       - name: Load image into kind
         run: kind load docker-image gitlab-runner-operator:e2e --name kind

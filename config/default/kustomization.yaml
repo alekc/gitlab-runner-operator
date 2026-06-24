@@ -25,10 +25,11 @@ bases:
 #- ../prometheus
 
 patchesStrategicMerge:
-# Protect the /metrics endpoint by putting it behind auth.
-# If you want your controller-manager to expose the /metrics
-# endpoint w/o any authn/z, please comment the following line.
-- manager_auth_proxy_patch.yaml
+# The legacy kube-rbac-proxy sidecar is intentionally NOT applied: its image
+# (gcr.io/kubebuilder/kube-rbac-proxy) was retired and no longer pulls, and
+# controller-runtime now secures the metrics endpoint itself. Re-enable only if
+# you wire up a working proxy image.
+#- manager_auth_proxy_patch.yaml
 
 # Mount the controller config file for loading manager configurations
 # through a ComponentConfig type
