@@ -1,0 +1,81 @@
+name: e2e
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Dynamically pick the latest patch of each recent Kubernetes minor that has a
+  # published kindest/node image. Reused from alekc/terraform-provider-kubectl.
+  k8s_versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: imjasonh/setup-crane@59c71e96a00b28651f10369ba3359a6d730740a0 # v0.6
+      - id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          k8s_cycles="$(curl -sSfL https://endoflife.date/api/kubernetes.json | jq -rc '[sort_by(.releaseDate) | reverse | .[0:4] | .[].cycle]')"
+          # Drop cycles for which kindest/node has not published a tag yet, so
+          # the matrix never renders an unusable `kindest/node:v` entry.
+          kind_versions="$(crane ls docker.io/kindest/node | jq -sRrc --argjson cycles "${k8s_cycles}" 'split("\n") | [.[] | match("^v((\\d+\\.\\d+)\\.\\d+)$").captures | {cycle: .[1].string, version: .[0].string}] | group_by(.cycle) | [.[] | .[-1] | {(.cycle): {"version": .version}}] | reduce .[] as $item ({}; . *= $item) | . as $versions | [$cycles | .[] | select($versions[.] != null) | $versions[.].version]')"
+          echo "k8s_versions=${kind_versions}" >> "${GITHUB_OUTPUT}"
+    outputs:
+      k8s_versions: ${{ steps.matrix.outputs.k8s_versions }}
+
+  e2e:
+    needs: k8s_versions
+    # Secrets are not available to fork PRs; only run for same-repo branches and
+    # manual dispatch. Fork PRs would otherwise build/deploy then skip the tests.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        k8s_version: ${{ fromJson(needs.k8s_versions.outputs.k8s_versions) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.26.x
+
+      - name: Create kind cluster (k8s ${{ matrix.k8s_version }})
+        uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
+        with:
+          cluster_name: kind
+          node_image: kindest/node:v${{ matrix.k8s_version }}
+          wait: 2m
+
+      - name: Install cert-manager
+        run: |
+          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
+          kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s
+          kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
+          kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s
+
+      - name: Build operator image
+        run: docker build -t gitlab-runner-operator:e2e .
+
+      - name: Load image into kind
+        run: kind load docker-image gitlab-runner-operator:e2e --name kind
+
+      - name: Deploy operator (CRDs, RBAC, webhook, cert-manager cert)
+        run: |
+          make deploy IMG=gitlab-runner-operator:e2e
+          kubectl -n gitlab-runner-operator-system rollout status \
+            deploy/gitlab-runner-operator-controller-manager --timeout=300s
+
+      - name: Run e2e suite
+        env:
+          GITLAB_E2E_URL: ${{ secrets.GITLAB_E2E_URL }}
+          GITLAB_E2E_TOKEN: ${{ secrets.GITLAB_E2E_TOKEN }}
+          GITLAB_E2E_PROJECT_ID: ${{ secrets.GITLAB_E2E_PROJECT_ID }}
+        run: make test-e2e

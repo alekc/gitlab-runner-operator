@@ -59,8 +59,12 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test ./... -coverprofile cover.out
+test: manifests generate fmt vet envtest ## Run unit + envtest suites.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --bin-dir $(LOCALBIN) -p path)" go test $(shell go list ./... | grep -v /test/e2e) -coverprofile cover.out
+
+.PHONY: test-e2e
+test-e2e: ## Run the live e2e suite against the current kube context. Requires a deployed operator and GITLAB_E2E_URL / GITLAB_E2E_TOKEN / GITLAB_E2E_PROJECT_ID (see .envrc.example); skips when unset.
+	go test ./test/e2e/... -v -timeout 20m
 
 ##@ Build
 

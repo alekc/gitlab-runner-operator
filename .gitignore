@@ -24,3 +24,6 @@ source
 *.swp
 *.swo
 *~
+
+# Local e2e secrets (direnv). Never commit real tokens.
+.envrc

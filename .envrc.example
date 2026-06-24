@@ -1,0 +1,13 @@
+# Local e2e configuration for `make test-e2e` against a kind cluster + live GitLab.
+# Copy to `.envrc` (gitignored), fill in real values, and `direnv allow`.
+# These mirror the GitHub Actions secrets of the same names used by the e2e workflow.
+
+# GitLab instance the test runner registers against.
+export GITLAB_E2E_URL="https://gitlab.com/"
+
+# Access token with the `create_runner` scope on the project below.
+# Use a throwaway/test project, not anything sensitive.
+export GITLAB_E2E_TOKEN="glpat-REPLACE_ME"
+
+# Numeric id of the GitLab project the managed runner is created against.
+export GITLAB_E2E_PROJECT_ID="0"
