@@ -207,6 +207,16 @@ Because the operator pre-provisions RBAC for a known namespace,
 admission: both make the build namespace dynamic, which would require
 cluster-scoped RBAC.
 
+> **Security note: the namespace restriction is enforced only by the validating
+> webhook.** Running the operator with `--disable-webhooks` removes this control,
+> and the reconciler will then honour whatever `executor_config.namespace` a
+> Runner specifies, binding that runner's ServiceAccount into (and running its
+> jobs in) any namespace. The operator holds the executor permission set
+> cluster-wide, so on a shared cluster this is a privilege-escalation path: any
+> user who can create a Runner could reach `kube-system` or another tenant's
+> namespace. Do **not** disable webhooks on a multi-tenant cluster. If you must,
+> restrict who can create Runner/MultiRunner objects by RBAC instead.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).

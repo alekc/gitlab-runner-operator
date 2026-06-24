@@ -70,7 +70,11 @@ func main() {
 	var allowedBuildNamespacesRaw string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable mutating and validating webhooks.")
+	flag.BoolVar(&disableWebhooks, "disable-webhooks", false,
+		"Disable mutating and validating webhooks. WARNING: the webhook enforces "+
+			"the executor namespace restriction (see --allowed-build-namespaces); "+
+			"disabling it on a multi-tenant cluster lets any Runner author bind the "+
+			"runner ServiceAccount into, and run jobs in, any namespace.")
 	flag.StringVar(&allowedBuildNamespacesRaw, "allowed-build-namespaces", "",
 		"Comma-separated namespaces (besides a runner's own) where the operator may provision executor RBAC. "+
 			"Use '*' to allow any. Empty (default) restricts each runner to its own namespace.")
