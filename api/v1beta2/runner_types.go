@@ -201,7 +201,7 @@ func (r *Runner) ExecutorConfigs() []*KubernetesConfig {
 	return []*KubernetesConfig{&r.Spec.ExecutorConfig}
 }
 
-// Namespace returns namespace of the runner
+// GetNamespace returns the namespace of the runner.
 func (r *Runner) GetNamespace() string {
 	return r.Namespace
 }
@@ -211,7 +211,7 @@ func (r *Runner) SetStatusError(errorMessage string) {
 	r.Status.Error = errorMessage
 }
 
-// SetStatusConfigMapVersion sets configm map version hash in the runner status
+// SetConfigMapVersion sets the config map version hash in the runner status.
 func (r *Runner) SetConfigMapVersion(versionHash string) {
 	r.Status.ConfigMapVersion = versionHash
 }
