@@ -11,8 +11,12 @@ linters:
     - unconvert
   settings:
     staticcheck:
-      # all staticcheck checks except QF1008 (a stylistic "drop the embedded
-      # field from the selector" quickfix, not a correctness issue).
+      # Keep the bug-finding (SA*) and simplification (S1*) checks; drop the
+      # opinionated style nags that would force churny renames on this existing
+      # codebase: QF1008 (embedded-field selectors), ST1000 (package comments),
+      # ST1003 (initialism naming, e.g. GitlabApiClient -> GitlabAPIClient).
       checks:
         - all
         - -QF1008
+        - -ST1000
+        - -ST1003
