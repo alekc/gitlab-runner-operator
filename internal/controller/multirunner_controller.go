@@ -145,8 +145,16 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 		return resultRequeueAfterDefaultTimeout, err
 	}
 
+	// Record the freshly rendered config hash on status every reconcile. It is
+	// the single source of truth for the status version field and the
+	// deployment's config-version annotation. Deriving both from the live hash
+	// (not a value re-read from the cache) avoids a race where a rapid requeue
+	// reads stale status, skips the deployment roll, reverts the version, and
+	// leaves the runner stuck below Ready.
+	runnerObj.SetConfigMapVersion(configHashKey)
+
 	// reconcile the config Secret (config.toml plus the per-entry tokens)
-	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens, configHashKey); res != nil || err != nil {
+	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens); res != nil || err != nil {
 		if err != nil {
 			runnerObj.SetReadyCondition(false, "ConfigSecretFailed", err.Error())
 		}

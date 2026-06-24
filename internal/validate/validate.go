@@ -130,7 +130,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 // runner, keeping each entry's authentication token under a dedicated
 // ConfigTokenKeyPrefix key so the controller can recover it on later
 // reconciles. The token never lands in a ConfigMap or in the CR status.
-func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, tokens map[string]string, configHashKey string) (*ctrl.Result, error) {
+func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, tokens map[string]string) (*ctrl.Result, error) {
 	desired := map[string][]byte{
 		types.ConfigMapKeyName: []byte(gitlabRunnerTomlConfig),
 	}
@@ -165,7 +165,6 @@ func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, l
 			logger.Error(err, "cannot create a config secret", "secretName", secret.Name)
 			return result.RequeueWithDefaultTimeout(), err
 		}
-		runnerObj.SetConfigMapVersion(configHashKey)
 		return result.RequeueNow(), nil
 	}
 
@@ -180,7 +179,6 @@ func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, l
 			logger.Error(err, errMsg)
 			return &ctrl.Result{Requeue: true}, err
 		}
-		runnerObj.SetConfigMapVersion(configHashKey)
 		return result.RequeueNow(), nil
 	}
 	return nil, nil
