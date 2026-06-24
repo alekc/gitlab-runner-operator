@@ -9,7 +9,6 @@ import (
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -105,9 +104,18 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 		return result.RequeueNow(), nil
 	}
 
-	// deployment exists. Check the configMap annotation
-	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() || !equality.Semantic.DeepDerivative(wantedDeployment.Spec, existingDeployment.DeepCopy().Spec) {
-		logger.Info("deployment is different from our version, updating", "deployment_name", existingDeployment.Name)
+	// Deployment exists. Roll it only when the rendered config changed (the
+	// config-version annotation) or the runner image changed. We deliberately do
+	// NOT diff the whole spec: the API server defaults fields we never set
+	// (port protocol, terminationMessagePath, and so on), so a subset/derivative
+	// compare never converges and the controller re-applies its sparse spec
+	// forever, never reaching Ready.
+	existingImage := ""
+	if len(existingDeployment.Spec.Template.Spec.Containers) > 0 {
+		existingImage = existingDeployment.Spec.Template.Spec.Containers[0].Image
+	}
+	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() || existingImage != runnerObj.RunnerImage() {
+		logger.Info("deployment changed (config or image), updating", "deployment_name", existingDeployment.Name)
 		err = cl.Update(ctx, &wantedDeployment)
 		if err != nil {
 			logger.Error(err, "cannot update deployment")
