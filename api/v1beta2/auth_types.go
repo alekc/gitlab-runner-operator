@@ -133,6 +133,12 @@ func (a GitlabAuth) Validate() error {
 	case hasManaged && !a.AccessToken.IsSet():
 		return fmt.Errorf("create_options requires access_token")
 	}
+	// access_token is only consumed in managed mode; reject it when there is no
+	// create_options so a user who forgot create_options is not silently served
+	// as bring-your-own (where the access_token would be ignored).
+	if a.AccessToken.IsSet() && !hasManaged {
+		return fmt.Errorf("access_token is only used with create_options (managed mode); add create_options or remove access_token")
+	}
 	if err := a.Token.validate(); err != nil {
 		return fmt.Errorf("token: %w", err)
 	}

@@ -99,7 +99,7 @@ func CreateRBACIfMissing(ctx context.Context, cl client.Client, apiReader client
 			return err
 		}
 	}
-	return DeleteRBACExcept(ctx, cl, runnerObject, namespaces, log)
+	return DeleteRBACExcept(ctx, cl, apiReader, runnerObject, namespaces, log)
 }
 
 // ensureExecutorClusterRole reconciles the single shared ClusterRole to the
@@ -125,7 +125,13 @@ func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl 
 			Rules: desired,
 		}
 		log.Info("creating shared executor clusterrole", "name", executorClusterRoleName)
-		return cl.Create(ctx, role)
+		// The ClusterRole is shared, so many runner reconciles race to create
+		// it; the loser seeing AlreadyExists has nothing to do (whoever won
+		// wrote the same desired rules).
+		if err := cl.Create(ctx, role); err != nil && !errors.IsAlreadyExists(err) {
+			return err
+		}
+		return nil
 	case err != nil:
 		log.Error(err, "cannot get the executor clusterrole")
 		return err
@@ -133,7 +139,11 @@ func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl 
 	if !equality.Semantic.DeepEqual(existing.Rules, desired) {
 		existing.Rules = desired
 		log.Info("updating shared executor clusterrole rules", "name", executorClusterRoleName)
-		return cl.Update(ctx, existing)
+		// Concurrent reconciles all compute identical desired rules, so a lost
+		// optimistic-lock race means another reconcile already converged it.
+		if err := cl.Update(ctx, existing); err != nil && !errors.IsConflict(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -143,11 +153,10 @@ func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl 
 func BuildNamespaces(obj internalTypes.RunnerInfo) []string {
 	set := map[string]struct{}{}
 	for _, cfg := range obj.ExecutorConfigs() {
-		namespace := obj.GetNamespace()
-		if cfg != nil && cfg.Namespace != "" {
-			namespace = cfg.Namespace
-		}
-		set[namespace] = struct{}{}
+		// EffectiveNamespace is the shared defaulting rule used by config.toml
+		// rendering too, so RBAC is always provisioned for the namespace jobs
+		// actually run in.
+		set[cfg.EffectiveNamespace(obj.GetNamespace())] = struct{}{}
 	}
 	if len(set) == 0 {
 		set[obj.GetNamespace()] = struct{}{}
@@ -256,17 +265,26 @@ func reconcileRoleBinding(ctx context.Context, cl client.Client, obj internalTyp
 	switch {
 	case errors.IsNotFound(err):
 		log.Info("creating runner rolebinding", "namespace", namespace)
-		return cl.Create(ctx, desired)
+		// A concurrent reconcile may have created it first; that is success.
+		if err := cl.Create(ctx, desired); err != nil && !errors.IsAlreadyExists(err) {
+			return err
+		}
+		return nil
 	case err != nil:
 		log.Error(err, "cannot get the rolebinding", "namespace", namespace)
 		return err
 	}
 	if existing.RoleRef != desired.RoleRef {
+		// roleRef is immutable, so a changed binding (e.g. one left by an older
+		// operator version referencing a per-runner Role) must be replaced. The
+		// gap between delete and create is covered by requeue on error.
 		log.Info("recreating runner rolebinding with new roleRef", "namespace", namespace)
 		if err := cl.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
-		return cl.Create(ctx, desired)
+		if err := cl.Create(ctx, desired); err != nil && !errors.IsAlreadyExists(err) {
+			return err
+		}
 	}
 	return nil
 }
@@ -278,7 +296,11 @@ func reconcileRoleBinding(ctx context.Context, cl client.Client, obj internalTyp
 // the finalizer's cross-namespace cleanup (same-namespace bindings carry owner
 // references and are garbage collected by Kubernetes). The shared ClusterRole
 // and the ServiceAccount are not touched here.
-func DeleteRBACExcept(ctx context.Context, cl client.Client, obj internalTypes.RunnerInfo, keep []string, log logr.Logger) error {
+//
+// The List uses the uncached reader (APIReader): a cross-namespace binding has
+// no owner reference, so the cache-list could miss one just created (or, during
+// finalization, drop the finalizer before observing it) and orphan a live grant.
+func DeleteRBACExcept(ctx context.Context, cl client.Client, reader client.Reader, obj internalTypes.RunnerInfo, keep []string, log logr.Logger) error {
 	keepSet := map[string]struct{}{}
 	for _, namespace := range keep {
 		keepSet[namespace] = struct{}{}
@@ -286,7 +308,7 @@ func DeleteRBACExcept(ctx context.Context, cl client.Client, obj internalTypes.R
 	selector := client.MatchingLabels(rbacLabels(obj))
 
 	var bindings v1.RoleBindingList
-	if err := cl.List(ctx, &bindings, selector); err != nil {
+	if err := reader.List(ctx, &bindings, selector); err != nil {
 		return err
 	}
 	for i := range bindings.Items {

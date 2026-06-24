@@ -41,10 +41,9 @@ func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConf
 			Kubernetes:  &r.Spec.ExecutorConfig,
 		},
 	}
-	// set the namespace to the same one as the runner object if not declared otherwise
-	if runnerConfig.RunnerSettings.Kubernetes.Namespace == "" {
-		runnerConfig.RunnerSettings.Kubernetes.Namespace = r.Namespace
-	}
+	// resolve the executor namespace via the shared defaulting rule so it
+	// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
+	runnerConfig.RunnerSettings.Kubernetes.Namespace = r.Spec.ExecutorConfig.EffectiveNamespace(r.Namespace)
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
 		Concurrent:    int(math.Max(1, float64(r.Spec.Concurrent))),
@@ -90,10 +89,9 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 				Kubernetes:  &executorConfig,
 			},
 		}
-		// set the namespace to the same one as the runner object if not declared otherwise
-		if runnerConfig.RunnerSettings.Kubernetes.Namespace == "" {
-			runnerConfig.RunnerSettings.Kubernetes.Namespace = runnerObject.Namespace
-		}
+		// resolve the executor namespace via the shared defaulting rule so it
+		// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
+		runnerConfig.RunnerSettings.Kubernetes.Namespace = executorConfig.EffectiveNamespace(runnerObject.Namespace)
 		runners = append(runners, &runnerConfig)
 	}
 

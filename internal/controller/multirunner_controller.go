@@ -32,6 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -71,7 +72,7 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	logger.Info("reconciling")
 	if runnerObj.IsBeingDeleted() {
-		return finalizeDeletion(ctx, r.Client, r.GitlabApiClient, runnerObj, logger)
+		return finalizeDeletion(ctx, r.Client, r.APIReader, r.GitlabApiClient, runnerObj, logger)
 	}
 
 	// update the status when done processing in case there is anything pending
@@ -212,24 +213,24 @@ func (r *MultiRunnerReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&gitlabv1beta2.MultiRunner{}).
-		WithEventFilter(predicate.Funcs{
+		// Only the primary object gets the generation filter: it avoids a
+		// reconcile loop on our own status writes, and the actual delete event
+		// is ignored because deletion is finalizer-driven. Owned objects must
+		// NOT inherit this filter, or edits to them (which do not bump
+		// generation on Secret/RoleBinding/ServiceAccount) would never self-heal.
+		For(&gitlabv1beta2.MultiRunner{}, builder.WithPredicates(predicate.Funcs{
 			UpdateFunc: func(e event.UpdateEvent) bool {
 				if e.ObjectOld == nil || e.ObjectNew == nil {
 					return false
 				}
 				return e.ObjectNew.GetGeneration() != e.ObjectOld.GetGeneration()
 			},
-			DeleteFunc: func(event event.DeleteEvent) bool {
-				// The reconciler adds a finalizer when the delete timestamp is added.
-				// Avoid reconciling in case it's a runner, we still want to reconcile if it's a dependent object
-				if _, ok := event.Object.(*gitlabv1beta2.MultiRunner); ok {
-					return false
-				}
-				return true
-			}}).
+			DeleteFunc: func(event.DeleteEvent) bool { return false },
+		})).
 		Owns(&corev1.Secret{}).
-		Owns(&appsv1.Deployment{}).
+		// Deployment carries a generation, so filter to spec changes and skip
+		// its frequent status-only updates; create/delete still reconcile.
+		Owns(&appsv1.Deployment{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Owns(&corev1.ServiceAccount{}).
 		Owns(&rbacv1.RoleBinding{}).
 		Complete(r)

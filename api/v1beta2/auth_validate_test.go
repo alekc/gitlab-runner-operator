@@ -44,6 +44,11 @@ func TestGitlabAuthValidate(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "access_token without create_options",
+			auth:    GitlabAuth{Token: &TokenSource{Value: "glrt-x"}, AccessToken: &TokenSource{Value: "glpat-x"}},
+			wantErr: true,
+		},
+		{
 			name: "managed ok",
 			auth: GitlabAuth{AccessToken: &TokenSource{Value: "glpat-x"}, CreateOptions: &RunnerCreateOptions{RunnerType: "instance_type"}},
 		},

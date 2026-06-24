@@ -291,6 +291,17 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 				}
 				continue
 			}
+			// An optional access_token secret can resolve to empty; building a
+			// client with an empty token would 401 on DeleteRunner and orphan
+			// the runner on GitLab. Treat it as a retryable error instead.
+			if accessToken == "" {
+				err := fmt.Errorf("managed runner %q has no resolvable access_token; cannot delete it from gitlab", reg.Name)
+				logger.Error(err, "missing access token for runner deletion", "name", reg.Name)
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
 			if gc, err = api.NewGitlabClient(accessToken, reg.GitlabUrl); err != nil {
 				logger.Error(err, "cannot build gitlab client for runner deletion", "name", reg.Name)
 				if firstErr == nil {
@@ -317,7 +328,7 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 // failure it keeps the finalizer and requeues so the runner is not orphaned,
 // up to maxDeleteAttempts; after that it logs loudly and removes the finalizer
 // anyway so the object never wedges.
-func finalizeDeletion(ctx context.Context, cl client.Client, injected api.GitlabClient, obj types.RunnerInfo, logger logr.Logger) (ctrl.Result, error) {
+func finalizeDeletion(ctx context.Context, cl client.Client, apiReader client.Reader, injected api.GitlabClient, obj types.RunnerInfo, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("runner is being deleted")
 	if err := removeManagedRunners(ctx, cl, injected, obj, logger); err != nil {
 		attempts := deleteAttempts(obj) + 1
@@ -336,7 +347,7 @@ func finalizeDeletion(ctx context.Context, cl client.Client, injected api.Gitlab
 	// runner's own; those lack owner references so Kubernetes will not garbage
 	// collect them. Same-namespace RBAC is owner-referenced and collected on
 	// object deletion. Keep the finalizer and requeue on failure.
-	if err := crud.DeleteRBACExcept(ctx, cl, obj, []string{obj.GetNamespace()}, logger); err != nil {
+	if err := crud.DeleteRBACExcept(ctx, cl, apiReader, obj, []string{obj.GetNamespace()}, logger); err != nil {
 		logger.Error(err, "cannot clean up cross-namespace runner RBAC, will retry")
 		return resultRequeueAfterDefaultTimeout, err
 	}
