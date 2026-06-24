@@ -21,4 +21,5 @@ spec:
   gitlab_instance_url: 'https://gitlab.com/'
   log_level: debug
   authentication:
-    authentication_token: "glrt-XXXXXXXXXXXXXXXXXXXX"
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"

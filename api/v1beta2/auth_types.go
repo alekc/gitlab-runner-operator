@@ -23,41 +23,90 @@ import (
 	"fmt"
 )
 
+// SecretKeySelector points at a single key inside a Secret in the runner's
+// namespace. It mirrors corev1.SecretKeySelector but makes Key optional so it
+// can default to "token"; the upstream type marks Key required, which would
+// force every reference to spell it out.
+type SecretKeySelector struct {
+	// Name of the Secret in the runner's namespace.
+	Name string `json:"name"`
+
+	// Key holding the token. Defaults to "token" when omitted.
+	// +optional
+	Key string `json:"key,omitempty"`
+
+	// Optional, when true, lets a missing secret or key resolve to an empty
+	// token instead of failing.
+	// +optional
+	Optional *bool `json:"optional,omitempty"`
+}
+
+// TokenSource supplies a credential in one of two mutually exclusive ways: an
+// inline literal value, or a reference to a key inside a Kubernetes Secret in
+// the runner's namespace. Exactly one of Value / SecretKeyRef may be set.
+type TokenSource struct {
+	// Value is the literal token. Convenient for testing; prefer SecretKeyRef
+	// in production so the token is not stored in the object spec.
+	// +optional
+	Value string `json:"value,omitempty"`
+
+	// SecretKeyRef reads the token from a Secret in the runner's namespace. The
+	// referenced key defaults to "token" when Key is omitted. Optional is
+	// honoured: when true, a missing secret or key resolves to an empty token
+	// instead of failing.
+	// +optional
+	SecretKeyRef *SecretKeySelector `json:"secret_key_ref,omitempty"`
+}
+
+// IsSet reports whether the source supplies a token through either mode. It is
+// nil-safe so callers can probe an unset (*TokenSource) field directly.
+func (t *TokenSource) IsSet() bool {
+	return t != nil && (t.Value != "" || t.SecretKeyRef != nil)
+}
+
+// validate rejects an ambiguous or malformed source. A nil or empty source is
+// valid here; whether a source is *required* is decided by GitlabAuth.Validate.
+func (t *TokenSource) validate() error {
+	if t == nil {
+		return nil
+	}
+	if t.Value != "" && t.SecretKeyRef != nil {
+		return fmt.Errorf("set either value or secret_key_ref, not both")
+	}
+	if t.SecretKeyRef != nil && t.SecretKeyRef.Name == "" {
+		return fmt.Errorf("secret_key_ref requires name")
+	}
+	return nil
+}
+
 // GitlabAuth configures how a runner authenticates to GitLab. GitLab removed
 // the legacy registration-token workflow (deprecated in 16.0, disabled by
 // default from 18.0); runners now authenticate with a runner authentication
 // token (the "glrt-" token). Exactly one of two modes must be provided:
 //
-//   - Bring-your-own token: set AuthenticationToken (or
-//     AuthenticationTokenSecret) to a runner authentication token created in
-//     the GitLab UI or via the API. The operator performs no GitLab API calls
-//     and writes the token straight into the runner config.
+//   - Bring-your-own token: set Token to a runner authentication token created
+//     in the GitLab UI or via the API. The operator performs no GitLab API
+//     calls and writes the token straight into the runner config.
 //
-//   - Managed: set AccessToken (or AccessTokenSecret) to a personal, group, or
-//     project access token holding the "create_runner" scope, together with a
-//     CreateOptions block. The operator creates the runner through
-//     POST /user/runners, stores the returned token, and deletes the runner
-//     from GitLab when the object is removed.
+//   - Managed: set AccessToken to a personal, group, or project access token
+//     holding the "create_runner" scope, together with a CreateOptions block.
+//     The operator creates the runner through POST /user/runners, stores the
+//     returned token, and deletes the runner from GitLab when the object is
+//     removed.
+//
+// Each credential is a TokenSource, so it may be supplied inline (value) or
+// from a Secret key (secret_key_ref, with a configurable key defaulting to
+// "token").
 type GitlabAuth struct {
-	// AuthenticationToken is a pre-created runner authentication token
-	// ("glrt-..."). Mutually exclusive with the managed (CreateOptions) mode.
+	// Token is the pre-created runner authentication token ("glrt-...") used in
+	// bring-your-own mode. Mutually exclusive with the managed CreateOptions.
 	// +optional
-	AuthenticationToken string `json:"authentication_token,omitempty"`
-
-	// AuthenticationTokenSecret names a secret in the runner's namespace whose
-	// "token" key holds the runner authentication token.
-	// +optional
-	AuthenticationTokenSecret string `json:"authentication_token_secret,omitempty"`
+	Token *TokenSource `json:"token,omitempty"`
 
 	// AccessToken is a personal, group, or project access token with the
 	// "create_runner" scope. Required for the managed mode.
 	// +optional
-	AccessToken string `json:"access_token,omitempty"`
-
-	// AccessTokenSecret names a secret in the runner's namespace whose "token"
-	// key holds the access token used for the managed mode.
-	// +optional
-	AccessTokenSecret string `json:"access_token_secret,omitempty"`
+	AccessToken *TokenSource `json:"access_token,omitempty"`
 
 	// CreateOptions describes the runner to create. When set, the operator runs
 	// in managed mode and owns the runner's lifecycle on GitLab.
@@ -74,15 +123,21 @@ func (a *GitlabAuth) IsManaged() bool {
 // Validate checks that exactly one auth mode is configured and that managed
 // mode has the inputs it needs. It is called from the admission webhook.
 func (a GitlabAuth) Validate() error {
-	hasByo := a.AuthenticationToken != "" || a.AuthenticationTokenSecret != ""
+	hasByo := a.Token.IsSet()
 	hasManaged := a.CreateOptions != nil
 	switch {
 	case hasByo && hasManaged:
 		return fmt.Errorf("set either a pre-created authentication token or create_options, not both")
 	case !hasByo && !hasManaged:
-		return fmt.Errorf("one of authentication_token, authentication_token_secret, or create_options must be set")
-	case hasManaged && a.AccessToken == "" && a.AccessTokenSecret == "":
-		return fmt.Errorf("create_options requires access_token or access_token_secret")
+		return fmt.Errorf("one of token or create_options must be set")
+	case hasManaged && !a.AccessToken.IsSet():
+		return fmt.Errorf("create_options requires access_token")
+	}
+	if err := a.Token.validate(); err != nil {
+		return fmt.Errorf("token: %w", err)
+	}
+	if err := a.AccessToken.validate(); err != nil {
+		return fmt.Errorf("access_token: %w", err)
 	}
 	if a.CreateOptions != nil {
 		switch a.CreateOptions.RunnerType {

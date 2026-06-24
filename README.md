@@ -72,11 +72,17 @@ Top-level `spec` fields (all optional unless noted):
 
 | Key | Description |
 | --- | --- |
-| `authentication_token` | A pre-created `glrt-` token (bring-your-own mode). |
-| `authentication_token_secret` | Name of a secret in the runner namespace holding the token under the `token` key. |
-| `access_token` | An access token with the `create_runner` scope (managed mode). |
-| `access_token_secret` | Name of a secret holding the access token under the `token` key. |
+| `token` | Bring-your-own mode: the pre-created `glrt-` token, as a token source (see below). |
+| `access_token` | Managed mode: an access token with the `create_runner` scope, as a token source. |
 | `create_options` | Managed mode: `runner_type` (`instance_type`/`group_type`/`project_type`), `group_id`, `project_id`, `description`, `tag_list`, `run_untagged`, `locked`, `paused`, `access_level`, `maximum_timeout`. |
+
+Both `token` and `access_token` are **token sources** with two mutually
+exclusive ways to supply the value:
+
+| Key | Description |
+| --- | --- |
+| `value` | The literal token, inline. Convenient for testing. |
+| `secret_key_ref` | Read the token from a Secret in the runner namespace: `name` (required), `key` (optional, defaults to `token`), `optional` (when `true`, a missing secret or key resolves to an empty token instead of failing). |
 
 ## Examples
 
@@ -89,7 +95,8 @@ metadata:
   name: runner-sample
 spec:
   authentication:
-    authentication_token: "glrt-XXXXXXXXXXXXXXXXXXXX"
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ```
 
 ### Operator-managed runner
@@ -101,7 +108,8 @@ metadata:
   name: runner-managed
 spec:
   authentication:
-    access_token: "glpat-XXXXXXXXXXXXXXXXXXXX"
+    access_token:
+      value: "glpat-XXXXXXXXXXXXXXXXXXXX"
     create_options:
       runner_type: project_type
       project_id: 1234567
@@ -112,7 +120,7 @@ spec:
 
 ### Token from a secret
 
-The token must be stored under the `token` key:
+`key` defaults to `token`; set `secret_key_ref.key` to read a different key.
 
 ```yaml
 apiVersion: v1
@@ -129,7 +137,10 @@ metadata:
   name: runner-sample
 spec:
   authentication:
-    authentication_token_secret: gitlab-runner-token
+    token:
+      secret_key_ref:
+        name: gitlab-runner-token
+        # key omitted -> defaults to "token"
 ```
 
 ### Mounting secrets or config maps as volumes
@@ -153,7 +164,8 @@ spec:
         - mount_path: /secrets/1/
           name: test-secret
   authentication:
-    authentication_token: "glrt-XXXXXXXXXXXXXXXXXXXX"
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ```
 
 ### Multiple runners in one object

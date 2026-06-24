@@ -8,7 +8,9 @@ metadata:
 spec:
   gitlab_instance_url: https://gitlab.com/
   authentication:
-    authentication_token: "glrt-XXXXXXXXXXXXXXXXXXXX"
+    # Supply the token inline (value) or from a Secret key (secret_key_ref).
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ---
 # Example B: operator-managed runner.
 # Provide an access token holding the create_runner scope; the operator creates
@@ -21,7 +23,8 @@ metadata:
 spec:
   gitlab_instance_url: https://gitlab.com/
   authentication:
-    access_token: "glpat-XXXXXXXXXXXXXXXXXXXX"
+    access_token:
+      value: "glpat-XXXXXXXXXXXXXXXXXXXX"
     create_options:
       runner_type: project_type
       project_id: 1234567

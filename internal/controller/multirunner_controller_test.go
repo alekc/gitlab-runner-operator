@@ -47,13 +47,13 @@ var _ = Describe("MultiRunner controller", func() {
 					{
 						Name: "byo",
 						Authentication: v1beta2.GitlabAuth{
-							AuthenticationToken: "glrt-byo-token",
+							Token: &v1beta2.TokenSource{Value: "glrt-byo-token"},
 						},
 					},
 					{
 						Name: "managed",
 						Authentication: v1beta2.GitlabAuth{
-							AccessToken: "glpat-access",
+							AccessToken: &v1beta2.TokenSource{Value: "glpat-access"},
 							CreateOptions: &v1beta2.RunnerCreateOptions{
 								RunnerType:  "instance_type",
 								RunUntagged: ptr.To(true),

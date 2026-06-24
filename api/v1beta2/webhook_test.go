@@ -33,7 +33,7 @@ var _ = Describe("Runner controller", func() {
 				},
 				Spec: RunnerSpec{
 					Authentication: GitlabAuth{
-						AuthenticationToken: "glrt-rYwg6EogqxSuvsFCVvAT",
+						Token: &TokenSource{Value: "glrt-rYwg6EogqxSuvsFCVvAT"},
 					},
 				},
 			}

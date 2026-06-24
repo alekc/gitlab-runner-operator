@@ -360,7 +360,7 @@ func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
 		},
 		Spec: v1beta2.RunnerSpec{
 			Authentication: v1beta2.GitlabAuth{
-				AccessToken: "glpat-test-access-token",
+				AccessToken: &v1beta2.TokenSource{Value: "glpat-test-access-token"},
 				CreateOptions: &v1beta2.RunnerCreateOptions{
 					RunnerType: "instance_type",
 					TagList:    []string{"default-tag"},

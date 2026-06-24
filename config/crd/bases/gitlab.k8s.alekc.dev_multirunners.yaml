@@ -62,37 +62,54 @@ spec:
                         default from 18.0); runners now authenticate with a runner authentication
                         token (the "glrt-" token). Exactly one of two modes must be provided:
 
-                          - Bring-your-own token: set AuthenticationToken (or
-                            AuthenticationTokenSecret) to a runner authentication token created in
-                            the GitLab UI or via the API. The operator performs no GitLab API calls
-                            and writes the token straight into the runner config.
+                          - Bring-your-own token: set Token to a runner authentication token created
+                            in the GitLab UI or via the API. The operator performs no GitLab API
+                            calls and writes the token straight into the runner config.
 
-                          - Managed: set AccessToken (or AccessTokenSecret) to a personal, group, or
-                            project access token holding the "create_runner" scope, together with a
-                            CreateOptions block. The operator creates the runner through
-                            POST /user/runners, stores the returned token, and deletes the runner
-                            from GitLab when the object is removed.
+                          - Managed: set AccessToken to a personal, group, or project access token
+                            holding the "create_runner" scope, together with a CreateOptions block.
+                            The operator creates the runner through POST /user/runners, stores the
+                            returned token, and deletes the runner from GitLab when the object is
+                            removed.
+
+                        Each credential is a TokenSource, so it may be supplied inline (value) or
+                        from a Secret key (secret_key_ref, with a configurable key defaulting to
+                        "token").
                       properties:
                         access_token:
                           description: |-
                             AccessToken is a personal, group, or project access token with the
                             "create_runner" scope. Required for the managed mode.
-                          type: string
-                        access_token_secret:
-                          description: |-
-                            AccessTokenSecret names a secret in the runner's namespace whose "token"
-                            key holds the access token used for the managed mode.
-                          type: string
-                        authentication_token:
-                          description: |-
-                            AuthenticationToken is a pre-created runner authentication token
-                            ("glrt-..."). Mutually exclusive with the managed (CreateOptions) mode.
-                          type: string
-                        authentication_token_secret:
-                          description: |-
-                            AuthenticationTokenSecret names a secret in the runner's namespace whose
-                            "token" key holds the runner authentication token.
-                          type: string
+                          properties:
+                            secret_key_ref:
+                              description: |-
+                                SecretKeyRef reads the token from a Secret in the runner's namespace. The
+                                referenced key defaults to "token" when Key is omitted. Optional is
+                                honoured: when true, a missing secret or key resolves to an empty token
+                                instead of failing.
+                              properties:
+                                key:
+                                  description: Key holding the token. Defaults to
+                                    "token" when omitted.
+                                  type: string
+                                name:
+                                  description: Name of the Secret in the runner's
+                                    namespace.
+                                  type: string
+                                optional:
+                                  description: |-
+                                    Optional, when true, lets a missing secret or key resolve to an empty
+                                    token instead of failing.
+                                  type: boolean
+                              required:
+                              - name
+                              type: object
+                            value:
+                              description: |-
+                                Value is the literal token. Convenient for testing; prefer SecretKeyRef
+                                in production so the token is not stored in the object spec.
+                              type: string
+                          type: object
                         create_options:
                           description: |-
                             CreateOptions describes the runner to create. When set, the operator runs
@@ -134,6 +151,40 @@ spec:
                               type: array
                           required:
                           - runner_type
+                          type: object
+                        token:
+                          description: |-
+                            Token is the pre-created runner authentication token ("glrt-...") used in
+                            bring-your-own mode. Mutually exclusive with the managed CreateOptions.
+                          properties:
+                            secret_key_ref:
+                              description: |-
+                                SecretKeyRef reads the token from a Secret in the runner's namespace. The
+                                referenced key defaults to "token" when Key is omitted. Optional is
+                                honoured: when true, a missing secret or key resolves to an empty token
+                                instead of failing.
+                              properties:
+                                key:
+                                  description: Key holding the token. Defaults to
+                                    "token" when omitted.
+                                  type: string
+                                name:
+                                  description: Name of the Secret in the runner's
+                                    namespace.
+                                  type: string
+                                optional:
+                                  description: |-
+                                    Optional, when true, lets a missing secret or key resolve to an empty
+                                    token instead of failing.
+                                  type: boolean
+                              required:
+                              - name
+                              type: object
+                            value:
+                              description: |-
+                                Value is the literal token. Convenient for testing; prefer SecretKeyRef
+                                in production so the token is not stored in the object spec.
+                              type: string
                           type: object
                       type: object
                     environment:

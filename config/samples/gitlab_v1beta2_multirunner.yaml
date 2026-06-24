@@ -9,13 +9,15 @@ spec:
     # A bring-your-own-token entry.
     - name: runner-1
       authentication:
-        authentication_token: "glrt-XXXXXXXXXXXXXXXXXXXX"
+        token:
+          value: "glrt-XXXXXXXXXXXXXXXXXXXX"
       executor_config:
         memory_request: "50Mi"
     # An operator-managed entry.
     - name: runner-2
       authentication:
-        access_token: "glpat-XXXXXXXXXXXXXXXXXXXX"
+        access_token:
+          value: "glpat-XXXXXXXXXXXXXXXXXXXX"
         create_options:
           runner_type: group_type
           group_id: 42

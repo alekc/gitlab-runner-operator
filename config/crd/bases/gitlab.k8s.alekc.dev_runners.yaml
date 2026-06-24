@@ -54,22 +54,35 @@ spec:
                     description: |-
                       AccessToken is a personal, group, or project access token with the
                       "create_runner" scope. Required for the managed mode.
-                    type: string
-                  access_token_secret:
-                    description: |-
-                      AccessTokenSecret names a secret in the runner's namespace whose "token"
-                      key holds the access token used for the managed mode.
-                    type: string
-                  authentication_token:
-                    description: |-
-                      AuthenticationToken is a pre-created runner authentication token
-                      ("glrt-..."). Mutually exclusive with the managed (CreateOptions) mode.
-                    type: string
-                  authentication_token_secret:
-                    description: |-
-                      AuthenticationTokenSecret names a secret in the runner's namespace whose
-                      "token" key holds the runner authentication token.
-                    type: string
+                    properties:
+                      secret_key_ref:
+                        description: |-
+                          SecretKeyRef reads the token from a Secret in the runner's namespace. The
+                          referenced key defaults to "token" when Key is omitted. Optional is
+                          honoured: when true, a missing secret or key resolves to an empty token
+                          instead of failing.
+                        properties:
+                          key:
+                            description: Key holding the token. Defaults to "token"
+                              when omitted.
+                            type: string
+                          name:
+                            description: Name of the Secret in the runner's namespace.
+                            type: string
+                          optional:
+                            description: |-
+                              Optional, when true, lets a missing secret or key resolve to an empty
+                              token instead of failing.
+                            type: boolean
+                        required:
+                        - name
+                        type: object
+                      value:
+                        description: |-
+                          Value is the literal token. Convenient for testing; prefer SecretKeyRef
+                          in production so the token is not stored in the object spec.
+                        type: string
+                    type: object
                   create_options:
                     description: |-
                       CreateOptions describes the runner to create. When set, the operator runs
@@ -109,6 +122,39 @@ spec:
                         type: array
                     required:
                     - runner_type
+                    type: object
+                  token:
+                    description: |-
+                      Token is the pre-created runner authentication token ("glrt-...") used in
+                      bring-your-own mode. Mutually exclusive with the managed CreateOptions.
+                    properties:
+                      secret_key_ref:
+                        description: |-
+                          SecretKeyRef reads the token from a Secret in the runner's namespace. The
+                          referenced key defaults to "token" when Key is omitted. Optional is
+                          honoured: when true, a missing secret or key resolves to an empty token
+                          instead of failing.
+                        properties:
+                          key:
+                            description: Key holding the token. Defaults to "token"
+                              when omitted.
+                            type: string
+                          name:
+                            description: Name of the Secret in the runner's namespace.
+                            type: string
+                          optional:
+                            description: |-
+                              Optional, when true, lets a missing secret or key resolve to an empty
+                              token instead of failing.
+                            type: boolean
+                        required:
+                        - name
+                        type: object
+                      value:
+                        description: |-
+                          Value is the literal token. Convenient for testing; prefer SecretKeyRef
+                          in production so the token is not stored in the object spec.
+                        type: string
                     type: object
                 type: object
               check_interval:
