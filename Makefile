@@ -66,6 +66,14 @@ test: manifests generate fmt vet envtest ## Run unit + envtest suites.
 test-e2e: ## Run the live e2e suite against the current kube context. Requires a deployed operator and GITLAB_E2E_URL / GITLAB_E2E_TOKEN / GITLAB_E2E_PROJECT_ID (see .envrc.example); skips when unset.
 	go test ./test/e2e/... -v -timeout 20m
 
+.PHONY: lint
+lint: golangci-lint ## Run golangci-lint.
+	$(GOLANGCI_LINT) run
+
+.PHONY: govulncheck
+govulncheck: ## Scan for known Go vulnerabilities (reachable symbols only). Note: the tool may not yet support a brand-new Go toolchain.
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
 ##@ Build
 
 .PHONY: build
@@ -160,11 +168,13 @@ KUSTOMIZE ?= $(LOCALBIN)/kustomize
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
+GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.4.3
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
 KIND_VERSION ?= v0.32.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
 
 KUSTOMIZE_INSTALL_SCRIPT ?= "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"
 .PHONY: kustomize
@@ -186,3 +196,8 @@ $(ENVTEST): $(LOCALBIN)
 kind: $(KIND) ## Download kind locally if necessary.
 $(KIND): $(LOCALBIN)
 	test -s $(LOCALBIN)/kind || GOBIN=$(LOCALBIN) go install sigs.k8s.io/kind@$(KIND_VERSION)
+
+.PHONY: golangci-lint
+golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
+$(GOLANGCI_LINT): $(LOCALBIN)
+	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)

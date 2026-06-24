@@ -2,23 +2,48 @@ name: pr
 
 on: pull_request
 
+permissions:
+  contents: read
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           go-version: 1.26.x
-
       - name: Build
         run: go build ./...
-
       - name: Vet
         run: go vet ./...
-
       - name: Test (unit + envtest)
         run: make test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 1.26.x
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9
+        with:
+          version: v2.12.2
+          # Gate only issues introduced by the PR, so the pre-existing backlog
+          # does not block adoption.
+          only-new-issues: true
+
+  govulncheck:
+    runs-on: ubuntu-latest
+    # Advisory for now: govulncheck currently crashes on the go 1.26 toolchain.
+    # Flip continue-on-error to false (make it required) once it supports 1.26.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: 1.26.x
+      - name: govulncheck
+        run: make govulncheck
