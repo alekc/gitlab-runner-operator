@@ -51,7 +51,9 @@ type MultiRunnerReconciler struct {
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
+// The shared RBAC markers (rolebindings, clusterroles, and the executor core
+// resources) are declared once on the Runner controller; controller-gen
+// aggregates markers package-wide, so they need not be repeated here.
 
 func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)

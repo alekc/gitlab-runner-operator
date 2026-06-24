@@ -61,12 +61,15 @@ var resultRequeueNow = ctrl.Result{Requeue: true}
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=runners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=roles;rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=rolebindings,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch
 
-// The operator delegates the kubernetes executor permission set to each runner
-// ServiceAccount. It has no rbac "escalate" verb, so it must itself hold these
-// to create the per-runner Role on clusters that enforce RBAC escalation
-// prevention. This is the explicit ceiling for what a runner can be granted.
+// The operator maintains one shared ClusterRole holding the kubernetes executor
+// permission set and binds each runner ServiceAccount to it. It has no rbac
+// "escalate" verb, so it must itself hold these permissions both to write that
+// ClusterRole and to bind runners to it on clusters that enforce RBAC
+// escalation prevention. This is the explicit ceiling for what a runner can be
+// granted.
 // +kubebuilder:rbac:groups="core",resources=pods,verbs=get;list;watch;create;delete
 // +kubebuilder:rbac:groups="core",resources=pods/exec;pods/attach,verbs=get;create;patch;delete
 // +kubebuilder:rbac:groups="core",resources=pods/log,verbs=get;list

@@ -25,6 +25,11 @@ const (
 	managedByValue      = "gitlab-runner-operator"
 	ownerNamespaceLabel = "gitlab.k8s.alekc.dev/owner-namespace"
 	ownerUIDLabel       = "gitlab.k8s.alekc.dev/owner-uid"
+
+	// executorClusterRoleName is the single, shared ClusterRole that holds the
+	// kubernetes executor permission set. Every runner RoleBinding references
+	// it, so the rules are defined once instead of duplicated per runner.
+	executorClusterRoleName = "gitlab-runner-operator-executor"
 )
 
 // SingleRunner init single runner from k8s
@@ -75,25 +80,59 @@ func ExistingConfigTokens(ctx context.Context, cl client.Client, namespace, chil
 	return out, nil
 }
 
-// CreateRBACIfMissing reconciles the runner's ServiceAccount, Role, and
-// RoleBinding. The SA lives in the runner's namespace (the manager Deployment
-// mounts it). A Role + RoleBinding is reconciled in every namespace the
-// executor entries target, so the single SA has permissions wherever job pods
-// run. RBAC in namespaces no longer targeted is pruned.
+// CreateRBACIfMissing reconciles the runner's RBAC. The permission set lives in
+// one shared ClusterRole; each runner gets its own ServiceAccount (distinct
+// identity, audit, and lifecycle) and a RoleBinding in every namespace its
+// executor entries target, binding that SA to the shared ClusterRole. The SA
+// stays in the runner's namespace (the manager Deployment mounts it).
+// RoleBindings in namespaces no longer targeted are pruned.
 func CreateRBACIfMissing(ctx context.Context, cl client.Client, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
+	if err := ensureExecutorClusterRole(ctx, cl, log); err != nil {
+		return err
+	}
 	if err := CreateSaIfMissing(ctx, cl, runnerObject, log); err != nil {
 		return err
 	}
 	namespaces := BuildNamespaces(runnerObject)
 	for _, namespace := range namespaces {
-		if err := reconcileRole(ctx, cl, runnerObject, namespace, log); err != nil {
-			return err
-		}
 		if err := reconcileRoleBinding(ctx, cl, runnerObject, namespace, log); err != nil {
 			return err
 		}
 	}
 	return DeleteRBACExcept(ctx, cl, runnerObject, namespaces, log)
+}
+
+// ensureExecutorClusterRole reconciles the single shared ClusterRole to the
+// desired rules. It is not owner-referenced (it outlives any one runner) and is
+// created once, then updated only when the rules drift, so a rule change in the
+// operator reaches every runner at once. The operator holds these permissions
+// itself (manager ClusterRole), so the API server's escalation check permits
+// both writing this ClusterRole and binding runner SAs to it.
+func ensureExecutorClusterRole(ctx context.Context, cl client.Client, log logr.Logger) error {
+	desired := desiredRoleRules()
+	existing := &v1.ClusterRole{}
+	err := cl.Get(ctx, client.ObjectKey{Name: executorClusterRoleName}, existing)
+	switch {
+	case errors.IsNotFound(err):
+		role := &v1.ClusterRole{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   executorClusterRoleName,
+				Labels: map[string]string{managedByLabel: managedByValue},
+			},
+			Rules: desired,
+		}
+		log.Info("creating shared executor clusterrole", "name", executorClusterRoleName)
+		return cl.Create(ctx, role)
+	case err != nil:
+		log.Error(err, "cannot get the executor clusterrole")
+		return err
+	}
+	if !equality.Semantic.DeepEqual(existing.Rules, desired) {
+		existing.Rules = desired
+		log.Info("updating shared executor clusterrole rules", "name", executorClusterRoleName)
+		return cl.Update(ctx, existing)
+	}
+	return nil
 }
 
 // BuildNamespaces returns the distinct namespaces the object's executor entries
@@ -118,10 +157,11 @@ func BuildNamespaces(obj internalTypes.RunnerInfo) []string {
 }
 
 // desiredRoleRules is the permission set the gitlab-runner kubernetes executor
-// needs in a build namespace. Source of truth: the kubernetes executor RBAC
-// reference in the GitLab Runner docs. Optional, feature-flag-gated resources
-// (namespaces, poddisruptionbudgets, autoscaler) are intentionally omitted:
-// namespace_per_job is rejected by the webhook, and the rest are not modelled.
+// needs, applied to the shared executor ClusterRole. Source of truth: the
+// kubernetes executor RBAC reference in the GitLab Runner docs. Optional,
+// feature-flag-gated resources (namespaces, poddisruptionbudgets, autoscaler)
+// are intentionally omitted: namespace_per_job is rejected by the webhook, and
+// the rest are not modelled.
 func desiredRoleRules() []v1.PolicyRule {
 	return []v1.PolicyRule{
 		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list", "watch", "create", "delete"}},
@@ -172,108 +212,75 @@ func CreateSaIfMissing(ctx context.Context, cl client.Client, runnerObject inter
 	return nil
 }
 
-// reconcileRole creates the runner Role in namespace if missing, or updates its
-// rules to the desired set if they drifted (so rule changes reach existing
-// runners, not only new ones). Owner references are set only when the Role is
-// in the runner's own namespace; cross-namespace owner refs are invalid and
-// would be garbage collected, so build-namespace RBAC is cleaned up explicitly.
-func reconcileRole(ctx context.Context, cl client.Client, obj internalTypes.RunnerInfo, namespace string, log logr.Logger) error {
-	desired := desiredRoleRules()
-	existing := &v1.Role{}
-	key := client.ObjectKey{Namespace: namespace, Name: obj.ChildName()}
-	err := cl.Get(ctx, key, existing)
-	switch {
-	case errors.IsNotFound(err):
-		role := &v1.Role{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      obj.ChildName(),
-				Namespace: namespace,
-				Labels:    rbacLabels(obj),
-			},
-			Rules: desired,
-		}
-		if namespace == obj.GetNamespace() {
-			role.OwnerReferences = obj.GenerateOwnerReference()
-		}
-		log.Info("creating runner role", "namespace", namespace)
-		return cl.Create(ctx, role)
-	case err != nil:
-		log.Error(err, "cannot get the role", "namespace", namespace)
-		return err
+// desiredRoleBinding builds the RoleBinding that binds the runner's SA to the
+// shared executor ClusterRole in namespace. Owner references are set only in
+// the runner's own namespace; cross-namespace owner refs are invalid and would
+// be garbage collected, so build-namespace bindings are cleaned up explicitly.
+func desiredRoleBinding(obj internalTypes.RunnerInfo, namespace string) *v1.RoleBinding {
+	binding := &v1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      obj.ChildName(),
+			Namespace: namespace,
+			Labels:    rbacLabels(obj),
+		},
+		Subjects: []v1.Subject{{
+			Kind:      "ServiceAccount",
+			Name:      obj.ChildName(),
+			Namespace: obj.GetNamespace(),
+		}},
+		RoleRef: v1.RoleRef{
+			APIGroup: "rbac.authorization.k8s.io",
+			Kind:     "ClusterRole",
+			Name:     executorClusterRoleName,
+		},
 	}
-	if !equality.Semantic.DeepEqual(existing.Rules, desired) {
-		existing.Rules = desired
-		log.Info("updating runner role rules", "namespace", namespace)
-		return cl.Update(ctx, existing)
+	if namespace == obj.GetNamespace() {
+		binding.OwnerReferences = obj.GenerateOwnerReference()
 	}
-	return nil
+	return binding
 }
 
 // reconcileRoleBinding creates the runner RoleBinding in namespace if missing.
-// The subject is the runner SA (always in the runner's namespace); the roleRef
-// is immutable and the subject is stable, so an existing binding needs no
-// update.
+// The subject SA and the ClusterRole roleRef are stable, so an existing binding
+// usually needs no update; if its roleRef differs (for example a binding left
+// by an older operator version that referenced a per-runner Role) it is
+// recreated, because roleRef is immutable.
 func reconcileRoleBinding(ctx context.Context, cl client.Client, obj internalTypes.RunnerInfo, namespace string, log logr.Logger) error {
+	desired := desiredRoleBinding(obj, namespace)
 	existing := &v1.RoleBinding{}
 	key := client.ObjectKey{Namespace: namespace, Name: obj.ChildName()}
 	err := cl.Get(ctx, key, existing)
 	switch {
 	case errors.IsNotFound(err):
-		binding := &v1.RoleBinding{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      obj.ChildName(),
-				Namespace: namespace,
-				Labels:    rbacLabels(obj),
-			},
-			Subjects: []v1.Subject{{
-				Kind:      "ServiceAccount",
-				Name:      obj.ChildName(),
-				Namespace: obj.GetNamespace(),
-			}},
-			RoleRef: v1.RoleRef{
-				APIGroup: "rbac.authorization.k8s.io",
-				Kind:     "Role",
-				Name:     obj.ChildName(),
-			},
-		}
-		if namespace == obj.GetNamespace() {
-			binding.OwnerReferences = obj.GenerateOwnerReference()
-		}
 		log.Info("creating runner rolebinding", "namespace", namespace)
-		return cl.Create(ctx, binding)
+		return cl.Create(ctx, desired)
 	case err != nil:
 		log.Error(err, "cannot get the rolebinding", "namespace", namespace)
 		return err
 	}
+	if existing.RoleRef != desired.RoleRef {
+		log.Info("recreating runner rolebinding with new roleRef", "namespace", namespace)
+		if err := cl.Delete(ctx, existing); err != nil && !errors.IsNotFound(err) {
+			return err
+		}
+		return cl.Create(ctx, desired)
+	}
 	return nil
 }
 
-// DeleteRBACExcept deletes the operator-managed Role/RoleBinding objects for the
-// runner that live in a namespace not present in keep. With keep set to the
-// current build namespaces it prunes RBAC left behind when an executor
-// namespace is removed from the spec. With keep set to just the runner's own
-// namespace it is the finalizer's cross-namespace cleanup (same-namespace RBAC
-// carries owner references and is garbage collected by Kubernetes).
+// DeleteRBACExcept deletes the operator-managed RoleBindings for the runner that
+// live in a namespace not present in keep. With keep set to the current build
+// namespaces it prunes bindings left behind when an executor namespace is
+// removed from the spec. With keep set to just the runner's own namespace it is
+// the finalizer's cross-namespace cleanup (same-namespace bindings carry owner
+// references and are garbage collected by Kubernetes). The shared ClusterRole
+// and the ServiceAccount are not touched here.
 func DeleteRBACExcept(ctx context.Context, cl client.Client, obj internalTypes.RunnerInfo, keep []string, log logr.Logger) error {
 	keepSet := map[string]struct{}{}
 	for _, namespace := range keep {
 		keepSet[namespace] = struct{}{}
 	}
 	selector := client.MatchingLabels(rbacLabels(obj))
-
-	var roles v1.RoleList
-	if err := cl.List(ctx, &roles, selector); err != nil {
-		return err
-	}
-	for i := range roles.Items {
-		if _, ok := keepSet[roles.Items[i].Namespace]; ok {
-			continue
-		}
-		log.Info("pruning runner role", "namespace", roles.Items[i].Namespace)
-		if err := cl.Delete(ctx, &roles.Items[i]); err != nil && !errors.IsNotFound(err) {
-			return err
-		}
-	}
 
 	var bindings v1.RoleBindingList
 	if err := cl.List(ctx, &bindings, selector); err != nil {
