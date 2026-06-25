@@ -69,13 +69,22 @@ jobs:
       - uses: imjasonh/setup-crane@59c71e96a00b28651f10369ba3359a6d730740a0 # v0.6
       - id: matrix
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           k8s_cycles="$(curl -sSfL https://endoflife.date/api/kubernetes.json | jq -rc '[sort_by(.releaseDate) | reverse | .[0:4] | .[].cycle]')"
           kind_versions="$(crane ls docker.io/kindest/node | jq -sRrc --argjson cycles "${k8s_cycles}" 'split("\n") | [.[] | match("^v((\\d+\\.\\d+)\\.\\d+)$").captures | {cycle: .[1].string, version: .[0].string}] | group_by(.cycle) | [.[] | .[-1] | {(.cycle): {"version": .version}}] | reduce .[] as $item ({}; . *= $item) | . as $versions | [$cycles | .[] | select($versions[.] != null) | $versions[.].version]')"
           echo "k8s_versions=${kind_versions}" >> "${GITHUB_OUTPUT}"
+          # Pin the kind binary to its latest release so `kind load` understands
+          # the newest node images the matrix selects. The node tags above come
+          # from the latest kind release, and an older kind binary fails to load
+          # into them with "unknown containerd config version: 4".
+          kind_version="$(curl -sSfL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
+          echo "kind_version=${kind_version}" >> "${GITHUB_OUTPUT}"
     outputs:
       k8s_versions: ${{ steps.matrix.outputs.k8s_versions }}
+      kind_version: ${{ steps.matrix.outputs.kind_version }}
 
   e2e:
     needs: [authorize, k8s_versions]
@@ -100,6 +109,7 @@ jobs:
       - name: Create kind cluster (k8s ${{ matrix.k8s_version }})
         uses: helm/kind-action@ef37e7f390d99f746eb8b610417061a60e82a6cc # v1.14.0
         with:
+          version: ${{ needs.k8s_versions.outputs.kind_version }}
           cluster_name: kind
           node_image: kindest/node:v${{ matrix.k8s_version }}
           wait: 2m
