@@ -84,6 +84,13 @@ jobs:
           # from the latest kind release, and an older kind binary fails to load
           # into them with "unknown containerd config version: 4".
           kind_version="$(curl -sSfL -H "Authorization: Bearer ${GH_TOKEN}" https://api.github.com/repos/kubernetes-sigs/kind/releases/latest | jq -r .tag_name)"
+          # jq prints the literal "null" (and -e/-f do not catch it) if the field
+          # is ever missing; fail fast here rather than feeding "null" into the
+          # kind-action version input and getting a confusing "download kind null".
+          if [ -z "${kind_version}" ] || [ "${kind_version}" = "null" ]; then
+            echo "could not resolve the latest kind release tag (got '${kind_version}')" >&2
+            exit 1
+          fi
           echo "kind_version=${kind_version}" >> "${GITHUB_OUTPUT}"
     outputs:
       k8s_versions: ${{ steps.matrix.outputs.k8s_versions }}
