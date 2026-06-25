@@ -6,7 +6,7 @@ require (
 	github.com/BurntSushi/toml v1.4.0
 	github.com/go-logr/logr v1.4.3
 	github.com/onsi/ginkgo/v2 v2.32.0
-	github.com/onsi/gomega v1.42.0
+	github.com/onsi/gomega v1.42.1
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	k8s.io/api v0.36.2
 	k8s.io/apimachinery v0.36.2
