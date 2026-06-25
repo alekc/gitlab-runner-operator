@@ -116,6 +116,10 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 	}
 	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() || existingImage != runnerObj.RunnerImage() {
 		logger.Info("deployment changed (config or image), updating", "deployment_name", existingDeployment.Name)
+		// Carry the live ResourceVersion so this is a conditional update: a
+		// concurrent change conflicts and requeues instead of being silently
+		// overwritten by our from-scratch spec.
+		wantedDeployment.ResourceVersion = existingDeployment.ResourceVersion
 		err = cl.Update(ctx, &wantedDeployment)
 		if err != nil {
 			logger.Error(err, "cannot update deployment")
