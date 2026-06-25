@@ -18,6 +18,9 @@ jobs:
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: 1.26.x
+          # This job imports GPG keys and publishes artifacts; do not restore a
+          # build cache a less-privileged workflow could have poisoned.
+          cache: false
 
       - name: Inject slug/short variables
         uses: rlespinasse/github-slug-action@e6f261660910b273384c5c42b17a0217881b217a # v5.6.0

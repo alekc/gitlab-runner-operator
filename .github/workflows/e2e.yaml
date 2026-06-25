@@ -17,20 +17,22 @@ concurrency:
   group: e2e-${{ github.event.issue.number || github.ref }}
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pull-requests: read
-  issues: write # to react to the launch comment
+# No workflow-wide token. The e2e job runs checked-out PR code with GitLab
+# secrets, so write scope is granted only to the authorize job below.
+permissions: {}
 
 jobs:
   authorize:
     # Run only on manual dispatch, or when a repo collaborator (OWNER / MEMBER /
-    # COLLABORATOR) comments "/launch e2e" on a pull request. This gates the
-    # secret-using e2e to maintainers and is the approval step for fork PRs.
+    # COLLABORATOR) comments exactly "/launch e2e" on a pull request. This gates
+    # the secret-using e2e to maintainers and is the approval step for fork PRs.
+    permissions:
+      pull-requests: read
+      issues: write # to react to the launch comment
     if: >-
       github.event_name == 'workflow_dispatch' ||
       ( github.event.issue.pull_request != null &&
-        contains(github.event.comment.body, '/launch e2e') &&
+        github.event.comment.body == '/launch e2e' &&
         contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) )
     runs-on: ubuntu-latest
     outputs:
@@ -79,6 +81,8 @@ jobs:
     needs: [authorize, k8s_versions]
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -87,6 +91,8 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ needs.authorize.outputs.ref }}
+          # PR code runs here with secrets; do not leave GITHUB_TOKEN in git config.
+          persist-credentials: false
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
         with:
           go-version: 1.26.x
