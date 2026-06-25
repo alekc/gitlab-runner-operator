@@ -1,0 +1,33 @@
+# Example A: bring-your-own authentication token.
+# Create the runner in GitLab first (UI, or POST /user/runners), then paste the
+# resulting "glrt-" token here. The operator makes no GitLab API calls.
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: Runner
+metadata:
+  name: runner-byo
+spec:
+  gitlab_instance_url: https://gitlab.com/
+  authentication:
+    # Supply the token inline (value) or from a Secret key (secret_key_ref).
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
+---
+# Example B: operator-managed runner.
+# Provide an access token holding the create_runner scope; the operator creates
+# the runner through POST /user/runners and removes it from GitLab when this
+# object is deleted.
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: Runner
+metadata:
+  name: runner-managed
+spec:
+  gitlab_instance_url: https://gitlab.com/
+  authentication:
+    access_token:
+      value: "glpat-XXXXXXXXXXXXXXXXXXXX"
+    create_options:
+      runner_type: project_type
+      project_id: 1234567
+      run_untagged: true
+      tag_list:
+        - test-gitlab-runner

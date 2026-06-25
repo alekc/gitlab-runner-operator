@@ -3,20 +3,15 @@ package api
 import (
 	"testing"
 
-	"gitlab.k8s.alekc.dev/api/v1beta1"
-	"k8s.io/utils/pointer"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 )
 
-func TestGitlabApi_Register(t *testing.T) {
+// TestGitlabApi_CreateRunner is a smoke test: it exercises the client wiring
+// against the real endpoint with a throwaway token and ignores the result.
+func TestGitlabApi_CreateRunner(t *testing.T) {
 	cl, _ := NewGitlabClient("9Bo36Uxwx6ay-cR-bCLh", "")
-	_, _ = cl.Register(v1beta1.RegisterNewRunnerOptions{
-		Token:          pointer.StringPtr("9Bo36Uxwx6ay-cR-bCLh"),
-		Description:    nil,
-		Info:           nil,
-		Active:         nil,
-		Locked:         nil,
-		RunUntagged:    nil,
-		TagList:        []string{"gitlab-testing-operator"},
-		MaximumTimeout: nil,
+	_, _ = cl.CreateRunner(v1beta2.RunnerCreateOptions{
+		RunnerType: "instance_type",
+		TagList:    []string{"gitlab-testing-operator"},
 	})
 }

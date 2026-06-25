@@ -1,5 +1,5 @@
 /*
-Copyright 2021.
+Copyright 2020 Alexander Chernov
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,29 +14,30 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
-	"github.com/xanzy/go-gitlab"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	api2 "gitlab.k8s.alekc.dev/internal/api"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	controllerruntime "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
+	api2 "gitlab.k8s.alekc.dev/internal/api"
+
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -46,25 +47,29 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+var ctx context.Context
+var cancel context.CancelFunc
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-
-	RunSpecsWithDefaultAndCustomReporters(t,
-		"Controller Suite",
-		[]Reporter{printer.NewlineReporter{}})
+	RunSpecs(t, "Controller Suite")
 }
 
 var _ = BeforeSuite(func() {
 
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
+	// Create the suite context up front so AfterSuite can always cancel it,
+	// even when BeforeSuite fails before the manager is wired up. Otherwise a
+	// nil cancel would panic in teardown and mask the real BeforeSuite error.
+	ctx, cancel = context.WithCancel(context.TODO())
+
 	// Expect(os.Setenv("USE_EXISTING_CLUSTER", "true")).To(Succeed())
 
 	// read crds
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "config", "crd", "bases")},
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 	}
 
@@ -74,7 +79,10 @@ var _ = BeforeSuite(func() {
 	Expect(cfg).NotTo(BeNil())
 
 	// ensure that the schema is the latest up and running
-	err = gitlabv1beta1.AddToScheme(scheme.Scheme)
+	err = gitlabv1beta2.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = gitlabv1beta2.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme
@@ -87,36 +95,55 @@ var _ = BeforeSuite(func() {
 	// we also do need the manager
 	k8sManager, err := controllerruntime.NewManager(cfg, controllerruntime.Options{
 		Scheme: scheme.Scheme,
+		// Disable the metrics listener so parallel package test binaries do not
+		// contend for the default :8080.
+		Metrics: metricsserver.Options{BindAddress: "0"},
 	})
 	Expect(err).ToNot(HaveOccurred())
 
 	err = (&RunnerReconciler{
-		Client: k8sManager.GetClient(),
+		Client:    k8sManager.GetClient(),
+		APIReader: k8sManager.GetAPIReader(),
 		Log: controllerruntime.Log.
 			WithName("controllers").
 			WithName("GitlabRunner"),
 		GitlabApiClient: &api2.MockedGitlabClient{
-			OnRegister: func(config gitlabv1beta1.RegisterNewRunnerOptions) (string, error) {
-				// here we create a unique hash representing a combination of registration token
-				// and runner's tags, since any changes to these fields will cause the reregistration of the runner
-				hash := md5.Sum([]byte(*config.Token + strings.Join(config.TagList, ",")))
-				return hex.EncodeToString(hash[:]), nil
+			OnCreateRunner: func(opts gitlabv1beta2.RunnerCreateOptions) (api2.CreatedRunner, error) {
+				// deterministic token derived from the create options so that
+				// changing them yields a new token and triggers a recreate
+				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
+				return api2.CreatedRunner{ID: 1, Token: hex.EncodeToString(hash[:])}, nil
 			},
-			OnDeleteByTokens: func(token string) (*gitlab.Response, error) {
-				return &gitlab.Response{}, nil
-			},
+			OnDeleteRunner: func(token string) error { return nil },
 		},
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	// run the reconciler in a separate go routine
+	err = (&MultiRunnerReconciler{
+		Client:    k8sManager.GetClient(),
+		APIReader: k8sManager.GetAPIReader(),
+		GitlabApiClient: &api2.MockedGitlabClient{
+			OnCreateRunner: func(opts gitlabv1beta2.RunnerCreateOptions) (api2.CreatedRunner, error) {
+				hash := md5.Sum([]byte(opts.RunnerType + strings.Join(opts.TagList, ",")))
+				return api2.CreatedRunner{ID: 2, Token: hex.EncodeToString(hash[:])}, nil
+			},
+			OnDeleteRunner: func(token string) error { return nil },
+		},
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// run the manager under the suite-scoped context (created at the top of
+	// BeforeSuite) so AfterSuite can stop it cleanly. SetupSignalHandler would
+	// leave it running into teardown and make Start return an error once the
+	// apiserver goes away.
 	go func() {
-		err = k8sManager.Start(controllerruntime.SetupSignalHandler())
-		Expect(err).ToNot(HaveOccurred())
+		defer GinkgoRecover()
+		Expect(k8sManager.Start(ctx)).To(Succeed(), "failed to run manager")
 	}()
-}, 60)
+})
 
 var _ = AfterSuite(func() {
+	cancel()
 	By("tearing down the test environment")
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())

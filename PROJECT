@@ -1,6 +1,6 @@
 domain: k8s.alekc.dev
 layout:
-- go.kubebuilder.io/v3
+- go.kubebuilder.io/v4
 projectName: gitlab-runner-operator
 repo: gitlab.k8s.alekc.dev
 resources:
@@ -17,4 +17,13 @@ resources:
     defaulting: true
     validation: true
     webhookVersion: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: k8s.alekc.dev
+  group: gitlab
+  kind: MultiRunner
+  path: gitlab.k8s.alekc.dev/api/v1beta1
+  version: v1beta1
 version: "3"

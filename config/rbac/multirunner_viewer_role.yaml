@@ -1,0 +1,20 @@
+# permissions for end users to view multirunners.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: multirunner-viewer-role
+rules:
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - gitlab.k8s.alekc.dev
+  resources:
+  - multirunners/status
+  verbs:
+  - get

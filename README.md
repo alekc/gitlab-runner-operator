@@ -1,123 +1,158 @@
 # Gitlab Runner Operator
-Runner operator based on gitlab runner kubernetes executor
+
+Kubernetes operator that manages GitLab CI runners using the kubernetes executor.
 
 ## What is this operator for
-This operator permits you to run multiple runners with their own, unique configuration written in yaml (no more Toml, yay), following IAC approach
 
-## Why
-The official gitlab way consist in 2 steps registration, first you register your runner, and then you append certain features to it. 
+It lets you run one or many GitLab runners, each with its own configuration
+expressed in YAML (no more hand-written `config.toml`), following an
+infrastructure-as-code approach. Every option exposed by the
+[kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html)
+is configurable through the CRD.
 
-This breaks the IAC way, and doesn't permit you to be flexible in your configuration. 
+## Status
 
-This operator aims to provide you with all configuration which are provided by [kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html), see below for some examples. 
+Alpha. Breaking changes are possible and will be called out in the release
+notes. Please open an issue if you hit a bug.
 
-## Status & Contributions
-This operator is still in alpha stages, so there is a possibility of breaking changes (which will be announced if any). Please open issues if you find any bugs
+> **API version**: the current API group version is
+> `gitlab.k8s.alekc.dev/v1beta2`. It replaces the older `v1beta1` /
+> `v1alpha1` versions. The change is breaking: the authentication block was
+> reworked (see below) and existing objects are not converted automatically.
 
 ## Installation with helm
 
-Once you have installed CRD you can deploy the operator in your prefered namespace
+Once the CRDs are installed you can deploy the operator into your preferred
+namespace:
+
 ```
 helm repo add alekc https://charts.alekc.dev/
 helm repo update
 helm install gitlab-runner-operator alekc/gitlab-runner-operator
 ```
 
+## Authentication
+
+GitLab deprecated the registration-token workflow (in 16.0) and disabled it by
+default from 18.0 onward, so this operator uses runner authentication tokens
+(the `glrt-` tokens). There are two ways to authenticate, set under
+`spec.authentication`:
+
+1. **Bring your own token.** Create the runner in GitLab yourself (UI or the
+   `POST /user/runners` API) and give the operator the resulting `glrt-` token.
+   The operator makes no GitLab API calls; it just writes the token into the
+   runner config.
+
+2. **Operator-managed.** Give the operator an access token (personal, group, or
+   project) that holds the `create_runner` scope plus a `create_options` block.
+   The operator creates the runner through `POST /user/runners`, stores the
+   returned token, and deletes the runner from GitLab when the object is
+   removed. Deletion first uses the runner's own authentication token
+   (`DELETE /runners` by token), which needs no access-token scope, so
+   `create_runner` alone is enough for the normal lifecycle. If that fails or
+   the token is unavailable, the operator falls back to deleting by runner id
+   with the access token (`DELETE /runners/:id`), which succeeds only when the
+   access token also holds the `api` scope; otherwise the runner is logged as
+   possibly orphaned.
+
+Exactly one of the two modes must be configured; the admission webhook rejects
+objects that set both or neither.
+
 ## Configuration
-The CRD Runner is composed by following fields (all of them are optional, except for registration tokens, see examples below):
+
+Top-level `spec` fields (all optional unless noted):
+
+| Key | Description |
+| --- | --- |
+| `authentication` | Required. How the runner authenticates (see above). |
+| `concurrent` | Maximum number of jobs run concurrently across this runner. Minimum 1. |
+| `check_interval` | Seconds between checks for new jobs. Minimum 3. |
+| `log_level` | One of `panic`, `fatal`, `error`, `warning`, `info`, `debug`. |
+| `log_format` | One of `runner`, `text`, `json`. |
+| `gitlab_instance_url` | GitLab URL. Defaults to `https://gitlab.com/`. |
+| `executor_config` | Kubernetes executor options, see the [keywords reference](https://docs.gitlab.com/runner/executors/kubernetes.html#configuration-settings). |
+| `environment` | Custom environment variables injected into the build environment. |
+| `runner_image` | Override the gitlab-runner image. Defaults to a recent `gitlab/gitlab-runner:alpine-vX.Y.Z`. |
+
+### `authentication` fields
+
+| Key | Description |
+| --- | --- |
+| `token` | Bring-your-own mode: the pre-created `glrt-` token, as a token source (see below). |
+| `access_token` | Managed mode: an access token with the `create_runner` scope, as a token source. |
+| `create_options` | Managed mode: `runner_type` (`instance_type`/`group_type`/`project_type`), `group_id`, `project_id`, `description`, `tag_list`, `run_untagged`, `locked`, `paused`, `access_level`, `maximum_timeout`. |
+
+Both `token` and `access_token` are **token sources** with two mutually
+exclusive ways to supply the value:
+
+| Key | Description |
+| --- | --- |
+| `value` | The literal token, inline. Convenient for testing. |
+| `secret_key_ref` | Read the token from a Secret in the runner namespace: `name` (required), `key` (optional, defaults to `token`), `optional` (when `true`, a missing secret or key resolves to an empty token instead of failing). |
+
+## Examples
+
+### Bring-your-own token
+
 ```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
 spec:
-  environment:
-    - "bar=foo"
-  concurrent: 1
-  log_level: info
-  gitlab_instance_url: https://gitlab.com
-  registration_config: {}    
+  authentication:
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ```
-|Key  |Description  |
-|--|--|
-| concurrent | limits how many jobs globally can be run concurrently. The most upper limit of jobs using all defined runners. Minimum value is 1 |
-| executor_config | contains config values for kubernetes executor see [this page](https://docs.gitlab.com/runner/executors/kubernetes.html#the-keywords) for detailed explanation of different values.|
-| log_level | log level of the executor. Can be one of following: panic;fatal;error;warning;info;debug|
-| gitlab_instance_url| in case you are not using the official gitlab you will need to set this value to your instance url |
-| registration_config | see [this link](https://docs.gitlab.com/ee/api/runners.html#register-a-new-runner) for detailed explanation
 
-### Examples
-In order to run your runner you will need to obtain a registration token ([see the official documentation](https://docs.gitlab.com/runner/register/))
+### Operator-managed runner
 
-#### Minimum configuration
-
-In this config you only need to specify the name of your runner (`runner-sample`), registration token (`xxx`), and it's tag (`test-gitlab-runner`)  
 ```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
-  name: runner-sample
+  name: runner-managed
 spec:
-  registration_config:
-    token: "xxx"
-    tag_list:
-      - test-gitlab-runner
+  authentication:
+    access_token:
+      value: "glpat-XXXXXXXXXXXXXXXXXXXX"
+    create_options:
+      runner_type: project_type
+      project_id: 1234567
+      run_untagged: true
+      tag_list:
+        - test-gitlab-runner
 ```
 
-#### Using registration token inside a secret
-If you prefer not to expose your registration token in the crd, you can specify the secret name. 
-Note that the token **MUST** be contained in the key `token`
+### Token from a secret
+
+`key` defaults to `token`; set `secret_key_ref.key` to read a different key.
 
 ```yaml
 apiVersion: v1
-data:
-  token: c2VjcmV0LXRva2Vu
 kind: Secret
 metadata:
   name: gitlab-runner-token
 type: Opaque
+stringData:
+  token: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ---
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
 spec:
-  registration_config:
-    token: "gitlab-runner-token"
-    tag_list:
-      - test-gitlab-runner
+  authentication:
+    token:
+      secret_key_ref:
+        name: gitlab-runner-token
+        # key omitted -> defaults to "token"
 ```
 
-#### Mounting secrets or config maps as volumes
-If you need to mount some config maps or secrets as volumes in your runner pods, you can easily achieve it with following config
+### Mounting secrets or config maps as volumes
+
 ```yaml
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: test-secret
-stringData:
-  foo: "this is foo"
-  bar: "this is bar"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: test-secret-2
-stringData:
-  zar: "this is zar"
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: test-config
-data:
-  foo.txt: |
-    contents of foo
-  bar.txt: |
-    zzz
----
-apiVersion: gitlab.k8s.alekc.dev/v1beta1
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
 kind: Runner
 metadata:
   name: runner-sample
@@ -134,10 +169,60 @@ spec:
       secret:
         - mount_path: /secrets/1/
           name: test-secret
-        - mount_path: /secrets/2/
-          name: test-secret-2
-  registration_config:
-    token: "xxx"
-    tag_list:
-      - test-gitlab-runner
+  authentication:
+    token:
+      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ```
+
+### Multiple runners in one object
+
+See `config/samples/gitlab_v1beta2_multirunner.yaml` for a `MultiRunner`
+example that mixes both authentication modes across entries.
+
+## RBAC and namespaces
+
+The kubernetes executor permission set (pods and pods/exec, pods/attach,
+pods/log, services, secrets, configmaps, serviceaccounts, events) lives in one
+shared ClusterRole, `gitlab-runner-operator-executor`, reconciled by the
+operator. For each Runner or MultiRunner the operator then provisions its own
+ServiceAccount (a distinct identity for audit and revocation) and a RoleBinding
+that binds that ServiceAccount to the shared ClusterRole. A MultiRunner shares a
+single ServiceAccount across all its entries. Because the rules live in one
+ClusterRole, a permission change in a new operator version applies to every
+runner at once.
+
+The operator can only grant a runner what the operator itself holds (it has no
+RBAC `escalate` verb), so the manager ClusterRole is the explicit ceiling for
+runner permissions. RoleBindings to the ClusterRole are namespaced, so the
+effective grant is confined to the build namespace; nothing cluster-scoped is
+granted to a runner.
+
+Job pods run in `executor_config.namespace` when set, otherwise in the runner's
+own namespace. By default a runner may only target its **own** namespace: a
+Runner author choosing an arbitrary namespace would otherwise have the operator
+bind their ServiceAccount (and run their jobs) in, say, `kube-system`, a
+privilege-escalation path. To permit specific build namespaces, start the
+operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any);
+the webhook rejects any other `executor_config.namespace`. When an allowed build
+namespace differs from the runner's, the operator creates the RoleBinding there
+too (the ServiceAccount stays in the runner namespace) and removes it when the
+runner is deleted.
+
+Because the operator pre-provisions RBAC for a known namespace,
+`namespace_per_job` and `namespace_overwrite_allowed` are also rejected at
+admission: both make the build namespace dynamic, which would require
+cluster-scoped RBAC.
+
+> **Security note: the namespace restriction is enforced only by the validating
+> webhook.** Running the operator with `--disable-webhooks` removes this control,
+> and the reconciler will then honour whatever `executor_config.namespace` a
+> Runner specifies, binding that runner's ServiceAccount into (and running its
+> jobs in) any namespace. The operator holds the executor permission set
+> cluster-wide, so on a shared cluster this is a privilege-escalation path: any
+> user who can create a Runner could reach `kube-system` or another tenant's
+> namespace. Do **not** disable webhooks on a multi-tenant cluster. If you must,
+> restrict who can create Runner/MultiRunner objects by RBAC instead.
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

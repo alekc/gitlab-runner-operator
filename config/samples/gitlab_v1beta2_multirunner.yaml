@@ -1,0 +1,27 @@
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: MultiRunner
+metadata:
+  name: multirunner-simple
+spec:
+  concurrent: 10
+  gitlab_instance_url: https://gitlab.com/
+  entries:
+    # A bring-your-own-token entry.
+    - name: runner-1
+      authentication:
+        token:
+          value: "glrt-XXXXXXXXXXXXXXXXXXXX"
+      executor_config:
+        memory_request: "50Mi"
+    # An operator-managed entry.
+    - name: runner-2
+      authentication:
+        access_token:
+          value: "glpat-XXXXXXXXXXXXXXXXXXXX"
+        create_options:
+          runner_type: group_type
+          group_id: 42
+          description: "Runner 2"
+          tag_list:
+            - dev2
+            - runner2

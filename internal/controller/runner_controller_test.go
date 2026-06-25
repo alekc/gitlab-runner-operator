@@ -19,36 +19,35 @@ limitations under the License.
 /*
 As usual, we start with the necessary imports. We also define some utility variables.
 */
-package controllers
+package controller
 
 import (
 	"context"
 	"fmt"
-	v1 "k8s.io/api/rbac/v1"
 	"os"
 	"strconv"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	"github.com/onsi/ginkgo/extensions/table"
+	v1 "k8s.io/api/rbac/v1"
+
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"gitlab.k8s.alekc.dev/api/v1beta1"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/internal/generate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // +kubebuilder:docs-gen:collapse=Imports
 
 type testCase struct {
-	Runner         *v1beta1.Runner
-	CheckCondition func(*v1beta1.Runner) bool
-	CheckRunner    func(*v1beta1.Runner)
+	Runner         *v1beta2.Runner
+	CheckCondition func(*v1beta2.Runner) bool
+	CheckRunner    func(*v1beta2.Runner)
 }
 
 type testCaseTweak func(*testCase)
@@ -87,7 +86,7 @@ var _ = Describe("Runner controller", func() {
 	// after each test perform some cleaning actions
 	AfterEach(func() {
 		// delete the runner
-		Expect(k8sClient.Delete(context.Background(), &v1beta1.Runner{
+		Expect(k8sClient.Delete(context.Background(), &v1beta2.Runner{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      RunnerName,
 				Namespace: RunnerNamespace,
@@ -102,12 +101,12 @@ var _ = Describe("Runner controller", func() {
 		}, client.PropagationPolicy(metav1.DeletePropagationBackground)), client.GracePeriodSeconds(0)).To(Succeed())
 	})
 
-	table.DescribeTable(
+	DescribeTable(
 		"When reconciling Gitlab Runner",
 		func(tweaks ...testCaseTweak) {
 			tc := &testCase{
 				Runner: defaultRunner(RunnerName, RunnerNamespace),
-				CheckCondition: func(runner *v1beta1.Runner) bool {
+				CheckCondition: func(runner *v1beta2.Runner) bool {
 					return runner.UID != "" && runner.Status.Ready
 				},
 			}
@@ -121,7 +120,7 @@ var _ = Describe("Runner controller", func() {
 
 			//
 			esKey := types.NamespacedName{Name: RunnerName, Namespace: RunnerNamespace}
-			createdRunner := &v1beta1.Runner{}
+			createdRunner := &v1beta2.Runner{}
 			By("checking the runner condition")
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, esKey, createdRunner)
@@ -134,71 +133,74 @@ var _ = Describe("Runner controller", func() {
 			//
 			tc.CheckRunner(createdRunner)
 		},
-		table.Entry("Should support setting of env var for build env", caseEnvironmentIsSpecified),
-		table.Entry("Should have created a different registration on tag update", caseTagsChanged),
-		table.Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
-		table.Entry("Should have updated runner status with auth token", caseTestAuthToken),
-		table.Entry("Should have created required RBAC", caseRBACCheck),
-		table.Entry("Should have generated config map", caseGeneratedConfigMap),
-		table.Entry("Should have generated deployment", caseCheckDeployment),
-		table.Entry("On spec change, config map should be updated", caseSpecChanged),
+		Entry("Should support setting of env var for build env", caseEnvironmentIsSpecified),
+		Entry("Should have created a different registration on tag update", caseTagsChanged),
+		Entry("Should have created a different registration on registration token update", caseRegistrationTokenChanged),
+		Entry("Should have updated runner status with auth token", caseTestAuthToken),
+		Entry("Should have created required RBAC", caseRBACCheck),
+		Entry("Should have generated config map", caseGeneratedConfigMap),
+		Entry("Should have generated deployment", caseCheckDeployment),
+		Entry("On spec change, config map should be updated", caseSpecChanged),
 	)
 })
 
 func caseRBACCheck(tc *testCase) {
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		ctx := context.TODO()
 
-		// service  account should be created
+		// per-runner ServiceAccount should be created
 		var sa corev1.ServiceAccount
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &sa)
-			return err == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &sa) == nil
 		}, timeout, interval).Should(BeTrue())
 
-		// fetch created role
-		var role v1.Role
+		// the single shared executor ClusterRole should exist
+		var clusterRole v1.ClusterRole
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &role)
-			return err == nil
+			return k8sClient.Get(ctx, types.NamespacedName{Name: "gitlab-runner-operator-executor"}, &clusterRole) == nil
 		}, timeout, interval).Should(BeTrue())
 
+		// a per-runner RoleBinding should bind that SA to the shared ClusterRole
 		var roleBinding v1.RoleBinding
 		Eventually(func() bool {
-			err := k8sClient.Get(ctx, nameSpacedDependencyName(runner), &roleBinding)
-			return err == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &roleBinding) == nil
 		}, timeout, interval).Should(BeTrue())
+		Expect(roleBinding.RoleRef.Kind).To(Equal("ClusterRole"))
+		Expect(roleBinding.RoleRef.Name).To(Equal("gitlab-runner-operator-executor"))
+		Expect(roleBinding.Subjects).To(HaveLen(1))
+		Expect(roleBinding.Subjects[0].Name).To(Equal(runner.ChildName()))
 	}
 }
 
-// caseTestAuthToken checks if our runner gets registration form gitlab server
+// caseTestAuthToken checks that a managed runner records the token and id that
+// GitLab (the mock) returned.
 func caseTestAuthToken(tc *testCase) {
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		Expect(runner.Status.Error).To(BeEmpty())
-		Expect(runner.Status.AuthenticationToken).To(BeEquivalentTo("95ef6f888cb2280a3a070186cf55b04f"))
+		Expect(runner.Status.RunnerID).To(Equal(1))
 	}
 }
 
-// caseGeneratedConfigMap checks if a new config map is generated
+// caseGeneratedConfigMap checks that the config Secret is generated
 func caseGeneratedConfigMap(tc *testCase) {
 	ctx := context.Background()
 
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
-		var configMap corev1.ConfigMap
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
+		var secret corev1.Secret
 		Eventually(func() bool {
-			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &configMap) == nil
+			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &secret) == nil
 		}, timeout, interval).Should(BeTrue())
 
-		Expect(configMap.OwnerReferences).NotTo(BeEmpty())
-		Expect(configMap.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
-		Expect(configMap.Data).Should(HaveKey(configMapKeyName), "Child config map should have %s data entry", configMapKeyName)
+		Expect(secret.OwnerReferences).NotTo(BeEmpty())
+		Expect(secret.OwnerReferences[0].UID).To(BeEquivalentTo(runner.UID))
+		Expect(secret.Data).Should(HaveKey(configMapKeyName), "child config secret should have %s data entry", configMapKeyName)
 		Expect(runner.Status.ConfigMapVersion).Should(Not(BeEmpty()))
 	}
 }
 
 func caseCheckDeployment(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		var deployment appsv1.Deployment
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
@@ -215,7 +217,7 @@ func caseCheckDeployment(tc *testCase) {
 func caseEnvironmentIsSpecified(tc *testCase) {
 	ctx := context.Background()
 	tc.Runner.Spec.Environment = []string{"foo=bar"}
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		var deployment appsv1.Deployment
 		Eventually(func() bool {
 			return k8sClient.Get(ctx, nameSpacedDependencyName(runner), &deployment) == nil
@@ -223,70 +225,69 @@ func caseEnvironmentIsSpecified(tc *testCase) {
 	}
 }
 
-// caseTagsChanged deals with situation when we change tags for an existing runner
+// caseTagsChanged changes the tag list of a managed runner; the operator must
+// recreate it and obtain a fresh token.
 func caseTagsChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
+		oldHash := runner.Status.RegistrationHash
 
 		// update tags
-		runner.Spec.RegistrationConfig.TagList = []string{"new", "tag", "list"}
+		runner.Spec.Authentication.CreateOptions.TagList = []string{"new", "tag", "list"}
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		// runner should get a new hash version
-		newRunner := &v1beta1.Runner{}
+		// changing tags changes the create-options hash, forcing a recreate
+		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+			return err == nil && newRunner.Status.RegistrationHash != oldHash
 		}, timeout, interval).Should(BeTrue())
 	}
 }
 
-// caseRegistrationTokenChanged deals with scenario where we change our registration token
+// caseRegistrationTokenChanged changes a create option (description) and checks
+// the operator recreates the managed runner (the registration hash changes).
 func caseRegistrationTokenChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
-		oldAuth := runner.Status.AuthenticationToken
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
+		oldHash := runner.Status.RegistrationHash
 
-		// update tags
-		runner.Spec.RegistrationConfig.Token = pointer.StringPtr("new reg token")
+		runner.Spec.Authentication.CreateOptions.Description = "changed description"
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		// runner should get a new hash version
-		newRunner := &v1beta1.Runner{}
+		newRunner := &v1beta2.Runner{}
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), newRunner)
-			return err == nil && newRunner.Status.AuthenticationToken != oldAuth
+			return err == nil && newRunner.Status.RegistrationHash != oldHash
 		}, timeout, interval).Should(BeTrue())
-		Expect(newRunner.Status.LastRegistrationToken).To(Equal(*runner.Spec.RegistrationConfig.Token))
 	}
 }
 
 func caseSpecChanged(tc *testCase) {
 	ctx := context.Background()
-	tc.CheckRunner = func(runner *v1beta1.Runner) {
+	tc.CheckRunner = func(runner *v1beta2.Runner) {
 		oldConfigMapVersion := runner.Status.ConfigMapVersion
 		dp := getChangedDeployment(ctx, nameSpacedDependencyName(runner), "")
-		configMap := getChangedConfigMap(ctx, nameSpacedDependencyName(runner), "")
+		secret := getChangedConfigSecret(ctx, nameSpacedDependencyName(runner), "")
 
 		// update runner spec
 		runner.Spec.Concurrent = 2
 		Expect(k8sClient.Update(ctx, runner)).To(Succeed())
 
-		var newRunner v1beta1.Runner
+		var newRunner v1beta2.Runner
 		Eventually(func() bool {
 			err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), &newRunner)
 			return err == nil && newRunner.Status.Ready && newRunner.Status.ConfigMapVersion != oldConfigMapVersion
 		}, timeout, interval).Should(BeTrue())
 
-		// wait until the configmap is updated and fetch the new version
+		// wait until the config secret is updated and fetch the new version
 		Eventually(func() bool {
-			var cm corev1.ConfigMap
-			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &cm); err != nil {
+			var s corev1.Secret
+			if err := k8sClient.Get(ctx, nameSpacedDependencyName(&newRunner), &s); err != nil {
 				return false
 			}
-			return configMap.Data[configMapKeyName] != cm.Data[configMapKeyName]
-		}, timeout, interval).Should(BeTrue(), "configmap should have new toml config")
+			return string(secret.Data[configMapKeyName]) != string(s.Data[configMapKeyName])
+		}, timeout, interval).Should(BeTrue(), "config secret should have new toml config")
 
 		// verify that our deployment has been amended with a new version
 		Eventually(func() bool {
@@ -313,22 +314,22 @@ func getChangedDeployment(ctx context.Context, name types.NamespacedName, resour
 	return &dp
 }
 
-func getChangedConfigMap(ctx context.Context, name types.NamespacedName, resourceDiffersFrom string) *corev1.ConfigMap {
-	var configMap corev1.ConfigMap
+func getChangedConfigSecret(ctx context.Context, name types.NamespacedName, resourceDiffersFrom string) *corev1.Secret {
+	var secret corev1.Secret
 	Eventually(func() bool {
-		if err := k8sClient.Get(ctx, name, &configMap); err != nil {
+		if err := k8sClient.Get(ctx, name, &secret); err != nil {
 			return false
 		}
-		return configMap.ObjectMeta.ResourceVersion != resourceDiffersFrom
+		return secret.ObjectMeta.ResourceVersion != resourceDiffersFrom
 	}, timeout, interval).Should(BeTrue())
-	return &configMap
+	return &secret
 }
 
-func nameSpacedRunnerName(runner *v1beta1.Runner) types.NamespacedName {
-	return types.NamespacedName{Name: runner.Name, Namespace: runner.Namespace}
+func nameSpacedRunnerName(runner *v1beta2.Runner) types.NamespacedName {
+	return types.NamespacedName{Name: runner.Name, Namespace: runner.GetNamespace()}
 }
-func nameSpacedDependencyName(runner *v1beta1.Runner) types.NamespacedName {
-	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.Namespace}
+func nameSpacedDependencyName(runner *v1beta2.Runner) types.NamespacedName {
+	return types.NamespacedName{Name: runner.ChildName(), Namespace: runner.GetNamespace()}
 }
 func CreateNamespace(c client.Client) (string, error) {
 	ns := &corev1.Namespace{
@@ -347,21 +348,25 @@ func CreateNamespace(c client.Client) (string, error) {
 	return ns.Name, nil
 }
 
-// defaultRunner returns an instance of gitlab runner with default values
-func defaultRunner(name string, nameSpace string) *v1beta1.Runner {
-	return &v1beta1.Runner{
+// defaultRunner returns a managed runner (operator creates it on GitLab via the
+// access-token path), exercising the mocked CreateRunner call.
+func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
+	return &v1beta2.Runner{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1beta1.GroupVersion.String(),
+			APIVersion: v1beta2.GroupVersion.String(),
 			Kind:       "Runner",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: nameSpace,
 		},
-		Spec: v1beta1.RunnerSpec{
-			RegistrationConfig: v1beta1.RegisterNewRunnerOptions{
-				Token:   pointer.StringPtr("zTS6g2Q8bp8y13_ynfpN"),
-				TagList: []string{"default-tag"},
+		Spec: v1beta2.RunnerSpec{
+			Authentication: v1beta2.GitlabAuth{
+				AccessToken: &v1beta2.TokenSource{Value: "glpat-test-access-token"},
+				CreateOptions: &v1beta2.RunnerCreateOptions{
+					RunnerType: "instance_type",
+					TagList:    []string{"default-tag"},
+				},
 			},
 		},
 	}

@@ -1,23 +1,9 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  creationTimestamp: null
   name: manager-role
 rules:
-- apiGroups:
-  - apps
-  resources:
-  - deployments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
 - apiGroups:
   - ""
   resources:
@@ -33,8 +19,62 @@ rules:
   - update
   - watch
 - apiGroups:
+  - ""
+  resources:
+  - events
+  verbs:
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - pods/attach
+  - pods/exec
+  verbs:
+  - create
+  - delete
+  - get
+  - patch
+- apiGroups:
+  - ""
+  resources:
+  - pods/log
+  verbs:
+  - get
+  - list
+- apiGroups:
+  - ""
+  resources:
+  - services
+  verbs:
+  - create
+  - get
+- apiGroups:
+  - apps
+  resources:
+  - deployments
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - multirunners
   - runners
   verbs:
   - create
@@ -47,12 +87,14 @@ rules:
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - multirunners/finalizers
   - runners/finalizers
   verbs:
   - update
 - apiGroups:
   - gitlab.k8s.alekc.dev
   resources:
+  - multirunners/status
   - runners/status
   verbs:
   - get
@@ -61,7 +103,23 @@ rules:
 - apiGroups:
   - rbac.authorization.k8s.io
   resources:
-  - rolebindings
-  - roles
+  - clusterroles
   verbs:
-  - '*'
+  - create
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - rbac.authorization.k8s.io
+  resources:
+  - rolebindings
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch

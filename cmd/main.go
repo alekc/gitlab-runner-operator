@@ -1,5 +1,5 @@
 /*
-Copyright 2021.
+Copyright 2020 Alexander Chernov
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ package main
 import (
 	"flag"
 	"os"
+	"strings"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -29,9 +31,10 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
-	gitlabv1beta1 "gitlab.k8s.alekc.dev/api/v1beta1"
-	"gitlab.k8s.alekc.dev/controllers"
+	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
+	"gitlab.k8s.alekc.dev/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -43,8 +46,20 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(gitlabv1beta1.AddToScheme(scheme))
+	utilruntime.Must(gitlabv1beta2.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
+}
+
+// splitAndTrim turns a comma-separated flag value into a slice, dropping empty
+// entries and surrounding whitespace.
+func splitAndTrim(raw string) []string {
+	var out []string
+	for _, part := range strings.Split(raw, ",") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func main() {
@@ -52,9 +67,17 @@ func main() {
 	var enableLeaderElection bool
 	var probeAddr string
 	var disableWebhooks bool
+	var allowedBuildNamespacesRaw string
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":8081", "The address the probe endpoint binds to.")
-	flag.BoolVar(&disableWebhooks, "disable-webhooks", false, "Disable mutating and validating webhooks.")
+	flag.BoolVar(&disableWebhooks, "disable-webhooks", false,
+		"Disable mutating and validating webhooks. WARNING: the webhook enforces "+
+			"the executor namespace restriction (see --allowed-build-namespaces); "+
+			"disabling it on a multi-tenant cluster lets any Runner author bind the "+
+			"runner ServiceAccount into, and run jobs in, any namespace.")
+	flag.StringVar(&allowedBuildNamespacesRaw, "allowed-build-namespaces", "",
+		"Comma-separated namespaces (besides a runner's own) where the operator may provision executor RBAC. "+
+			"Use '*' to allow any. Empty (default) restricts each runner to its own namespace.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -66,10 +89,13 @@ func main() {
 
 	ctrl.SetLogger(zap.New(zap.UseFlagOptions(&opts)))
 
+	allowedBuildNamespaces := splitAndTrim(allowedBuildNamespacesRaw)
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
-		Scheme:                 scheme,
-		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
+		Scheme: scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: metricsAddr,
+		},
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "e47991d1.k8s.alekc.dev",
@@ -79,19 +105,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.RunnerReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+	if err = (&controller.RunnerReconciler{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Runner")
 		os.Exit(1)
 	}
 	// disable webhooks if needed
 	if !disableWebhooks {
-		if err = (&gitlabv1beta1.Runner{}).SetupWebhookWithManager(mgr); err != nil {
+		if err = (&gitlabv1beta2.Runner{}).SetupWebhookWithManager(mgr, allowedBuildNamespaces); err != nil {
 			setupLog.Error(err, "unable to create webhook", "webhook", "Runner")
 			os.Exit(1)
 		}
+		if err = (&gitlabv1beta2.MultiRunner{}).SetupWebhookWithManager(mgr, allowedBuildNamespaces); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "MultiRunner")
+			os.Exit(1)
+		}
+	}
+	if err = (&controller.MultiRunnerReconciler{
+		Client:    mgr.GetClient(),
+		APIReader: mgr.GetAPIReader(),
+		Scheme:    mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "MultiRunner")
+		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
 

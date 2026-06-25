@@ -1,0 +1,22 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  # the standard set: errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  enable:
+    - misspell
+    - unconvert
+  settings:
+    staticcheck:
+      # Keep the bug-finding (SA*) and simplification (S1*) checks; drop the
+      # opinionated style nags that would force churny renames on this existing
+      # codebase: QF1008 (embedded-field selectors), ST1000 (package comments),
+      # ST1003 (initialism naming, e.g. GitlabApiClient -> GitlabAPIClient).
+      checks:
+        - all
+        - -QF1008
+        - -ST1000
+        - -ST1003

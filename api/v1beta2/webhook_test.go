@@ -1,12 +1,11 @@
-package v1beta1
+package v1beta2
 
 import (
 	"time"
 
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 var _ = Describe("Runner controller", func() {
@@ -33,9 +32,8 @@ var _ = Describe("Runner controller", func() {
 					Namespace: RunnerNamespace,
 				},
 				Spec: RunnerSpec{
-					RegistrationConfig: RegisterNewRunnerOptions{
-						Token:   pointer.StringPtr("rYwg6EogqxSuvsFCVvAT"),
-						TagList: []string{"testing-runner-operator"},
+					Authentication: GitlabAuth{
+						Token: &TokenSource{Value: "glrt-rYwg6EogqxSuvsFCVvAT"},
 					},
 				},
 			}

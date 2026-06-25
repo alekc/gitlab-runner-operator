@@ -37,20 +37,29 @@ spec:
           httpGet:
             path: /healthz
             port: 8081
-          initialDelaySeconds: 15
+          initialDelaySeconds: 20
           periodSeconds: 20
+          # The default 1s is too tight: a GC pause or cache sync can stall the
+          # health handler briefly and trigger a spurious restart.
+          timeoutSeconds: 5
+          failureThreshold: 5
         readinessProbe:
           httpGet:
             path: /readyz
             port: 8081
-          initialDelaySeconds: 5
+          initialDelaySeconds: 10
           periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 5
         resources:
+          # The manager keeps cluster-wide informer caches (secrets, deployments,
+          # rolebindings, serviceaccounts, plus the CRDs), so the kubebuilder
+          # default 30Mi is far too low and OOM/throttles on busy clusters.
           limits:
-            cpu: 100m
-            memory: 30Mi
+            cpu: 500m
+            memory: 256Mi
           requests:
             cpu: 100m
-            memory: 20Mi
+            memory: 64Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
