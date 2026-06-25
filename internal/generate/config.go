@@ -44,6 +44,10 @@ func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConf
 	// resolve the executor namespace via the shared defaulting rule so it
 	// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
 	runnerConfig.RunnerSettings.Kubernetes.Namespace = r.Spec.ExecutorConfig.EffectiveNamespace(r.Namespace)
+	// point the runner at the mounted custom CA when one is configured
+	if r.Spec.CACertificate.IsSet() {
+		runnerConfig.RunnerCredentials.TLSCAFile = types.CACertFile
+	}
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
 		Concurrent:    int(math.Max(1, float64(r.Spec.Concurrent))),
@@ -92,6 +96,10 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 		// resolve the executor namespace via the shared defaulting rule so it
 		// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
 		runnerConfig.RunnerSettings.Kubernetes.Namespace = executorConfig.EffectiveNamespace(runnerObject.Namespace)
+		// point each runner at the mounted custom CA when one is configured
+		if runnerObject.Spec.CACertificate.IsSet() {
+			runnerConfig.RunnerCredentials.TLSCAFile = types.CACertFile
+		}
 		runners = append(runners, &runnerConfig)
 	}
 

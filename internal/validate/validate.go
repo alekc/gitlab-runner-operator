@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/internal/result"
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"
@@ -84,6 +85,13 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 		},
 	}
 
+	// Mount a custom CA bundle into the runner container when configured so the
+	// runner trusts a private or self-signed GitLab endpoint (config.toml points
+	// at it via tls-ca-file).
+	if src := runnerObj.CACertificate(); src.IsSet() {
+		addCustomCAVolume(&wantedDeployment, src)
+	}
+
 	var existingDeployment appsv1.Deployment
 	err := cl.Get(ctx, client.ObjectKey{
 		Namespace: runnerObj.GetNamespace(),
@@ -128,6 +136,47 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 		return result.RequeueNow(), nil
 	}
 	return nil, nil
+}
+
+// addCustomCAVolume mounts the referenced CA bundle (from a Secret or a
+// ConfigMap key) into the runner container at types.CACertFile, read-only, so
+// config.toml's tls-ca-file can point at it. The chosen key is projected to a
+// fixed filename so the mount path is stable regardless of the source key.
+func addCustomCAVolume(dep *appsv1.Deployment, src *v1beta2.CASource) {
+	const volName = "custom-ca"
+	var vs corev1.VolumeSource
+	switch {
+	case src.SecretKeyRef != nil:
+		key := src.SecretKeyRef.Key
+		if key == "" {
+			key = v1beta2.DefaultCAKey
+		}
+		vs.Secret = &corev1.SecretVolumeSource{
+			SecretName: src.SecretKeyRef.Name,
+			Items:      []corev1.KeyToPath{{Key: key, Path: types.CACertFileName}},
+		}
+	case src.ConfigMapKeyRef != nil:
+		key := src.ConfigMapKeyRef.Key
+		if key == "" {
+			key = v1beta2.DefaultCAKey
+		}
+		vs.ConfigMap = &corev1.ConfigMapVolumeSource{
+			LocalObjectReference: corev1.LocalObjectReference{Name: src.ConfigMapKeyRef.Name},
+			Items:                []corev1.KeyToPath{{Key: key, Path: types.CACertFileName}},
+		}
+	default:
+		return
+	}
+	dep.Spec.Template.Spec.Volumes = append(dep.Spec.Template.Spec.Volumes, corev1.Volume{
+		Name:         volName,
+		VolumeSource: vs,
+	})
+	c := &dep.Spec.Template.Spec.Containers[0]
+	c.VolumeMounts = append(c.VolumeMounts, corev1.VolumeMount{
+		Name:      volName,
+		MountPath: types.CACertMountDir,
+		ReadOnly:  true,
+	})
 }
 
 // Secret renders the runner config.toml into an Opaque Secret named after the

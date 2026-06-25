@@ -46,6 +46,41 @@ spec:
           spec:
             description: MultiRunnerSpec defines the desired state of MultiRunner
             properties:
+              caCertificate:
+                description: |-
+                  CACertificate, when set, provides a PEM CA bundle used to verify the
+                  GitLab endpoint for both the operator's API calls and every runner
+                  entry's own connection. Reference it from a Secret or a ConfigMap key.
+                properties:
+                  configMapKeyRef:
+                    description: ConfigMapKeyRef selects a key in a ConfigMap holding
+                      the PEM CA bundle.
+                    properties:
+                      key:
+                        description: Key holding the PEM CA bundle. Defaults to "ca.crt"
+                          when empty.
+                        type: string
+                      name:
+                        description: Name of the Secret or ConfigMap.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                  secretKeyRef:
+                    description: SecretKeyRef selects a key in a Secret holding the
+                      PEM CA bundle.
+                    properties:
+                      key:
+                        description: Key holding the PEM CA bundle. Defaults to "ca.crt"
+                          when empty.
+                        type: string
+                      name:
+                        description: Name of the Secret or ConfigMap.
+                        type: string
+                    required:
+                    - name
+                    type: object
+                type: object
               check_interval:
                 minimum: 3
                 type: integer

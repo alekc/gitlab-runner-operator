@@ -93,6 +93,50 @@ func resolveTokenSource(ctx context.Context, cl client.Client, namespace string,
 	return string(value), nil
 }
 
+// resolveCABundle resolves a CASource to its PEM bytes, read from the named key
+// (defaulting to v1beta2.DefaultCAKey) of a Secret or ConfigMap in namespace. A
+// nil or empty source returns nil with no error.
+func resolveCABundle(ctx context.Context, cl client.Client, namespace string, src *v1beta2.CASource) ([]byte, error) {
+	if !src.IsSet() {
+		return nil, nil
+	}
+	switch {
+	case src.SecretKeyRef != nil:
+		ref := src.SecretKeyRef
+		var secret corev1.Secret
+		if err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: ref.Name}, &secret); err != nil {
+			return nil, fmt.Errorf("cannot read CA secret %q: %w", ref.Name, err)
+		}
+		key := ref.Key
+		if key == "" {
+			key = v1beta2.DefaultCAKey
+		}
+		data, ok := secret.Data[key]
+		if !ok {
+			return nil, fmt.Errorf("CA secret %q has no key %q", ref.Name, key)
+		}
+		return data, nil
+	case src.ConfigMapKeyRef != nil:
+		ref := src.ConfigMapKeyRef
+		var cm corev1.ConfigMap
+		if err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: ref.Name}, &cm); err != nil {
+			return nil, fmt.Errorf("cannot read CA configmap %q: %w", ref.Name, err)
+		}
+		key := ref.Key
+		if key == "" {
+			key = v1beta2.DefaultCAKey
+		}
+		if data, ok := cm.Data[key]; ok {
+			return []byte(data), nil
+		}
+		if data, ok := cm.BinaryData[key]; ok {
+			return data, nil
+		}
+		return nil, fmt.Errorf("CA configmap %q has no key %q", ref.Name, key)
+	}
+	return nil, nil
+}
+
 // ensureRunners makes sure every runner unit is authenticated and returns the
 // resolved authentication tokens keyed by entry name (used to render the config
 // Secret). It also returns a RequeueAfter so managed-runner token expiry is
@@ -167,7 +211,11 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		if accessToken == "" {
 			return nil, fmt.Errorf("managed runner %q requires an access_token (value or secret_key_ref)", reg.Name)
 		}
-		return api.NewGitlabClient(accessToken, reg.GitlabUrl)
+		caPEM, err := resolveCABundle(ctx, cl, obj.GetNamespace(), reg.CACertificate)
+		if err != nil {
+			return nil, err
+		}
+		return api.NewGitlabClient(accessToken, reg.GitlabUrl, caPEM)
 	}
 
 	switch {
@@ -312,11 +360,15 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 // token-based delete is rejected. When neither path succeeds the runner may be
 // left orphaned and an error is returned so the finalizer can retry.
 func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.GitlabClient, namespace string, reg v1beta2.GitlabRegInfo, token string, logger logr.Logger) error {
+	caPEM, err := resolveCABundle(ctx, cl, namespace, reg.CACertificate)
+	if err != nil {
+		return err
+	}
 	// Preferred path: delete by the runner's own token (no access-token scope).
 	if token != "" {
 		gc := injected
 		if gc == nil {
-			c, err := api.NewGitlabClient("", reg.GitlabUrl)
+			c, err := api.NewGitlabClient("", reg.GitlabUrl, caPEM)
 			if err != nil {
 				return err
 			}
@@ -341,7 +393,7 @@ func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.Git
 		if accessToken == "" {
 			return fmt.Errorf("runner %q: no usable runner token and no access_token for the delete-by-id fallback; it may be orphaned on gitlab", reg.Name)
 		}
-		c, err := api.NewGitlabClient(accessToken, reg.GitlabUrl)
+		c, err := api.NewGitlabClient(accessToken, reg.GitlabUrl, caPEM)
 		if err != nil {
 			return err
 		}

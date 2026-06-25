@@ -62,11 +62,17 @@ func (w *MultiRunnerWebhook) Default(_ context.Context, r *MultiRunner) error {
 
 // ValidateCreate validates every entry's auth and entry-name uniqueness.
 func (w *MultiRunnerWebhook) ValidateCreate(_ context.Context, r *MultiRunner) (admission.Warnings, error) {
+	if err := r.Spec.CACertificate.Validate(); err != nil {
+		return nil, err
+	}
 	return nil, validateEntries(r, w.AllowedBuildNamespaces)
 }
 
 // ValidateUpdate re-runs entry validation against the updated object.
 func (w *MultiRunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *MultiRunner) (admission.Warnings, error) {
+	if err := newObj.Spec.CACertificate.Validate(); err != nil {
+		return nil, err
+	}
 	return nil, validateEntries(newObj, w.AllowedBuildNamespaces)
 }
 

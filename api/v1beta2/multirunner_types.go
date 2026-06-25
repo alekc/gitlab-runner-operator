@@ -67,6 +67,12 @@ type MultiRunnerSpec struct {
 	// +optional
 	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
 
+	// CACertificate, when set, provides a PEM CA bundle used to verify the
+	// GitLab endpoint for both the operator's API calls and every runner
+	// entry's own connection. Reference it from a Secret or a ConfigMap key.
+	// +optional
+	CACertificate *CASource `json:"caCertificate,omitempty"`
+
 	Entries []MultiRunnerEntry `json:"entries"`
 }
 
@@ -171,6 +177,11 @@ func (r *MultiRunner) RunnerImage() string {
 	return DefaultRunnerImage
 }
 
+// CACertificate returns the custom CA source, or nil if none is configured.
+func (r *MultiRunner) CACertificate() *CASource {
+	return r.Spec.CACertificate
+}
+
 // SetObservedGeneration records the spec generation the controller acted on.
 func (r *MultiRunner) SetObservedGeneration(gen int64) {
 	r.Status.ObservedGeneration = gen
@@ -214,6 +225,7 @@ func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {
 			Name:             entry.Name,
 			Auth:             entry.Authentication,
 			GitlabUrl:        r.Spec.GitlabInstanceURL,
+			CACertificate:    r.Spec.CACertificate,
 			RunnerID:         r.Status.RunnerIDs[entry.Name],
 			RegistrationHash: r.Status.RegistrationHashes[entry.Name],
 		}

@@ -76,6 +76,12 @@ type RunnerSpec struct {
 	// context.
 	// +optional
 	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
+
+	// CACertificate, when set, provides a PEM CA bundle used to verify the
+	// GitLab endpoint for both the operator's API calls and the runner's own
+	// connection. Reference it from a Secret or a ConfigMap key.
+	// +optional
+	CACertificate *CASource `json:"caCertificate,omitempty"`
 }
 
 // DefaultRunnerImage is the gitlab-runner image used when the spec does not
@@ -133,10 +139,16 @@ func (r *Runner) RegistrationConfig() []GitlabRegInfo {
 		Name:             r.Name,
 		Auth:             r.Spec.Authentication,
 		GitlabUrl:        r.Spec.GitlabInstanceURL,
+		CACertificate:    r.Spec.CACertificate,
 		RunnerID:         r.Status.RunnerID,
 		TokenExpiresAt:   r.Status.TokenExpiresAt,
 		RegistrationHash: r.Status.RegistrationHash,
 	}}
+}
+
+// CACertificate returns the custom CA source, or nil if none is configured.
+func (r *Runner) CACertificate() *CASource {
+	return r.Spec.CACertificate
 }
 
 func (r *Runner) StoreRunnerRegistration(info GitlabRegInfo) {
