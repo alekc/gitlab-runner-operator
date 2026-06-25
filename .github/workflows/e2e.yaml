@@ -27,8 +27,11 @@ jobs:
     # COLLABORATOR) comments exactly "/launch e2e" on a pull request. This gates
     # the secret-using e2e to maintainers and is the approval step for fork PRs.
     permissions:
-      pull-requests: read
-      issues: write # to react to the launch comment
+      # The launch comment lives on a PR, so reacting to it (the rocket
+      # acknowledgement) needs pull-requests: write; issues: write is not
+      # sufficient for a PR comment. This also covers reading the PR head SHA.
+      pull-requests: write
+      issues: write
     if: >-
       github.event_name == 'workflow_dispatch' ||
       ( github.event.issue.pull_request != null &&
