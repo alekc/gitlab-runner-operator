@@ -79,7 +79,7 @@ type RunnerSpec struct {
 
 	// CACertificate, when set, provides a PEM CA bundle used to verify the
 	// GitLab endpoint for both the operator's API calls and the runner's own
-	// connection. Reference it from a Secret or a ConfigMap key.
+	// connection. Supply it inline (value) or from a Secret/ConfigMap key.
 	// +optional
 	CACertificate *CASource `json:"caCertificate,omitempty"`
 }

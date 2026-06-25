@@ -7,10 +7,16 @@ import "fmt"
 // Secrets and the cluster root-CA ConfigMap.
 const DefaultCAKey = "ca.crt"
 
-// CASource references a PEM-encoded CA bundle used to verify the GitLab
-// endpoint, both for the operator's own API calls and for the runner's
-// connection. Exactly one of SecretKeyRef or ConfigMapKeyRef may be set.
+// CASource provides a PEM-encoded CA bundle used to verify the GitLab endpoint,
+// both for the operator's own API calls and for the runner's connection. Set at
+// most one of Value, SecretKeyRef, or ConfigMapKeyRef.
 type CASource struct {
+	// Value is an inline PEM CA bundle, supplied directly in the manifest.
+	// Convenient for small bundles; prefer a Secret or ConfigMap ref when the
+	// bundle is large or rotated independently of the runner spec.
+	// +optional
+	Value string `json:"value,omitempty"`
+
 	// SecretKeyRef selects a key in a Secret holding the PEM CA bundle.
 	// +optional
 	SecretKeyRef *CAKeyRef `json:"secretKeyRef,omitempty"`
@@ -30,19 +36,30 @@ type CAKeyRef struct {
 	Key string `json:"key,omitempty"`
 }
 
-// IsSet reports whether the source selects a CA bundle.
+// IsSet reports whether the source provides a CA bundle.
 func (c *CASource) IsSet() bool {
-	return c != nil && (c.SecretKeyRef != nil || c.ConfigMapKeyRef != nil)
+	return c != nil && (c.Value != "" || c.SecretKeyRef != nil || c.ConfigMapKeyRef != nil)
 }
 
-// Validate enforces that at most one ref is set and that a set ref names a
-// source. A nil source is valid (no custom CA).
+// Validate enforces that at most one of value, secretKeyRef, or configMapKeyRef
+// is set and that a set ref names a source. A nil source is valid (no custom
+// CA).
 func (c *CASource) Validate() error {
 	if c == nil {
 		return nil
 	}
-	if c.SecretKeyRef != nil && c.ConfigMapKeyRef != nil {
-		return fmt.Errorf("caCertificate: set only one of secretKeyRef or configMapKeyRef")
+	set := 0
+	if c.Value != "" {
+		set++
+	}
+	if c.SecretKeyRef != nil {
+		set++
+	}
+	if c.ConfigMapKeyRef != nil {
+		set++
+	}
+	if set > 1 {
+		return fmt.Errorf("caCertificate: set only one of value, secretKeyRef, or configMapKeyRef")
 	}
 	if c.SecretKeyRef != nil && c.SecretKeyRef.Name == "" {
 		return fmt.Errorf("caCertificate.secretKeyRef.name is required")

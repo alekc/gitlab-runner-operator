@@ -100,6 +100,9 @@ func resolveCABundle(ctx context.Context, cl client.Client, namespace string, sr
 	if !src.IsSet() {
 		return nil, nil
 	}
+	if src.Value != "" {
+		return []byte(src.Value), nil
+	}
 	switch {
 	case src.SecretKeyRef != nil:
 		ref := src.SecretKeyRef

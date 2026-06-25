@@ -37,6 +37,17 @@ func TestSingleRunnerConfig_TLSCAFile(t *testing.T) {
 	if !strings.Contains(cfg, wantTLSCALine()) {
 		t.Fatalf("expected %q in config, got:\n%s", wantTLSCALine(), cfg)
 	}
+
+	// an inline value sets tls-ca-file the same way as a ref
+	inline := base.DeepCopy()
+	inline.Spec.CACertificate = &v1beta2.CASource{Value: "-----BEGIN CERTIFICATE-----\nx\n-----END CERTIFICATE-----\n"}
+	cfg, _, err = SingleRunnerConfig(inline, tokens)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(cfg, wantTLSCALine()) {
+		t.Fatalf("expected %q for an inline CA, got:\n%s", wantTLSCALine(), cfg)
+	}
 }
 
 func TestMultiRunnerConfig_TLSCAFile(t *testing.T) {

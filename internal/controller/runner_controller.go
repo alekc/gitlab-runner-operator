@@ -174,8 +174,16 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	// leaves the runner stuck below Ready.
 	runnerObj.SetConfigMapVersion(configHashKey)
 
-	// reconcile the config Secret (config.toml plus the per-entry tokens)
-	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens); res != nil || err != nil {
+	// resolve the custom CA bundle (inline value, Secret, or ConfigMap) so it is
+	// stored in the config Secret and trusted by the runner pod.
+	caPEM, err := resolveCABundle(ctx, r.Client, runnerObj.GetNamespace(), runnerObj.CACertificate())
+	if err != nil {
+		runnerObj.SetReadyCondition(false, "CAResolveFailed", err.Error())
+		return resultRequeueAfterDefaultTimeout, err
+	}
+
+	// reconcile the config Secret (config.toml, the per-entry tokens, and the CA)
+	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens, caPEM); res != nil || err != nil {
 		if err != nil {
 			runnerObj.SetReadyCondition(false, "ConfigSecretFailed", err.Error())
 		}

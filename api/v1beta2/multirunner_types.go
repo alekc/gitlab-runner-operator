@@ -69,7 +69,8 @@ type MultiRunnerSpec struct {
 
 	// CACertificate, when set, provides a PEM CA bundle used to verify the
 	// GitLab endpoint for both the operator's API calls and every runner
-	// entry's own connection. Reference it from a Secret or a ConfigMap key.
+	// entry's own connection. Supply it inline (value) or from a Secret or
+	// ConfigMap key.
 	// +optional
 	CACertificate *CASource `json:"caCertificate,omitempty"`
 

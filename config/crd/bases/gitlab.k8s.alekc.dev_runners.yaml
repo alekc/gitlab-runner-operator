@@ -161,7 +161,7 @@ spec:
                 description: |-
                   CACertificate, when set, provides a PEM CA bundle used to verify the
                   GitLab endpoint for both the operator's API calls and the runner's own
-                  connection. Reference it from a Secret or a ConfigMap key.
+                  connection. Supply it inline (value) or from a Secret/ConfigMap key.
                 properties:
                   configMapKeyRef:
                     description: ConfigMapKeyRef selects a key in a ConfigMap holding
@@ -191,6 +191,12 @@ spec:
                     required:
                     - name
                     type: object
+                  value:
+                    description: |-
+                      Value is an inline PEM CA bundle, supplied directly in the manifest.
+                      Convenient for small bundles; prefer a Secret or ConfigMap ref when the
+                      bundle is large or rotated independently of the runner spec.
+                    type: string
                 type: object
               check_interval:
                 minimum: 3

@@ -42,6 +42,7 @@ func TestResolveCABundle(t *testing.T) {
 	}{
 		{name: "nil source", src: nil, want: ""},
 		{name: "empty source", src: &v1beta2.CASource{}, want: ""},
+		{name: "inline value", src: &v1beta2.CASource{Value: "inline-ca-pem"}, want: "inline-ca-pem"},
 		{
 			name: "secret default key",
 			src:  &v1beta2.CASource{SecretKeyRef: &v1beta2.CAKeyRef{Name: "ca-secret"}},
@@ -117,8 +118,14 @@ func TestCASourceValidate(t *testing.T) {
 		{name: "secret no name", src: &v1beta2.CASource{SecretKeyRef: &v1beta2.CAKeyRef{}}, wantErr: true},
 		{name: "configmap no name", src: &v1beta2.CASource{ConfigMapKeyRef: &v1beta2.CAKeyRef{}}, wantErr: true},
 		{
-			name:    "both set",
+			name:    "both refs set",
 			src:     &v1beta2.CASource{SecretKeyRef: &v1beta2.CAKeyRef{Name: "s"}, ConfigMapKeyRef: &v1beta2.CAKeyRef{Name: "c"}},
+			wantErr: true,
+		},
+		{name: "inline value ok", src: &v1beta2.CASource{Value: "x"}},
+		{
+			name:    "value plus secret ref",
+			src:     &v1beta2.CASource{Value: "x", SecretKeyRef: &v1beta2.CAKeyRef{Name: "s"}},
 			wantErr: true,
 		},
 	}

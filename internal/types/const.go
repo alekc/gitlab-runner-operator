@@ -9,12 +9,13 @@ const ConfigMapKeyName = "config.toml"
 // live in the CR status.
 const ConfigTokenKeyPrefix = "authentication-token-"
 
-// CACertMountDir is where a custom CA bundle is mounted into the runner pod and
-// CACertFileName is the file it is projected to. CACertFile is the absolute
-// path written into config.toml as tls-ca-file. The directory sits outside the
-// config-Secret mount (/etc/gitlab-runner) to avoid nested mounts.
+// CACertFileName is the config-Secret data key (and projected filename) for a
+// custom CA bundle; CACertFile is its absolute path inside the runner container,
+// written into config.toml as tls-ca-file. The CA is stored in the config Secret
+// alongside config.toml, which is mounted at /etc/gitlab-runner, so no extra
+// volume is needed. Keep this prefix in sync with the config volume mount path
+// in validate.Deployment.
 const (
-	CACertMountDir = "/etc/gitlab-certs"
 	CACertFileName = "ca.crt"
-	CACertFile     = CACertMountDir + "/" + CACertFileName
+	CACertFile     = "/etc/gitlab-runner/" + CACertFileName
 )
