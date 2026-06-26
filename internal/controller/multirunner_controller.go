@@ -118,9 +118,21 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	runnerObj.SetStatusReady(false)
 	runnerObj.SetObservedGeneration(runnerObj.GetGeneration())
 
+	// resolve the custom CA bundle once (inline value, Secret, or ConfigMap) via
+	// the uncached APIReader since ConfigMaps are not watched. It is used for the
+	// API client, folded into the config hash, and stored in the config Secret so
+	// the runner pod trusts the endpoint too.
+	caPEM, err := resolveCABundle(ctx, r.APIReader, runnerObj.GetNamespace(), runnerObj.CACertificate())
+	if err != nil {
+		runnerObj.SetStatusError(err.Error())
+		runnerObj.SetReadyCondition(false, "CAResolveFailed", err.Error())
+		logger.Error(err, "cannot resolve the custom CA bundle")
+		return resultRequeueAfterDefaultTimeout, err
+	}
+
 	// resolve auth and ensure managed runners exist on GitLab. Managed runner
 	// ids are persisted to status immediately inside ensureRunners.
-	tokens, requeueAfter, err := ensureRunners(ctx, r.Client, r.Status(), r.GitlabApiClient, runnerObj, logger)
+	tokens, requeueAfter, err := ensureRunners(ctx, r.Client, r.Status(), r.GitlabApiClient, runnerObj, caPEM, logger)
 	if err != nil {
 		runnerObj.SetStatusError(err.Error())
 		runnerObj.SetReadyCondition(false, "AuthFailed", err.Error())
@@ -137,7 +149,7 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	// render config.toml from the resolved tokens
-	generatedTomlConfig, configHashKey, err := generate.TomlConfig(runnerObj, tokens)
+	generatedTomlConfig, configHashKey, err := generate.TomlConfig(runnerObj, tokens, caPEM)
 	if err != nil {
 		runnerObj.SetStatusError(err.Error())
 		runnerObj.SetReadyCondition(false, "ConfigRenderFailed", err.Error())
@@ -152,14 +164,6 @@ func (r *MultiRunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	// reads stale status, skips the deployment roll, reverts the version, and
 	// leaves the runner stuck below Ready.
 	runnerObj.SetConfigMapVersion(configHashKey)
-
-	// resolve the custom CA bundle (inline value, Secret, or ConfigMap) so it is
-	// stored in the config Secret and trusted by the runner pod.
-	caPEM, err := resolveCABundle(ctx, r.Client, runnerObj.GetNamespace(), runnerObj.CACertificate())
-	if err != nil {
-		runnerObj.SetReadyCondition(false, "CAResolveFailed", err.Error())
-		return resultRequeueAfterDefaultTimeout, err
-	}
 
 	// reconcile the config Secret (config.toml, the per-entry tokens, and the CA)
 	if res, err := validate.Secret(ctx, r.Client, runnerObj, logger, generatedTomlConfig, tokens, caPEM); res != nil || err != nil {

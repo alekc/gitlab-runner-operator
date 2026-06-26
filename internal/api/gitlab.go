@@ -159,12 +159,11 @@ func NewGitlabClient(token, url string, caPEM []byte) (GitlabClient, error) {
 		if !pool.AppendCertsFromPEM(caPEM) {
 			return nil, fmt.Errorf("custom CA bundle contains no valid PEM certificate")
 		}
-		httpClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12},
-			},
-		}
-		opts = append(opts, gitlab.WithHTTPClient(httpClient))
+		// Clone the default transport so proxy settings (HTTPS_PROXY), timeouts,
+		// and HTTP/2 are preserved; only the trust pool is overridden.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+		opts = append(opts, gitlab.WithHTTPClient(&http.Client{Transport: transport}))
 	}
 	obj := &gitlabApi{}
 	var err error

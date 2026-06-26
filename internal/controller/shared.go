@@ -93,10 +93,11 @@ func resolveTokenSource(ctx context.Context, cl client.Client, namespace string,
 	return string(value), nil
 }
 
-// resolveCABundle resolves a CASource to its PEM bytes, read from the named key
-// (defaulting to v1beta2.DefaultCAKey) of a Secret or ConfigMap in namespace. A
-// nil or empty source returns nil with no error.
-func resolveCABundle(ctx context.Context, cl client.Client, namespace string, src *v1beta2.CASource) ([]byte, error) {
+// resolveCABundle resolves a CASource to its PEM bytes: an inline value, or the
+// named key (defaulting to v1beta2.DefaultCAKey) of a Secret or ConfigMap in
+// namespace. It takes a client.Reader so callers can pass the uncached APIReader
+// (ConfigMaps are not watched). A nil or empty source returns nil with no error.
+func resolveCABundle(ctx context.Context, cl client.Reader, namespace string, src *v1beta2.CASource) ([]byte, error) {
 	if !src.IsSet() {
 		return nil, nil
 	}
@@ -145,7 +146,7 @@ func resolveCABundle(ctx context.Context, cl client.Client, namespace string, sr
 // Secret). It also returns a RequeueAfter so managed-runner token expiry is
 // re-checked even without a spec change. The token is never stored in status;
 // managed tokens are persisted in the config Secret and recovered from there.
-func ensureRunners(ctx context.Context, cl client.Client, statusW client.StatusWriter, injected api.GitlabClient, obj types.RunnerInfo, logger logr.Logger) (map[string]string, time.Duration, error) {
+func ensureRunners(ctx context.Context, cl client.Client, statusW client.StatusWriter, injected api.GitlabClient, obj types.RunnerInfo, caPEM []byte, logger logr.Logger) (map[string]string, time.Duration, error) {
 	namespace := obj.GetNamespace()
 	existing, err := crud.ExistingConfigTokens(ctx, cl, namespace, obj.ChildName())
 	if err != nil {
@@ -169,7 +170,7 @@ func ensureRunners(ctx context.Context, cl client.Client, statusW client.StatusW
 			continue
 		}
 
-		token, expiry, err := ensureManagedRunner(ctx, cl, statusW, injected, obj, &reg, existing[reg.Name], logger)
+		token, expiry, err := ensureManagedRunner(ctx, cl, statusW, injected, obj, &reg, existing[reg.Name], caPEM, logger)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -200,7 +201,7 @@ func resyncAfter(soonestExpiry *time.Time) time.Duration {
 
 // ensureManagedRunner reconciles a single managed runner against GitLab and
 // returns its current authentication token and expiry.
-func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.StatusWriter, injected api.GitlabClient, obj types.RunnerInfo, reg *v1beta2.GitlabRegInfo, recoveredToken string, logger logr.Logger) (string, *time.Time, error) {
+func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.StatusWriter, injected api.GitlabClient, obj types.RunnerInfo, reg *v1beta2.GitlabRegInfo, recoveredToken string, caPEM []byte, logger logr.Logger) (string, *time.Time, error) {
 	desiredHash := reg.Auth.CreateOptions.Hash()
 
 	gitlabClient := func() (api.GitlabClient, error) {
@@ -213,10 +214,6 @@ func ensureManagedRunner(ctx context.Context, cl client.Client, statusW client.S
 		}
 		if accessToken == "" {
 			return nil, fmt.Errorf("managed runner %q requires an access_token (value or secret_key_ref)", reg.Name)
-		}
-		caPEM, err := resolveCABundle(ctx, cl, obj.GetNamespace(), reg.CACertificate)
-		if err != nil {
-			return nil, err
 		}
 		return api.NewGitlabClient(accessToken, reg.GitlabUrl, caPEM)
 	}
@@ -341,12 +338,18 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 	if err != nil {
 		return fmt.Errorf("cannot read config secret to recover runner tokens: %w", err)
 	}
+	// Recover the CA from the persisted config Secret rather than re-resolving
+	// the user's CA Secret/ConfigMap, which may already be gone at finalization.
+	caPEM, err := crud.ExistingConfigCA(ctx, cl, obj.GetNamespace(), obj.ChildName())
+	if err != nil {
+		return fmt.Errorf("cannot read config secret to recover the CA bundle: %w", err)
+	}
 	var firstErr error
 	for _, reg := range obj.RegistrationConfig() {
 		if !reg.Auth.IsManaged() || reg.RunnerID == 0 {
 			continue
 		}
-		if err := deleteManagedRunner(ctx, cl, injected, obj.GetNamespace(), reg, tokens[reg.Name], logger); err != nil {
+		if err := deleteManagedRunner(ctx, cl, injected, obj.GetNamespace(), reg, tokens[reg.Name], caPEM, logger); err != nil {
 			logger.Error(err, "cannot delete runner from gitlab", "name", reg.Name, "id", reg.RunnerID)
 			if firstErr == nil {
 				firstErr = err
@@ -362,11 +365,7 @@ func removeManagedRunners(ctx context.Context, cl client.Client, injected api.Gi
 // /runners/:id, which needs the api scope) when the token is missing or the
 // token-based delete is rejected. When neither path succeeds the runner may be
 // left orphaned and an error is returned so the finalizer can retry.
-func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.GitlabClient, namespace string, reg v1beta2.GitlabRegInfo, token string, logger logr.Logger) error {
-	caPEM, err := resolveCABundle(ctx, cl, namespace, reg.CACertificate)
-	if err != nil {
-		return err
-	}
+func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.GitlabClient, namespace string, reg v1beta2.GitlabRegInfo, token string, caPEM []byte, logger logr.Logger) error {
 	// Preferred path: delete by the runner's own token (no access-token scope).
 	if token != "" {
 		gc := injected

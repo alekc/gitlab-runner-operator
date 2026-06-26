@@ -80,6 +80,22 @@ func ExistingConfigTokens(ctx context.Context, cl client.Client, namespace, chil
 	return out, nil
 }
 
+// ExistingConfigCA returns the custom CA bundle persisted in the runner's config
+// Secret (the CACertFileName key), or nil when the Secret or key is absent. The
+// delete path uses it so unregistration does not depend on the user's CA
+// Secret/ConfigMap, which may already be gone at finalization.
+func ExistingConfigCA(ctx context.Context, cl client.Client, namespace, childName string) ([]byte, error) {
+	var secret corev1.Secret
+	err := cl.Get(ctx, client.ObjectKey{Namespace: namespace, Name: childName}, &secret)
+	if errors.IsNotFound(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return secret.Data[internalTypes.CACertFileName], nil
+}
+
 // CreateRBACIfMissing reconciles the runner's RBAC. The permission set lives in
 // one shared ClusterRole; each runner gets its own ServiceAccount (distinct
 // identity, audit, and lifecycle) and a RoleBinding in every namespace its
