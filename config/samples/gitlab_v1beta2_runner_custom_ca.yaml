@@ -1,0 +1,34 @@
+# Runner against a GitLab instance with a private / self-signed CA.
+# The CA bundle is read from a ConfigMap key (or a Secret key) in the runner
+# namespace; the key defaults to ca.crt. The operator trusts the CA for its own
+# API calls and mounts it into the runner so its jobs trust the endpoint too.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gitlab-ca
+data:
+  ca.crt: |
+    -----BEGIN CERTIFICATE-----
+    REPLACE WITH YOUR PEM CA BUNDLE
+    -----END CERTIFICATE-----
+---
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: Runner
+metadata:
+  name: runner-private-ca
+spec:
+  gitlab_instance_url: https://gitlab.internal.example.com/
+  caCertificate:
+    configMapKeyRef:
+      name: gitlab-ca
+      # key: ca.crt   # optional, this is the default
+  authentication:
+    access_token:
+      secret_key_ref:
+        name: gitlab-access-token
+    create_options:
+      runner_type: project_type
+      project_id: 1234567
+      run_untagged: true
+      tag_list:
+        - test-gitlab-runner

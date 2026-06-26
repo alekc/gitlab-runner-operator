@@ -15,18 +15,18 @@ import (
 // the resolved authentication tokens keyed by runner/entry name (the token is
 // never read from status; the caller supplies it from the create/refresh result
 // or the existing config Secret).
-func TomlConfig(runner types.RunnerInfo, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
+func TomlConfig(runner types.RunnerInfo, tokens map[string]string, caPEM []byte) (gitlabConfig, configHashKey string, err error) {
 	// ugly as hell, but its the best I can do for now to avoid the import loop.
 	// Blame the kubebuilder which cannot generate deepCopy for external workspace
 	switch r := runner.(type) {
 	case *v1beta2.Runner:
-		return SingleRunnerConfig(r, tokens)
+		return SingleRunnerConfig(r, tokens, caPEM)
 	case *v1beta2.MultiRunner:
-		return MultiRunnerConfig(r, tokens)
+		return MultiRunnerConfig(r, tokens, caPEM)
 	}
 	panic("unknown runner type")
 }
-func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
+func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string, caPEM []byte) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:  r.Name,
@@ -44,6 +44,10 @@ func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConf
 	// resolve the executor namespace via the shared defaulting rule so it
 	// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
 	runnerConfig.RunnerSettings.Kubernetes.Namespace = r.Spec.ExecutorConfig.EffectiveNamespace(r.Namespace)
+	// point the runner at the mounted custom CA when one is configured
+	if r.Spec.CACertificate.IsSet() {
+		runnerConfig.RunnerCredentials.TLSCAFile = types.CACertFile
+	}
 	rootConfig := &config.Config{
 		ListenAddress: ":9090",
 		Concurrent:    int(math.Max(1, float64(r.Spec.Concurrent))),
@@ -65,12 +69,19 @@ func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string) (gitlabConf
 	}
 
 	gitlabConfig = buff.String()
-	configHashKey = crypto.StringToSHA1(gitlabConfig)
+	// Fold the CA bundle into the hash so a CA content change (rotation) bumps
+	// the config version and rolls the deployment, even though config.toml only
+	// references tls-ca-file by path. Empty caPEM keeps the no-CA hash unchanged.
+	hashInput := gitlabConfig
+	if len(caPEM) > 0 {
+		hashInput += "\n" + string(caPEM)
+	}
+	configHashKey = crypto.StringToSHA1(hashInput)
 	return buff.String(), configHashKey, nil
 }
 
 // MultiRunnerConfig initialize config for multiple runners object
-func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]string) (gitlabConfig, configHashKey string, err error) {
+func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]string, caPEM []byte) (gitlabConfig, configHashKey string, err error) {
 	// create configuration for the runners
 	var runners []*config.RunnerConfig
 	for _, entry := range runnerObject.Spec.Entries {
@@ -92,6 +103,10 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 		// resolve the executor namespace via the shared defaulting rule so it
 		// matches the namespace RBAC was provisioned for (crud.BuildNamespaces)
 		runnerConfig.RunnerSettings.Kubernetes.Namespace = executorConfig.EffectiveNamespace(runnerObject.Namespace)
+		// point each runner at the mounted custom CA when one is configured
+		if runnerObject.Spec.CACertificate.IsSet() {
+			runnerConfig.RunnerCredentials.TLSCAFile = types.CACertFile
+		}
 		runners = append(runners, &runnerConfig)
 	}
 
@@ -117,6 +132,13 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 	}
 
 	gitlabConfig = buff.String()
-	configHashKey = crypto.StringToSHA1(gitlabConfig)
+	// Fold the CA bundle into the hash so a CA content change (rotation) bumps
+	// the config version and rolls the deployment, even though config.toml only
+	// references tls-ca-file by path. Empty caPEM keeps the no-CA hash unchanged.
+	hashInput := gitlabConfig
+	if len(caPEM) > 0 {
+		hashInput += "\n" + string(caPEM)
+	}
+	configHashKey = crypto.StringToSHA1(hashInput)
 	return buff.String(), configHashKey, nil
 }

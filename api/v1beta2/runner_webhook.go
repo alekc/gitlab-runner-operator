@@ -67,12 +67,18 @@ func (w *RunnerWebhook) ValidateCreate(_ context.Context, r *Runner) (admission.
 	if err := r.Spec.Authentication.Validate(); err != nil {
 		return nil, err
 	}
+	if err := r.Spec.CACertificate.Validate(); err != nil {
+		return nil, err
+	}
 	return nil, validateKubernetesExecutor(&r.Spec.ExecutorConfig, r.Namespace, w.AllowedBuildNamespaces)
 }
 
 // ValidateUpdate re-runs auth and executor validation against the updated object.
 func (w *RunnerWebhook) ValidateUpdate(_ context.Context, _, newObj *Runner) (admission.Warnings, error) {
 	if err := newObj.Spec.Authentication.Validate(); err != nil {
+		return nil, err
+	}
+	if err := newObj.Spec.CACertificate.Validate(); err != nil {
 		return nil, err
 	}
 	return nil, validateKubernetesExecutor(&newObj.Spec.ExecutorConfig, newObj.Namespace, w.AllowedBuildNamespaces)

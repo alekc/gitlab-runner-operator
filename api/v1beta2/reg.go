@@ -17,6 +17,10 @@ type GitlabRegInfo struct {
 	// GitlabUrl is the GitLab instance this runner talks to.
 	GitlabUrl string
 
+	// CACertificate, when set, is the custom CA bundle source used to verify
+	// the GitLab endpoint for this unit's API and runner connection.
+	CACertificate *CASource
+
 	// RunnerID is GitLab's numeric id for a managed runner (0 if unmanaged or
 	// not yet created).
 	RunnerID int

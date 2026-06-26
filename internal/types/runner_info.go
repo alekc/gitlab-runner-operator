@@ -31,6 +31,8 @@ type RunnerInfo interface {
 	SetStatusReady(ready bool)
 	ConfigMapVersion() string
 	RunnerImage() string
+	// CACertificate returns the custom CA source, or nil when none is set.
+	CACertificate() *v1beta2.CASource
 	RunnerResources() corev1.ResourceRequirements
 	RunnerImagePullPolicy() corev1.PullPolicy
 	RunnerSecurityContext() *corev1.SecurityContext

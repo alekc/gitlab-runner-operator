@@ -70,6 +70,7 @@ Top-level `spec` fields (all optional unless noted):
 | `log_level` | One of `panic`, `fatal`, `error`, `warning`, `info`, `debug`. |
 | `log_format` | One of `runner`, `text`, `json`. |
 | `gitlab_instance_url` | GitLab URL. Defaults to `https://gitlab.com/`. |
+| `caCertificate` | Optional PEM CA bundle to verify a private or self-signed GitLab endpoint, used for both the operator's API calls and the runner's own connection. Supply it inline (`value`) or from a `secretKeyRef` / `configMapKeyRef` (see below). |
 | `executor_config` | Kubernetes executor options, see the [keywords reference](https://docs.gitlab.com/runner/executors/kubernetes.html#configuration-settings). |
 | `environment` | Custom environment variables injected into the build environment. |
 | `runner_image` | Override the gitlab-runner image. Defaults to a recent `gitlab/gitlab-runner:alpine-vX.Y.Z`. |
@@ -89,6 +90,18 @@ exclusive ways to supply the value:
 | --- | --- |
 | `value` | The literal token, inline. Convenient for testing. |
 | `secret_key_ref` | Read the token from a Secret in the runner namespace: `name` (required), `key` (optional, defaults to `token`), `optional` (when `true`, a missing secret or key resolves to an empty token instead of failing). |
+
+### `caCertificate` fields
+
+Set at most one of the following. A referenced object must live in the runner
+namespace and hold a PEM CA bundle. The operator copies the resolved bundle into
+the runner's config Secret and points `tls-ca-file` at it.
+
+| Key | Description |
+| --- | --- |
+| `value` | The PEM CA bundle inline, supplied directly in the manifest. |
+| `secretKeyRef` | Read the CA from a Secret: `name` (required), `key` (optional, defaults to `ca.crt`). |
+| `configMapKeyRef` | Read the CA from a ConfigMap: `name` (required), `key` (optional, defaults to `ca.crt`). |
 
 ## Examples
 
@@ -178,6 +191,44 @@ spec:
 
 See `config/samples/gitlab_v1beta2_multirunner.yaml` for a `MultiRunner`
 example that mixes both authentication modes across entries.
+
+### Custom CA for a self-signed GitLab
+
+Set `caCertificate` to a PEM bundle, inline or from a Secret / ConfigMap. The
+operator uses it for its own API calls (fixing `x509: certificate signed by
+unknown authority` during registration) and copies it into the runner's config
+Secret so the runner trusts the endpoint too.
+
+```yaml
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: Runner
+metadata:
+  name: runner-private-ca
+spec:
+  gitlab_instance_url: https://gitlab.internal.example.com/
+  caCertificate:
+    # one of secretKeyRef or configMapKeyRef; key defaults to ca.crt
+    configMapKeyRef:
+      name: gitlab-ca
+  authentication:
+    access_token:
+      secret_key_ref:
+        name: gitlab-access-token
+    create_options:
+      runner_type: project_type
+      project_id: 1234567
+```
+
+Or supply the bundle inline with `value`:
+
+```yaml
+spec:
+  caCertificate:
+    value: |
+      -----BEGIN CERTIFICATE-----
+      ...your CA here...
+      -----END CERTIFICATE-----
+```
 
 ## RBAC and namespaces
 

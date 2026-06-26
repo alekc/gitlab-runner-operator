@@ -134,12 +134,17 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 // runner, keeping each entry's authentication token under a dedicated
 // ConfigTokenKeyPrefix key so the controller can recover it on later
 // reconciles. The token never lands in a ConfigMap or in the CR status.
-func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, tokens map[string]string) (*ctrl.Result, error) {
+func Secret(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger, gitlabRunnerTomlConfig string, tokens map[string]string, caPEM []byte) (*ctrl.Result, error) {
 	desired := map[string][]byte{
 		types.ConfigMapKeyName: []byte(gitlabRunnerTomlConfig),
 	}
 	for name, token := range tokens {
 		desired[types.ConfigTokenKeyPrefix+name] = []byte(token)
+	}
+	// When a custom CA is configured, store it alongside config.toml so it is
+	// mounted into the runner at types.CACertFile (config.toml's tls-ca-file).
+	if len(caPEM) > 0 {
+		desired[types.CACertFileName] = caPEM
 	}
 
 	var secret corev1.Secret

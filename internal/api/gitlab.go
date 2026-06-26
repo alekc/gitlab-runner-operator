@@ -1,7 +1,11 @@
 package api
 
 import (
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
 	"io"
+	"net/http"
 
 	gitlab "gitlab.com/gitlab-org/api/client-go"
 	"gitlab.k8s.alekc.dev/api/v1beta2"
@@ -138,13 +142,31 @@ func closeBody(resp *gitlab.Response) {
 }
 
 // NewGitlabClient builds a GitLab API client authenticated with the given
-// access token. An empty url defaults to the public gitlab.com instance.
-func NewGitlabClient(token, url string) (GitlabClient, error) {
+// access token. An empty url defaults to the public gitlab.com instance. When
+// caPEM is non-empty its certificates are added to the system trust pool and
+// used to verify the GitLab endpoint, so a private or self-signed CA is
+// trusted; an empty caPEM keeps the default system trust.
+func NewGitlabClient(token, url string, caPEM []byte) (GitlabClient, error) {
 	if url == "" {
 		url = "https://gitlab.com/"
 	}
+	opts := []gitlab.ClientOptionFunc{gitlab.WithBaseURL(url)}
+	if len(caPEM) > 0 {
+		pool, err := x509.SystemCertPool()
+		if err != nil || pool == nil {
+			pool = x509.NewCertPool()
+		}
+		if !pool.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("custom CA bundle contains no valid PEM certificate")
+		}
+		// Clone the default transport so proxy settings (HTTPS_PROXY), timeouts,
+		// and HTTP/2 are preserved; only the trust pool is overridden.
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		transport.TLSClientConfig = &tls.Config{RootCAs: pool, MinVersion: tls.VersionTLS12}
+		opts = append(opts, gitlab.WithHTTPClient(&http.Client{Transport: transport}))
+	}
 	obj := &gitlabApi{}
 	var err error
-	obj.gitlabApiClient, err = gitlab.NewClient(token, gitlab.WithBaseURL(url))
+	obj.gitlabApiClient, err = gitlab.NewClient(token, opts...)
 	return obj, err
 }
