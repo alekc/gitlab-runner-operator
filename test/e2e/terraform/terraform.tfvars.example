@@ -1,0 +1,16 @@
+# Copy to terraform.tfvars (gitignored) and adjust, or export TF_VAR_* instead.
+# The bootstrap token is best supplied via the environment, not this file:
+#   export TF_VAR_gitlab_token="glpat-xxxxxxxxxxxxxxxxxxxx"
+
+# Self-managed GitLab instead of gitlab.com:
+# gitlab_url = "https://gitlab.example.com"
+
+# Nest the project under a group you created in the UI (gitlab.com blocks
+# creating top-level groups via the API). Pass the group's numeric id:
+# namespace_id = 12345678
+
+# Pin the CI job image instead of tracking alpine:latest:
+# ci_job_image = "alpine:3.21"
+
+# Pin the e2e token expiry (YYYY-MM-DD). Omit to default to ~11 months out:
+# token_expires_at = "2026-12-31"
