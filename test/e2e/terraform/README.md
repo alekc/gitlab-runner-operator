@@ -9,7 +9,7 @@ Run everything with `tofu`, not `terraform`.
 
 ## What it creates
 
-```
+```text
 project (private)                       var.project_name
   ├── .gitlab-ci.yml                    build-job, tagged var.job_tag
   └── project access token              scopes: api, create_runner (Maintainer)

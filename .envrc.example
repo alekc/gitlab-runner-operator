@@ -4,7 +4,7 @@
 #
 # The OpenTofu stack in test/e2e/terraform provisions the project, CI file, and a
 # token with the right scopes, and can emit this file directly:
-#   cd test/e2e/terraform && tofu output -raw e2e_env > ../.envrc
+#   cd test/e2e/terraform && tofu output -raw e2e_env > "$(git rev-parse --show-toplevel)/.envrc"
 
 # GitLab instance the test runner registers against.
 export GITLAB_E2E_URL="https://gitlab.com/"
