@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -164,6 +165,9 @@ var _ = Describe("Bring-your-own-token runner from a Secret", func() {
 		var cfg corev1.Secret
 		Expect(k8sClient.Get(ctx, key(got.ChildName()), &cfg)).To(Succeed())
 		Expect(cfg.Data).To(HaveKey("config.toml"))
+
+		By("triggering a pipeline and asserting build-job runs on the BYO runner")
+		waitJobRanOnRunner(triggerPipeline(), runnerID)
 	})
 })
 
@@ -200,6 +204,8 @@ var _ = Describe("MultiRunner", func() {
 			g.Expect(got.Status.RunnerIDs["one"]).NotTo(BeZero())
 			g.Expect(got.Status.RunnerIDs["two"]).NotTo(BeZero())
 		}, timeout, interval).Should(Succeed())
+		Expect(got.Status.RunnerIDs["one"]).NotTo(Equal(got.Status.RunnerIDs["two"]),
+			"each managed entry must get its own GitLab runner id")
 
 		waitDeploymentUp(got.ChildName())
 
@@ -207,11 +213,27 @@ var _ = Describe("MultiRunner", func() {
 		var sa corev1.ServiceAccount
 		Expect(k8sClient.Get(ctx, key(got.ChildName()), &sa)).To(Succeed())
 
+		By("running the shared Deployment under that ServiceAccount")
+		var dep appsv1.Deployment
+		Expect(k8sClient.Get(ctx, key(got.ChildName()), &dep)).To(Succeed())
+		Expect(dep.Spec.Template.Spec.ServiceAccountName).To(Equal(got.ChildName()))
+
 		By("removing both runners from GitLab on delete")
+		idOne, idTwo := got.Status.RunnerIDs["one"], got.Status.RunnerIDs["two"]
 		Expect(k8sClient.Delete(ctx, &got)).To(Succeed())
 		Eventually(func() bool {
 			return apierrors.IsNotFound(k8sClient.Get(ctx, key(name), &gitlabv1beta2.MultiRunner{}))
 		}, timeout, interval).Should(BeTrue())
+
+		By("confirming both runners are gone from GitLab (404)")
+		for _, id := range []int{idOne, idTwo} {
+			Eventually(func(g Gomega) {
+				_, resp, err := glab.Runners.GetRunnerDetails(id)
+				g.Expect(err).To(HaveOccurred())
+				g.Expect(resp).NotTo(BeNil())
+				g.Expect(resp.StatusCode).To(Equal(http.StatusNotFound))
+			}, timeout, interval).Should(Succeed())
+		}
 	})
 })
 

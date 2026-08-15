@@ -9,15 +9,18 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// expectRejected asserts the admission webhook rejects the create, and best
-// effort deletes the object if it somehow slipped through.
-func expectRejected(obj client.Object, because string) {
+// expectRejected asserts an admission-webhook denial whose message contains
+// wantMsg, so each case maps to its own reason and a stray CRD, RBAC, or
+// apiserver error cannot pass. Cleanup is registered first: if the webhook
+// wrongly admits, the assertion aborts the spec, so this is the only delete.
+func expectRejected(obj client.Object, wantMsg string) {
 	GinkgoHelper()
+	DeferCleanup(func() { _ = k8sClient.Delete(context.Background(), obj) })
 	err := k8sClient.Create(context.Background(), obj)
-	Expect(err).To(HaveOccurred(), because)
-	if err == nil {
-		_ = k8sClient.Delete(context.Background(), obj)
-	}
+	Expect(err).To(HaveOccurred(), "expected the webhook to reject: %s", wantMsg)
+	Expect(err.Error()).To(ContainSubstring("denied the request"),
+		"want an admission-webhook denial, got: %v", err)
+	Expect(err.Error()).To(ContainSubstring(wantMsg))
 }
 
 func byoAuth() gitlabv1beta2.GitlabAuth {
@@ -43,14 +46,14 @@ var _ = Describe("Admission webhook validation", func() {
 					CreateOptions: managedCreateOptions([]string{jobTag}),
 				},
 			},
-		}, "both bring-your-own and managed auth must be rejected")
+		}, "set either a pre-created authentication token or create_options, not both")
 	})
 
 	It("rejects a Runner with neither auth mode set", func() {
 		expectRejected(&gitlabv1beta2.Runner{
 			ObjectMeta: objMeta("e2e-reject-no-auth"),
 			Spec:       gitlabv1beta2.RunnerSpec{GitlabInstanceURL: gitlabURL},
-		}, "a Runner with no authentication must be rejected")
+		}, "one of token or create_options must be set")
 	})
 
 	It("rejects namespace_per_job (dynamic build namespace)", func() {
@@ -61,7 +64,7 @@ var _ = Describe("Admission webhook validation", func() {
 				Authentication:    byoAuth(),
 				ExecutorConfig:    gitlabv1beta2.KubernetesConfig{NamespacePerJob: true},
 			},
-		}, "namespace_per_job must be rejected")
+		}, "namespace_per_job is not supported")
 	})
 
 	It("rejects namespace_overwrite_allowed (non-static build namespace)", func() {
@@ -72,7 +75,7 @@ var _ = Describe("Admission webhook validation", func() {
 				Authentication:    byoAuth(),
 				ExecutorConfig:    gitlabv1beta2.KubernetesConfig{NamespaceOverwriteAllowed: ".*"},
 			},
-		}, "namespace_overwrite_allowed must be rejected")
+		}, "namespace_overwrite_allowed is not supported")
 	})
 
 	It("rejects a build namespace outside the runner's own (no allow-list)", func() {
@@ -83,7 +86,7 @@ var _ = Describe("Admission webhook validation", func() {
 				Authentication:    byoAuth(),
 				ExecutorConfig:    gitlabv1beta2.KubernetesConfig{Namespace: "kube-system"},
 			},
-		}, "a cross-namespace executor namespace must be rejected by default")
+		}, "is not permitted")
 	})
 
 	It("rejects a MultiRunner with duplicate entry names", func() {
@@ -96,14 +99,20 @@ var _ = Describe("Admission webhook validation", func() {
 					{Name: "dup", Authentication: managedAuth()},
 				},
 			},
-		}, "duplicate MultiRunner entry names must be rejected")
+		}, "duplicate entry name")
 	})
 
 	It("rejects a MultiRunner with no entries", func() {
+		// Send an explicit empty slice (entries: []): it satisfies the CRD's
+		// required-array schema so the webhook is what rejects it. A nil slice
+		// serializes to null and would fail as a 422 schema error instead.
 		expectRejected(&gitlabv1beta2.MultiRunner{
 			ObjectMeta: objMeta("e2e-reject-no-entries"),
-			Spec:       gitlabv1beta2.MultiRunnerSpec{GitlabInstanceURL: gitlabURL},
-		}, "a MultiRunner with no entries must be rejected")
+			Spec: gitlabv1beta2.MultiRunnerSpec{
+				GitlabInstanceURL: gitlabURL,
+				Entries:           []gitlabv1beta2.MultiRunnerEntry{},
+			},
+		}, "a multirunner requires at least one entry")
 	})
 
 	It("accepts a valid bring-your-own Runner (positive control)", func() {
@@ -115,6 +124,8 @@ var _ = Describe("Admission webhook validation", func() {
 			},
 		}
 		Expect(k8sClient.Create(context.Background(), obj)).To(Succeed(), "a valid Runner must be accepted")
-		_ = k8sClient.Delete(context.Background(), obj)
+		DeferCleanup(func() {
+			Expect(k8sClient.Delete(context.Background(), obj)).To(Succeed())
+		})
 	})
 })
