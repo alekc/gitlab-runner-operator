@@ -1,0 +1,82 @@
+name: pr-image
+
+# Build a per-PR image tagged pr-<number> on every push and overwrite that tag,
+# so it always tracks the PR's latest commit and can be pulled to test the
+# change. Delete the tag when the PR closes so stale images do not accumulate.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+concurrency:
+  group: pr-image-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# No workflow-wide token; each job requests only the scope it needs.
+permissions: {}
+
+env:
+  IMAGE: ghcr.io/${{ github.repository_owner }}/gitlab-runner-operator
+
+jobs:
+  build:
+    # Build and push only for same-repo PRs. A fork PR gets a read-only
+    # GITHUB_TOKEN with no packages: write and no secrets, so an automatic push
+    # cannot work there without pull_request_target (unsafe with PR code).
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push pr-${{ github.event.pull_request.number }}
+        # Dockerfile.e2e builds from source and cross-compiles via GOARCH, so the
+        # multiarch manifest is produced without QEMU (see its --platform builder).
+        run: |
+          docker buildx build \
+            -f Dockerfile.e2e \
+            --platform linux/amd64,linux/arm64 \
+            --push \
+            -t "${IMAGE}:pr-${{ github.event.pull_request.number }}" \
+            .
+
+  cleanup:
+    # On close (merge or discard) delete the pr-<number> tag. Best effort:
+    # deleting a user-owned GHCR version can need a delete:packages PAT
+    # (GHCR_CLEANUP_TOKEN); it falls back to GITHUB_TOKEN, which may be denied.
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Delete pr-${{ github.event.pull_request.number }} image
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GHCR_CLEANUP_TOKEN || secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+          TAG: pr-${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          pkg=gitlab-runner-operator
+          vid="$(gh api --paginate \
+            "/users/${OWNER}/packages/container/${pkg}/versions" \
+            --jq ".[] | select(.metadata.container.tags[]? == \"${TAG}\") | .id" \
+            | head -n1)"
+          if [ -z "${vid}" ]; then
+            echo "no image tagged ${TAG}; nothing to delete"
+            exit 0
+          fi
+          echo "deleting ${pkg} version ${vid} (tag ${TAG})"
+          gh api --method DELETE \
+            "/users/${OWNER}/packages/container/${pkg}/versions/${vid}"
