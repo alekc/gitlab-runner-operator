@@ -2,7 +2,9 @@
 # The release image (Dockerfile) is assembled by goreleaser from a prebuilt
 # dist tarball and cannot be produced by a plain `docker build`. This one can.
 # The binary lands at /manager to match config/manager (command: [/manager]).
-FROM golang:1.26 AS builder
+# Pin the builder to the native build platform and cross-compile via GOARCH so a
+# multiarch `buildx --platform` build stays QEMU-free (Go cross-compiles fast).
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
