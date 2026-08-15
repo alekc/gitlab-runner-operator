@@ -36,6 +36,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/generate"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -142,6 +143,39 @@ var _ = Describe("Runner controller", func() {
 		Entry("Should have generated deployment", caseCheckDeployment),
 		Entry("On spec change, config map should be updated", caseSpecChanged),
 	)
+
+	It("revokes stale executor RBAC when the namespace becomes disallowed", func() {
+		ctx := context.Background()
+
+		By("creating a valid runner and waiting for its RoleBinding")
+		runner := defaultRunner(RunnerName, RunnerNamespace)
+		Expect(k8sClient.Create(ctx, runner)).To(Succeed())
+		rbKey := nameSpacedDependencyName(runner)
+		Eventually(func() bool {
+			var rb v1.RoleBinding
+			return k8sClient.Get(ctx, rbKey, &rb) == nil
+		}, timeout, interval).Should(BeTrue())
+
+		By("editing the executor namespace to a disallowed one")
+		Eventually(func() error {
+			var cur v1beta2.Runner
+			if err := k8sClient.Get(ctx, nameSpacedRunnerName(runner), &cur); err != nil {
+				return err
+			}
+			cur.Spec.ExecutorConfig.Namespace = "kube-system"
+			return k8sClient.Update(ctx, &cur)
+		}, timeout, interval).Should(Succeed())
+
+		By("the runner going NotReady and the stale RoleBinding being pruned")
+		Eventually(func(g Gomega) {
+			var cur v1beta2.Runner
+			g.Expect(k8sClient.Get(ctx, nameSpacedRunnerName(runner), &cur)).To(Succeed())
+			g.Expect(cur.Status.Ready).To(BeFalse())
+			g.Expect(cur.Status.Error).To(ContainSubstring("is not permitted"))
+			var rb v1.RoleBinding
+			g.Expect(apierrors.IsNotFound(k8sClient.Get(ctx, rbKey, &rb))).To(BeTrue())
+		}, timeout, interval).Should(Succeed())
+	})
 })
 
 func caseRBACCheck(tc *testCase) {

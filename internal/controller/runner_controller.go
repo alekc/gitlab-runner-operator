@@ -144,9 +144,12 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	runnerObj.SetObservedGeneration(runnerObj.GetGeneration())
 
 	// Enforce the executor build-namespace allow-list before provisioning. CEL
-	// validates the static executor fields; this is the dynamic, flag-driven part
-	// that keeps a runner from binding RBAC into an unpermitted namespace.
-	if !enforceAllowedBuildNamespaces(runnerObj, r.AllowedBuildNamespaces) {
+	// validates the static executor fields; this dynamic, flag-driven check also
+	// prunes a stale RoleBinding when a namespace becomes disallowed.
+	if ok, err := enforceAllowedBuildNamespaces(ctx, r.Client, r.APIReader, runnerObj, r.AllowedBuildNamespaces, logger); err != nil {
+		logger.Error(err, "cannot prune executor RBAC for a disallowed namespace")
+		return resultRequeueAfterDefaultTimeout, err
+	} else if !ok {
 		return *result.DontRequeue(), nil
 	}
 

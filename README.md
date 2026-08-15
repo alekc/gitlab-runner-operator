@@ -255,7 +255,8 @@ bind their ServiceAccount (and run their jobs) in, say, `kube-system`, a
 privilege-escalation path. To permit specific build namespaces, start the
 operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any). The
 reconciler refuses any other `executor_config.namespace`: the runner goes
-NotReady with an error and no RBAC is provisioned. When an allowed build
+NotReady with an error, no RBAC is provisioned, and any binding previously
+created for a now-disallowed namespace is revoked. When an allowed build
 namespace differs from the runner's, the operator creates the RoleBinding there
 too (the ServiceAccount stays in the runner namespace) and removes it when the
 runner is deleted.

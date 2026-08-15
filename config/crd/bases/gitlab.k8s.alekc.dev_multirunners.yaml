@@ -162,7 +162,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                           - message: set either value or secret_key_ref, not both
-                            rule: has(self.value) != has(self.secret_key_ref)
+                            rule: (has(self.value) && size(self.value) != 0) != has(self.secret_key_ref)
                         create_options:
                           description: |-
                             CreateOptions describes the runner to create. When set, the operator runs
@@ -247,7 +247,7 @@ spec:
                           type: object
                           x-kubernetes-validations:
                           - message: set either value or secret_key_ref, not both
-                            rule: has(self.value) != has(self.secret_key_ref)
+                            rule: (has(self.value) && size(self.value) != 0) != has(self.secret_key_ref)
                       type: object
                       x-kubernetes-validations:
                       - message: one of token or create_options must be set

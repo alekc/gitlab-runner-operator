@@ -4,6 +4,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
 
 func valMeta(name string) metav1.ObjectMeta {
@@ -65,6 +66,19 @@ var _ = Describe("CRD validation", func() {
 			ExecutorConfig: KubernetesConfig{NamespaceOverwriteAllowed: ".*"},
 		}, "namespace_overwrite_allowed is not supported"),
 	)
+
+	It("rejects an explicitly empty inline token value (raw object)", func() {
+		// A typed client drops value:"" via omitempty; only a raw object can carry
+		// an explicit empty value, which the CEL size() guard must still reject.
+		u := &unstructured.Unstructured{}
+		u.SetGroupVersionKind(GroupVersion.WithKind("Runner"))
+		u.SetNamespace("default")
+		u.SetName("val-emptyvalue")
+		Expect(unstructured.SetNestedField(u.Object, "", "spec", "authentication", "token", "value")).To(Succeed())
+		err := k8sClient.Create(ctx, u)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("set either value or secret_key_ref"))
+	})
 
 	It("rejects a MultiRunner with no entries", func() {
 		err := k8sClient.Create(ctx, &MultiRunner{

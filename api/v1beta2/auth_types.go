@@ -45,7 +45,7 @@ type SecretKeySelector struct {
 // inline literal value, or a reference to a key inside a Kubernetes Secret in
 // the runner's namespace. Exactly one of Value / SecretKeyRef may be set.
 //
-// +kubebuilder:validation:XValidation:rule="has(self.value) != has(self.secret_key_ref)",message="set either value or secret_key_ref, not both"
+// +kubebuilder:validation:XValidation:rule="(has(self.value) && size(self.value) != 0) != has(self.secret_key_ref)",message="set either value or secret_key_ref, not both"
 type TokenSource struct {
 	// Value is the literal token. Convenient for testing; prefer SecretKeyRef
 	// in production so the token is not stored in the object spec.
