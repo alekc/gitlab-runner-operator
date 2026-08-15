@@ -2,6 +2,10 @@ package v1beta2
 
 import api "k8s.io/api/core/v1"
 
+// KubernetesConfig is the kubernetes executor configuration for a runner unit.
+//
+// +kubebuilder:validation:XValidation:rule="!has(self.namespace_per_job) || self.namespace_per_job == false",message="namespace_per_job is not supported: the operator provisions static namespaced RBAC"
+// +kubebuilder:validation:XValidation:rule="!has(self.namespace_overwrite_allowed) || size(self.namespace_overwrite_allowed) == 0",message="namespace_overwrite_allowed is not supported: the build namespace must be static"
 type KubernetesConfig struct {
 	Host                                              string                              `toml:"host" json:"host,omitempty" long:"host" env:"KUBERNETES_HOST" description:"Optional Kubernetes master host URL (auto-discovery attempted if not specified)"`
 	CertFile                                          string                              `toml:"cert_file,omitempty" json:"cert_file,omitempty" long:"cert-file" env:"KUBERNETES_CERT_FILE" description:"Optional Kubernetes master auth certificate"`

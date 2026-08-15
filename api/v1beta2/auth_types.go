@@ -20,7 +20,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 )
 
 // SecretKeySelector points at a single key inside a Secret in the runner's
@@ -29,6 +28,7 @@ import (
 // force every reference to spell it out.
 type SecretKeySelector struct {
 	// Name of the Secret in the runner's namespace.
+	// +kubebuilder:validation:MinLength=1
 	Name string `json:"name"`
 
 	// Key holding the token. Defaults to "token" when omitted.
@@ -44,6 +44,8 @@ type SecretKeySelector struct {
 // TokenSource supplies a credential in one of two mutually exclusive ways: an
 // inline literal value, or a reference to a key inside a Kubernetes Secret in
 // the runner's namespace. Exactly one of Value / SecretKeyRef may be set.
+//
+// +kubebuilder:validation:XValidation:rule="(has(self.value) && size(self.value) != 0) != has(self.secret_key_ref)",message="set either value or secret_key_ref, not both"
 type TokenSource struct {
 	// Value is the literal token. Convenient for testing; prefer SecretKeyRef
 	// in production so the token is not stored in the object spec.
@@ -64,21 +66,6 @@ func (t *TokenSource) IsSet() bool {
 	return t != nil && (t.Value != "" || t.SecretKeyRef != nil)
 }
 
-// validate rejects an ambiguous or malformed source. A nil or empty source is
-// valid here; whether a source is *required* is decided by GitlabAuth.Validate.
-func (t *TokenSource) validate() error {
-	if t == nil {
-		return nil
-	}
-	if t.Value != "" && t.SecretKeyRef != nil {
-		return fmt.Errorf("set either value or secret_key_ref, not both")
-	}
-	if t.SecretKeyRef != nil && t.SecretKeyRef.Name == "" {
-		return fmt.Errorf("secret_key_ref requires name")
-	}
-	return nil
-}
-
 // GitlabAuth configures how a runner authenticates to GitLab. GitLab removed
 // the legacy registration-token workflow (deprecated in 16.0, disabled by
 // default from 18.0); runners now authenticate with a runner authentication
@@ -97,6 +84,11 @@ func (t *TokenSource) validate() error {
 // Each credential is a TokenSource, so it may be supplied inline (value) or
 // from a Secret key (secret_key_ref, with a configurable key defaulting to
 // "token").
+//
+// +kubebuilder:validation:XValidation:rule="has(self.token) || has(self.create_options)",message="one of token or create_options must be set"
+// +kubebuilder:validation:XValidation:rule="!(has(self.token) && has(self.create_options))",message="set either a pre-created authentication token or create_options, not both"
+// +kubebuilder:validation:XValidation:rule="!has(self.create_options) || has(self.access_token)",message="create_options requires access_token"
+// +kubebuilder:validation:XValidation:rule="!has(self.access_token) || has(self.create_options)",message="access_token is only used with create_options (managed mode)"
 type GitlabAuth struct {
 	// Token is the pre-created runner authentication token ("glrt-...") used in
 	// bring-your-own mode. Mutually exclusive with the managed CreateOptions.
@@ -120,48 +112,11 @@ func (a *GitlabAuth) IsManaged() bool {
 	return a != nil && a.CreateOptions != nil
 }
 
-// Validate checks that exactly one auth mode is configured and that managed
-// mode has the inputs it needs. It is called from the admission webhook.
-func (a GitlabAuth) Validate() error {
-	hasByo := a.Token.IsSet()
-	hasManaged := a.CreateOptions != nil
-	switch {
-	case hasByo && hasManaged:
-		return fmt.Errorf("set either a pre-created authentication token or create_options, not both")
-	case !hasByo && !hasManaged:
-		return fmt.Errorf("one of token or create_options must be set")
-	case hasManaged && !a.AccessToken.IsSet():
-		return fmt.Errorf("create_options requires access_token")
-	}
-	// access_token is only consumed in managed mode; reject it when there is no
-	// create_options so a user who forgot create_options is not silently served
-	// as bring-your-own (where the access_token would be ignored).
-	if a.AccessToken.IsSet() && !hasManaged {
-		return fmt.Errorf("access_token is only used with create_options (managed mode); add create_options or remove access_token")
-	}
-	if err := a.Token.validate(); err != nil {
-		return fmt.Errorf("token: %w", err)
-	}
-	if err := a.AccessToken.validate(); err != nil {
-		return fmt.Errorf("access_token: %w", err)
-	}
-	if a.CreateOptions != nil {
-		switch a.CreateOptions.RunnerType {
-		case "group_type":
-			if a.CreateOptions.GroupID == nil {
-				return fmt.Errorf("group_type runner requires group_id")
-			}
-		case "project_type":
-			if a.CreateOptions.ProjectID == nil {
-				return fmt.Errorf("project_type runner requires project_id")
-			}
-		}
-	}
-	return nil
-}
-
 // RunnerCreateOptions mirrors the POST /user/runners request body. It is only
 // used in managed mode.
+//
+// +kubebuilder:validation:XValidation:rule="self.runner_type != 'group_type' || has(self.group_id)",message="group_type runner requires group_id"
+// +kubebuilder:validation:XValidation:rule="self.runner_type != 'project_type' || has(self.project_id)",message="project_type runner requires project_id"
 type RunnerCreateOptions struct {
 	// RunnerType selects the scope of the runner to create.
 	// +kubebuilder:validation:Enum=instance_type;group_type;project_type

@@ -6,20 +6,19 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	gitlabv1beta2 "gitlab.k8s.alekc.dev/api/v1beta2"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-// expectRejected asserts an admission-webhook denial whose message contains
-// wantMsg, so each case maps to its own reason and a stray CRD, RBAC, or
-// apiserver error cannot pass. Cleanup is registered first: if the webhook
-// wrongly admits, the assertion aborts the spec, so this is the only delete.
+// expectRejected asserts the apiserver rejects the create as Invalid (a CRD
+// schema or CEL rule) with a message containing wantMsg. Cleanup is registered
+// first so a wrongly-admitted object cannot leak when the assertion aborts.
 func expectRejected(obj client.Object, wantMsg string) {
 	GinkgoHelper()
 	DeferCleanup(func() { _ = k8sClient.Delete(context.Background(), obj) })
 	err := k8sClient.Create(context.Background(), obj)
-	Expect(err).To(HaveOccurred(), "expected the webhook to reject: %s", wantMsg)
-	Expect(err.Error()).To(ContainSubstring("denied the request"),
-		"want an admission-webhook denial, got: %v", err)
+	Expect(err).To(HaveOccurred(), "expected the apiserver to reject: %s", wantMsg)
+	Expect(apierrors.IsInvalid(err)).To(BeTrue(), "want an Invalid (schema/CEL) rejection, got: %v", err)
 	Expect(err.Error()).To(ContainSubstring(wantMsg))
 }
 
@@ -27,14 +26,10 @@ func byoAuth() gitlabv1beta2.GitlabAuth {
 	return gitlabv1beta2.GitlabAuth{Token: &gitlabv1beta2.TokenSource{Value: "glrt-placeholder"}}
 }
 
-func managedAuth() gitlabv1beta2.GitlabAuth {
-	return gitlabv1beta2.GitlabAuth{
-		AccessToken:   &gitlabv1beta2.TokenSource{Value: "glpat-placeholder"},
-		CreateOptions: managedCreateOptions([]string{jobTag}),
-	}
-}
-
-var _ = Describe("Admission webhook validation", func() {
+// The admission webhook was removed: static rules are CRD schema + CEL, enforced
+// by the apiserver, and the executor-namespace allow-list is enforced by the
+// reconciler (a bad namespace goes NotReady instead of being rejected).
+var _ = Describe("CRD validation", func() {
 	It("rejects a Runner with both auth modes set", func() {
 		expectRejected(&gitlabv1beta2.Runner{
 			ObjectMeta: objMeta("e2e-reject-both-auth"),
@@ -78,17 +73,6 @@ var _ = Describe("Admission webhook validation", func() {
 		}, "namespace_overwrite_allowed is not supported")
 	})
 
-	It("rejects a build namespace outside the runner's own (no allow-list)", func() {
-		expectRejected(&gitlabv1beta2.Runner{
-			ObjectMeta: objMeta("e2e-reject-crossns"),
-			Spec: gitlabv1beta2.RunnerSpec{
-				GitlabInstanceURL: gitlabURL,
-				Authentication:    byoAuth(),
-				ExecutorConfig:    gitlabv1beta2.KubernetesConfig{Namespace: "kube-system"},
-			},
-		}, "is not permitted")
-	})
-
 	It("rejects a MultiRunner with duplicate entry names", func() {
 		expectRejected(&gitlabv1beta2.MultiRunner{
 			ObjectMeta: objMeta("e2e-reject-dup-entries"),
@@ -96,23 +80,20 @@ var _ = Describe("Admission webhook validation", func() {
 				GitlabInstanceURL: gitlabURL,
 				Entries: []gitlabv1beta2.MultiRunnerEntry{
 					{Name: "dup", Authentication: byoAuth()},
-					{Name: "dup", Authentication: managedAuth()},
+					{Name: "dup", Authentication: byoAuth()},
 				},
 			},
-		}, "duplicate entry name")
+		}, "Duplicate value")
 	})
 
 	It("rejects a MultiRunner with no entries", func() {
-		// Send an explicit empty slice (entries: []): it satisfies the CRD's
-		// required-array schema so the webhook is what rejects it. A nil slice
-		// serializes to null and would fail as a 422 schema error instead.
 		expectRejected(&gitlabv1beta2.MultiRunner{
 			ObjectMeta: objMeta("e2e-reject-no-entries"),
 			Spec: gitlabv1beta2.MultiRunnerSpec{
 				GitlabInstanceURL: gitlabURL,
 				Entries:           []gitlabv1beta2.MultiRunnerEntry{},
 			},
-		}, "a multirunner requires at least one entry")
+		}, "should have at least 1 items")
 	})
 
 	It("accepts a valid bring-your-own Runner (positive control)", func() {
@@ -127,5 +108,33 @@ var _ = Describe("Admission webhook validation", func() {
 		DeferCleanup(func() {
 			Expect(k8sClient.Delete(context.Background(), obj)).To(Succeed())
 		})
+	})
+})
+
+var _ = Describe("Reconciler executor-namespace enforcement", func() {
+	It("marks a runner NotReady when its executor namespace is not permitted", func() {
+		ctx := context.Background()
+		name := uniqueName("e2e-badns")
+		runner := &gitlabv1beta2.Runner{
+			ObjectMeta: objMeta(name),
+			Spec: gitlabv1beta2.RunnerSpec{
+				GitlabInstanceURL: gitlabURL,
+				Authentication:    byoAuth(),
+				// kube-system is neither the runner's own namespace nor in the
+				// operator's allow-list, so the reconciler must refuse it.
+				ExecutorConfig: gitlabv1beta2.KubernetesConfig{Namespace: "kube-system"},
+			},
+		}
+		By("admission accepting it (the check moved from the webhook to the reconciler)")
+		Expect(k8sClient.Create(ctx, runner)).To(Succeed())
+		DeferCleanup(func() { deleteRunnerCR(name) })
+
+		By("the reconciler reporting NotReady with a namespace error")
+		Eventually(func(g Gomega) {
+			var got gitlabv1beta2.Runner
+			g.Expect(k8sClient.Get(ctx, key(name), &got)).To(Succeed())
+			g.Expect(got.Status.Ready).To(BeFalse())
+			g.Expect(got.Status.Error).To(ContainSubstring("is not permitted"))
+		}, timeout, interval).Should(Succeed())
 	})
 })

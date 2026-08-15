@@ -11,3 +11,19 @@ func (k *KubernetesConfig) EffectiveNamespace(fallback string) string {
 	}
 	return fallback
 }
+
+// BuildNamespaceAllowed reports whether the executor may run job pods in ns. An
+// empty value or the runner's own namespace is always allowed; otherwise ns must
+// be in allowed or allowed must contain "*". Cross-namespace RBAC is a
+// privilege-escalation vector unless an operator admin opts in via the flag.
+func BuildNamespaceAllowed(ns, ownNamespace string, allowed []string) bool {
+	if ns == "" || ns == ownNamespace {
+		return true
+	}
+	for _, a := range allowed {
+		if a == "*" || a == ns {
+			return true
+		}
+	}
+	return false
+}

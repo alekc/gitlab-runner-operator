@@ -141,6 +141,36 @@ func resolveCABundle(ctx context.Context, cl client.Reader, namespace string, sr
 	return nil, nil
 }
 
+// enforceAllowedBuildNamespaces checks every executor build namespace against the
+// operator allow-list (which CEL cannot see). On a violation it marks the runner
+// NotReady and prunes any executor RoleBinding left for a now-disallowed
+// namespace, returning ok=false so the caller stops before provisioning.
+func enforceAllowedBuildNamespaces(ctx context.Context, cl client.Client, reader client.Reader, obj types.RunnerInfo, allowed []string, logger logr.Logger) (ok bool, err error) {
+	var bad string
+	keep := make([]string, 0)
+	for _, ns := range crud.BuildNamespaces(obj) {
+		if v1beta2.BuildNamespaceAllowed(ns, obj.GetNamespace(), allowed) {
+			keep = append(keep, ns)
+			continue
+		}
+		bad = ns
+	}
+	if bad == "" {
+		return true, nil
+	}
+	msg := fmt.Sprintf(
+		"executor_config.namespace %q is not permitted: it must be the runner's own namespace (%q) or one of --allowed-build-namespaces",
+		bad, obj.GetNamespace())
+	obj.SetStatusError(msg)
+	obj.SetReadyCondition(false, "ExecutorNamespaceNotAllowed", msg)
+	// Revoke a previously-created binding for the now-disallowed namespace so a
+	// tightened policy or edited namespace takes effect immediately.
+	if err := crud.DeleteRBACExcept(ctx, cl, reader, obj, keep, logger); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 // ensureRunners makes sure every runner unit is authenticated and returns the
 // resolved authentication tokens keyed by entry name (used to render the config
 // Secret). It also returns a RequeueAfter so managed-runner token expiry is

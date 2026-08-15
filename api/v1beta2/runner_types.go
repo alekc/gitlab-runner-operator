@@ -36,6 +36,7 @@ type RunnerSpec struct {
 	Authentication GitlabAuth `json:"authentication"`
 
 	// +kubebuilder:validation:Optional
+	// +kubebuilder:default="https://gitlab.com/"
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
 
 	// +kubebuilder:validation:Enum=panic;fatal;error;warning;info;debug

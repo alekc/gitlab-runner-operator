@@ -188,8 +188,8 @@ func BuildNamespaces(obj internalTypes.RunnerInfo) []string {
 // needs, applied to the shared executor ClusterRole. Source of truth: the
 // kubernetes executor RBAC reference in the GitLab Runner docs. Optional,
 // feature-flag-gated resources (namespaces, poddisruptionbudgets, autoscaler)
-// are intentionally omitted: namespace_per_job is rejected by the webhook, and
-// the rest are not modelled.
+// are intentionally omitted: namespace_per_job is rejected by CEL, and the rest
+// are not modelled.
 func desiredRoleRules() []v1.PolicyRule {
 	return []v1.PolicyRule{
 		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list", "watch", "create", "delete"}},

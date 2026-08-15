@@ -55,7 +55,7 @@ default from 18.0 onward, so this operator uses runner authentication tokens
    access token also holds the `api` scope; otherwise the runner is logged as
    possibly orphaned.
 
-Exactly one of the two modes must be configured; the admission webhook rejects
+Exactly one of the two modes must be configured; the CRD schema (CEL) rejects
 objects that set both or neither.
 
 ## Configuration
@@ -253,26 +253,26 @@ own namespace. By default a runner may only target its **own** namespace: a
 Runner author choosing an arbitrary namespace would otherwise have the operator
 bind their ServiceAccount (and run their jobs) in, say, `kube-system`, a
 privilege-escalation path. To permit specific build namespaces, start the
-operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any);
-the webhook rejects any other `executor_config.namespace`. When an allowed build
+operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any). The
+reconciler refuses any other `executor_config.namespace`: the runner goes
+NotReady with an error, no RBAC is provisioned, and any binding previously
+created for a now-disallowed namespace is revoked. When an allowed build
 namespace differs from the runner's, the operator creates the RoleBinding there
 too (the ServiceAccount stays in the runner namespace) and removes it when the
 runner is deleted.
 
 Because the operator pre-provisions RBAC for a known namespace,
-`namespace_per_job` and `namespace_overwrite_allowed` are also rejected at
-admission: both make the build namespace dynamic, which would require
-cluster-scoped RBAC.
+`namespace_per_job` and `namespace_overwrite_allowed` are rejected at admission
+by the CRD schema (CEL): both make the build namespace dynamic, which would
+require cluster-scoped RBAC.
 
-> **Security note: the namespace restriction is enforced only by the validating
-> webhook.** Running the operator with `--disable-webhooks` removes this control,
-> and the reconciler will then honour whatever `executor_config.namespace` a
-> Runner specifies, binding that runner's ServiceAccount into (and running its
-> jobs in) any namespace. The operator holds the executor permission set
-> cluster-wide, so on a shared cluster this is a privilege-escalation path: any
-> user who can create a Runner could reach `kube-system` or another tenant's
-> namespace. Do **not** disable webhooks on a multi-tenant cluster. If you must,
-> restrict who can create Runner/MultiRunner objects by RBAC instead.
+> **Security note.** The namespace allow-list is enforced by the reconciler, the
+> component that actually provisions the RBAC, so it cannot be turned off by a
+> flag. The operator holds the executor permission set cluster-wide, so on a
+> shared cluster an unrestricted namespace would be a privilege-escalation path:
+> a Runner author could reach `kube-system` or another tenant's namespace. Keep
+> `--allowed-build-namespaces` tight, and additionally restrict who can create
+> Runner/MultiRunner objects by RBAC.
 
 ## License
 

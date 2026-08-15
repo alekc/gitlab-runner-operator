@@ -45,6 +45,7 @@ type MultiRunnerSpec struct {
 	// SentryDsn Enables tracking of all system level errors to Sentry.
 	SentryDsn string `json:"sentry_dsn,omitempty"`
 
+	// +kubebuilder:default="https://gitlab.com/"
 	GitlabInstanceURL string `json:"gitlab_instance_url,omitempty"`
 
 	// RunnerImage overrides the gitlab-runner container image. Defaults to
@@ -74,10 +75,15 @@ type MultiRunnerSpec struct {
 	// +optional
 	CACertificate *CASource `json:"caCertificate,omitempty"`
 
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=100
+	// +listType=map
+	// +listMapKey=name
 	Entries []MultiRunnerEntry `json:"entries"`
 }
 
 type MultiRunnerEntry struct {
+	// +kubebuilder:validation:MinLength=1
 	Name           string           `json:"name"`
 	Authentication GitlabAuth       `json:"authentication"`
 	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
