@@ -43,8 +43,8 @@ jobs:
         with:
           go-version: 1.26.x
       - name: govulncheck
-        # Required gate. Binary mode (see the Makefile target) since source mode
-        # panics on go 1.26. The go.mod toolchain directive pins the minimum
-        # build toolchain, so stdlib CVEs fixed in that patch are resolved even
-        # if setup-go's 1.26.x lags. A failure means a reachable CVE to address.
-        run: make govulncheck
+        # Required gate. Binary mode (see the Makefile) since source mode panics
+        # on go 1.26. setup-go sets GOTOOLCHAIN=local, which ignores the go.mod
+        # toolchain directive; GOTOOLCHAIN=auto restores it so the build uses the
+        # pinned patch. A failure means a reachable CVE to address.
+        run: GOTOOLCHAIN=auto make govulncheck
