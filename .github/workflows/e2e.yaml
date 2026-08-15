@@ -129,20 +129,13 @@ jobs:
           node_image: kindest/node:v${{ matrix.k8s_version }}
           wait: 2m
 
-      - name: Install cert-manager
-        run: |
-          kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.16.2/cert-manager.yaml
-          kubectl -n cert-manager rollout status deploy/cert-manager --timeout=300s
-          kubectl -n cert-manager rollout status deploy/cert-manager-webhook --timeout=300s
-          kubectl -n cert-manager rollout status deploy/cert-manager-cainjector --timeout=300s
-
       - name: Build operator image
         run: docker build -f Dockerfile.e2e -t gitlab-runner-operator:e2e .
 
       - name: Load image into kind
         run: kind load docker-image gitlab-runner-operator:e2e --name kind
 
-      - name: Deploy operator (CRDs, RBAC, webhook, cert-manager cert)
+      - name: Deploy operator (CRDs, RBAC)
         run: |
           make deploy IMG=gitlab-runner-operator:e2e
           kubectl -n gitlab-runner-operator-system rollout status \

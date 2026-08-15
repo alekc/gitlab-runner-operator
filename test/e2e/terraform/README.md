@@ -92,7 +92,7 @@ direnv allow "$(git rev-parse --show-toplevel)"   # if you use direnv
 ```
 
 Then follow the local-run steps in the operator repo (kind cluster,
-cert-manager, `make deploy`, `make test-e2e`).
+`make deploy`, `make test-e2e`).
 
 ### GitHub Actions (`.github/workflows/e2e.yaml`)
 

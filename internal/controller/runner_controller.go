@@ -57,6 +57,10 @@ type RunnerReconciler struct {
 	Log             logr.Logger
 	Scheme          *runtime.Scheme
 	GitlabApiClient api.GitlabClient
+	// AllowedBuildNamespaces lists namespaces (besides a runner's own) the
+	// operator may provision executor RBAC in. Empty means own-namespace only;
+	// "*" allows any. Enforced in Reconcile, not at admission.
+	AllowedBuildNamespaces []string
 }
 
 var resultRequeueAfterDefaultTimeout = ctrl.Result{Requeue: true, RequeueAfter: defaultTimeout}
@@ -138,6 +142,13 @@ func (r *RunnerReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	runnerObj.SetStatusError("")
 	runnerObj.SetStatusReady(false)
 	runnerObj.SetObservedGeneration(runnerObj.GetGeneration())
+
+	// Enforce the executor build-namespace allow-list before provisioning. CEL
+	// validates the static executor fields; this is the dynamic, flag-driven part
+	// that keeps a runner from binding RBAC into an unpermitted namespace.
+	if !enforceAllowedBuildNamespaces(runnerObj, r.AllowedBuildNamespaces) {
+		return *result.DontRequeue(), nil
+	}
 
 	// resolve the custom CA bundle once (inline value, Secret, or ConfigMap) via
 	// the uncached APIReader since ConfigMaps are not watched. It is used for the

@@ -68,6 +68,7 @@ spec:
                             type: string
                           name:
                             description: Name of the Secret in the runner's namespace.
+                            minLength: 1
                             type: string
                           optional:
                             description: |-
@@ -83,6 +84,9 @@ spec:
                           in production so the token is not stored in the object spec.
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: set either value or secret_key_ref, not both
+                      rule: has(self.value) != has(self.secret_key_ref)
                   create_options:
                     description: |-
                       CreateOptions describes the runner to create. When set, the operator runs
@@ -123,6 +127,11 @@ spec:
                     required:
                     - runner_type
                     type: object
+                    x-kubernetes-validations:
+                    - message: group_type runner requires group_id
+                      rule: self.runner_type != 'group_type' || has(self.group_id)
+                    - message: project_type runner requires project_id
+                      rule: self.runner_type != 'project_type' || has(self.project_id)
                   token:
                     description: |-
                       Token is the pre-created runner authentication token ("glrt-...") used in
@@ -141,6 +150,7 @@ spec:
                             type: string
                           name:
                             description: Name of the Secret in the runner's namespace.
+                            minLength: 1
                             type: string
                           optional:
                             description: |-
@@ -156,7 +166,21 @@ spec:
                           in production so the token is not stored in the object spec.
                         type: string
                     type: object
+                    x-kubernetes-validations:
+                    - message: set either value or secret_key_ref, not both
+                      rule: has(self.value) != has(self.secret_key_ref)
                 type: object
+                x-kubernetes-validations:
+                - message: one of token or create_options must be set
+                  rule: has(self.token) || has(self.create_options)
+                - message: set either a pre-created authentication token or create_options,
+                    not both
+                  rule: '!(has(self.token) && has(self.create_options))'
+                - message: create_options requires access_token
+                  rule: '!has(self.create_options) || has(self.access_token)'
+                - message: access_token is only used with create_options (managed
+                    mode)
+                  rule: '!has(self.access_token) || has(self.create_options)'
               caCertificate:
                 description: |-
                   CACertificate, when set, provides a PEM CA bundle used to verify the
@@ -173,6 +197,7 @@ spec:
                         type: string
                       name:
                         description: Name of the Secret or ConfigMap.
+                        minLength: 1
                         type: string
                     required:
                     - name
@@ -187,6 +212,7 @@ spec:
                         type: string
                       name:
                         description: Name of the Secret or ConfigMap.
+                        minLength: 1
                         type: string
                     required:
                     - name
@@ -198,6 +224,11 @@ spec:
                       bundle is large or rotated independently of the runner spec.
                     type: string
                 type: object
+                x-kubernetes-validations:
+                - message: 'caCertificate: set only one of value, secretKeyRef, or
+                    configMapKeyRef'
+                  rule: '[has(self.value), has(self.secretKeyRef), has(self.configMapKeyRef)].filter(x,
+                    x).size() <= 1'
               check_interval:
                 minimum: 3
                 type: integer
@@ -1195,7 +1226,17 @@ spec:
                         type: array
                     type: object
                 type: object
+                x-kubernetes-validations:
+                - message: 'namespace_per_job is not supported: the operator provisions
+                    static namespaced RBAC'
+                  rule: '!has(self.namespace_per_job) || self.namespace_per_job ==
+                    false'
+                - message: 'namespace_overwrite_allowed is not supported: the build
+                    namespace must be static'
+                  rule: '!has(self.namespace_overwrite_allowed) || size(self.namespace_overwrite_allowed)
+                    == 0'
               gitlab_instance_url:
+                default: https://gitlab.com/
                 type: string
               log_format:
                 enum:

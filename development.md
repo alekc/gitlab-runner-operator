@@ -11,14 +11,6 @@ You can use --image flag to specify the cluster version you want, e.g. --image=k
 if you need to remove any leftovers, just run 
 ` kubectl get ns -o name | grep ctrl-test  | xargs kubectl delete`
 
-### Install cert manager
-In order to test our webhook implementation, sadly we need to have a support of cert-manager
-
-```
-kubectl config set-context kind-gitlab-runner-cluster
-kubectl apply -f https://github.com/jetstack/cert-manager/releases/latest/download/cert-manager.yaml
-```
-
 ### Crd
 Install crd to the cluster
 `make install`

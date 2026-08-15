@@ -141,6 +141,25 @@ func resolveCABundle(ctx context.Context, cl client.Reader, namespace string, sr
 	return nil, nil
 }
 
+// enforceAllowedBuildNamespaces checks every executor build namespace against the
+// operator allow-list, which CEL cannot see. On a disallowed namespace it records
+// the error, marks the runner NotReady, and returns false so the caller stops
+// before provisioning RBAC. Returns true when all namespaces are permitted.
+func enforceAllowedBuildNamespaces(obj types.RunnerInfo, allowed []string) bool {
+	for _, cfg := range obj.ExecutorConfigs() {
+		if v1beta2.BuildNamespaceAllowed(cfg.Namespace, obj.GetNamespace(), allowed) {
+			continue
+		}
+		msg := fmt.Sprintf(
+			"executor_config.namespace %q is not permitted: it must be the runner's own namespace (%q) or one of --allowed-build-namespaces",
+			cfg.Namespace, obj.GetNamespace())
+		obj.SetStatusError(msg)
+		obj.SetReadyCondition(false, "ExecutorNamespaceNotAllowed", msg)
+		return false
+	}
+	return true
+}
+
 // ensureRunners makes sure every runner unit is authenticated and returns the
 // resolved authentication tokens keyed by entry name (used to render the config
 // Secret). It also returns a RequeueAfter so managed-runner token expiry is
