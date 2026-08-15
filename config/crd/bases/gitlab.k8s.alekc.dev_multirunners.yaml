@@ -265,6 +265,8 @@ spec:
                         type: string
                       type: array
                     executor_config:
+                      description: KubernetesConfig is the kubernetes executor configuration
+                        for a runner unit.
                       properties:
                         affinity:
                           properties:

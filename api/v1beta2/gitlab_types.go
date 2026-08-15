@@ -2,6 +2,8 @@ package v1beta2
 
 import api "k8s.io/api/core/v1"
 
+// KubernetesConfig is the kubernetes executor configuration for a runner unit.
+//
 // +kubebuilder:validation:XValidation:rule="!has(self.namespace_per_job) || self.namespace_per_job == false",message="namespace_per_job is not supported: the operator provisions static namespaced RBAC"
 // +kubebuilder:validation:XValidation:rule="!has(self.namespace_overwrite_allowed) || size(self.namespace_overwrite_allowed) == 0",message="namespace_overwrite_allowed is not supported: the build namespace must be static"
 type KubernetesConfig struct {
