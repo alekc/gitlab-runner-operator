@@ -104,6 +104,11 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
+      # Serialize the matrix: every job registers runners with the same tag
+      # against the one shared GitLab project, so running them concurrently lets
+      # a build-job land on a sibling's runner and die (runner_system_failure)
+      # when that sibling tears down its kind cluster first.
+      max-parallel: 1
       matrix:
         k8s_version: ${{ fromJson(needs.k8s_versions.outputs.k8s_versions) }}
     steps:
