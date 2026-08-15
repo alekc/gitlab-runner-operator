@@ -43,9 +43,8 @@ jobs:
         with:
           go-version: 1.26.x
       - name: govulncheck
-        # Required gate. Runs govulncheck in binary mode (see the Makefile
-        # target) because source mode panics on go 1.26. setup-go installs the
-        # latest 1.26 patch, so standard-library CVEs fixed in a released patch
-        # are already resolved; a failure here means a reachable CVE in our code
-        # or dependencies that we must address.
+        # Required gate. Binary mode (see the Makefile target) since source mode
+        # panics on go 1.26. The go.mod toolchain directive pins the minimum
+        # build toolchain, so stdlib CVEs fixed in that patch are resolved even
+        # if setup-go's 1.26.x lags. A failure means a reachable CVE to address.
         run: make govulncheck
