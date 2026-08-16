@@ -1,21 +1,36 @@
 name: e2e
 
-# The e2e suite stands up a kind cluster and talks to a real GitLab, so it does
-# not run on every push. A maintainer launches it by commenting "/launch e2e" on
-# a pull request, or via manual workflow_dispatch.
+# The e2e suite stands up kind clusters and talks to a real GitLab, so it runs
+# where it earns its cost: every merge to main (release.yml requires a green run
+# for the tagged commit) and every same-repo PR that touches Go code. Fork PRs
+# have no secrets, so a maintainer still launches those with "/launch e2e".
 on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Docs and workflow-only changes cannot break the suite; skip them rather
+    # than spending a serialized 15 minute slot.
+    paths:
+      - '**.go'
+      - 'go.mod'
+      - 'go.sum'
   issue_comment:
     types: [created]
+  # Target a commit with --ref (a branch or tag), not a free-form input. A run
+  # records the head SHA of the ref it was dispatched on, and release.yml treats
+  # that SHA as proof the commit was tested, so an input that could point
+  # somewhere else would let a run vouch for a tree it never checked out.
   workflow_dispatch:
-    inputs:
-      ref:
-        description: "Git ref (branch, tag, or SHA) to test"
-        required: false
-        default: ""
 
+# One global queue, because every run registers runners under the same tag
+# against the one shared GitLab project; concurrent runs steal each other's
+# build jobs (the same reason the matrix below is max-parallel: 1). Never
+# cancel: a superseded run would leave its commit with no e2e evidence, and
+# release.yml refuses to publish a tag whose commit has none.
 concurrency:
-  group: e2e-${{ github.event.issue.number || github.ref }}
-  cancel-in-progress: true
+  group: e2e-shared-gitlab-project
+  cancel-in-progress: false
 
 # No workflow-wide token. The e2e job runs checked-out PR code with GitLab
 # secrets, so write scope is granted only to the authorize job below.
@@ -23,9 +38,16 @@ permissions: {}
 
 jobs:
   authorize:
-    # Run only on manual dispatch, or when a repo collaborator (OWNER / MEMBER /
-    # COLLABORATOR) comments exactly "/launch e2e" on a pull request. This gates
-    # the secret-using e2e to maintainers and is the approval step for fork PRs.
+    # Trusted entry points run unattended: manual dispatch, a merge to main, and
+    # a non-draft PR from this repo (whose branch only collaborators can push,
+    # the same set the /launch gate accepts). A fork PR gets no secrets from the
+    # pull_request event, so it still needs a collaborator to comment
+    # "/launch e2e", which is the approval step for untrusted code.
+    #
+    # Dependabot is excluded even though its branches are same-repo: GitHub
+    # withholds secrets from dependabot-triggered runs, so the suite could only
+    # fail on GitLab auth while holding the single global slot. Review a bump
+    # with "/launch e2e" instead.
     permissions:
       # The launch comment lives on a PR, so reacting to it (the rocket
       # acknowledgement) needs pull-requests: write; issues: write is not
@@ -34,6 +56,11 @@ jobs:
       issues: write
     if: >-
       github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'push' ||
+      ( github.event_name == 'pull_request' &&
+        github.event.pull_request.draft == false &&
+        github.event.pull_request.user.login != 'dependabot[bot]' &&
+        github.event.pull_request.head.repo.full_name == github.repository ) ||
       ( github.event.issue.pull_request != null &&
         github.event.comment.body == '/launch e2e' &&
         contains(fromJson('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) )
@@ -46,8 +73,15 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            if (context.eventName === 'workflow_dispatch') {
-              core.setOutput('ref', context.payload.inputs.ref || context.ref);
+            // Always test the exact commit the run is recorded against, so the
+            // head SHA release.yml looks up is proof of what was checked out.
+            if (context.eventName === 'workflow_dispatch' ||
+                context.eventName === 'push') {
+              core.setOutput('ref', context.sha);
+              return;
+            }
+            if (context.eventName === 'pull_request') {
+              core.setOutput('ref', context.payload.pull_request.head.sha);
               return;
             }
             // Acknowledge the command, then test the PR's head commit.
