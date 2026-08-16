@@ -1,8 +1,9 @@
 name: pr-image
 
-# Build a per-PR image tagged pr-<number> on every push and overwrite that tag,
-# so it always tracks the PR's latest commit and can be pulled to test the
-# change. Delete the tag when the PR closes so stale images do not accumulate.
+# Build a per-PR image tagged pr-<number> on every push that changes Go sources
+# and overwrite that tag, so it always tracks the PR's latest commit and can be
+# pulled to test the change. Delete the tag when the PR closes so stale images
+# do not accumulate.
 on:
   pull_request:
     types: [opened, synchronize, reopened, closed]
@@ -18,12 +19,42 @@ env:
   IMAGE: ghcr.io/${{ github.repository_owner }}/gitlab-runner-operator
 
 jobs:
+  # Deliberately not an on.pull_request.paths filter. That would also gate the
+  # close event, so a PR that touched Go early and then dropped those edits
+  # would never reach cleanup, orphaning the tag its earlier pushes pushed.
+  changes:
+    if: github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+          # Here-string, not a pipe: grep -q exits on first match and would
+          # SIGPIPE the producer, which pipefail then reports as failure.
+          if grep -qE '\.go$|^go\.(mod|sum)$' <<< "${files}"; then
+            echo "go=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "go=false" >> "${GITHUB_OUTPUT}"
+            echo "no Go changes in PR #${PR}; skipping the image build"
+          fi
+
   build:
     # Build and push only for same-repo PRs. A fork PR gets a read-only
     # GITHUB_TOKEN with no packages: write and no secrets, so an automatic push
     # cannot work there without pull_request_target (unsafe with PR code).
+    needs: changes
     if: >-
       github.event.action != 'closed' &&
+      needs.changes.outputs.go == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
