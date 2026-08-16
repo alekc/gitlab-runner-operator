@@ -8,7 +8,43 @@ on:
       - '*'
 
 jobs:
+  # A tag must name a commit e2e has already passed on. Merges to main run e2e,
+  # so this normally resolves in seconds against an existing run; it only fails
+  # when a tag is pushed to something never tested, which is how v2.0.0-rc.1 was
+  # cut 27 minutes after a refactor that replaced the admission webhook.
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - name: Require a green e2e run for this commit
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { data } = await github.rest.actions.listWorkflowRuns({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              // Renaming e2e.yaml silently breaks this lookup and blocks every
+              // release until the name is updated here too.
+              workflow_id: 'e2e.yaml',
+              head_sha: context.sha,
+              // Filters on conclusion, so a run whose jobs were skipped (the
+              // authorize gate said no) does not count as evidence.
+              status: 'success',
+            });
+            if (data.total_count === 0) {
+              const tag = context.ref.replace('refs/tags/', '');
+              core.setFailed(
+                `No successful e2e run for ${context.sha}. Nothing was published. ` +
+                `Run "gh workflow run e2e.yaml --ref ${tag}", wait for it to pass, ` +
+                `then re-run this workflow. The tag can stay as it is.`
+              );
+              return;
+            }
+            core.info(`e2e verified by run ${data.workflow_runs[0].html_url}`);
+
   goreleaser:
+    needs: verify
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
