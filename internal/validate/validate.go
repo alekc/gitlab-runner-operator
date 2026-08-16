@@ -5,6 +5,7 @@ import (
 	"reflect"
 
 	"github.com/go-logr/logr"
+	"gitlab.k8s.alekc.dev/internal/generate"
 	"gitlab.k8s.alekc.dev/internal/result"
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"
@@ -19,12 +20,18 @@ import (
 
 func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger) (*ctrl.Result, error) {
 	labels := map[string]string{"deployment": runnerObj.GetName()}
+	// gitlab-runner reads system_id only from a file next to config.toml, so it
+	// is carried as a pod annotation and projected into the config volume.
+	// Read-only is enough: the runner skips its save path, and the warning it
+	// logs on failure, whenever the file already parses.
+	systemID := generate.SystemID(runnerObj.GetUID())
 	wantedDeployment := appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      runnerObj.ChildName(),
 			Namespace: runnerObj.GetNamespace(),
 			Annotations: map[string]string{
 				types.ConfigVersionAnnotationKey: runnerObj.ConfigMapVersion(),
+				types.SystemIDAnnotationKey:      systemID,
 			},
 			OwnerReferences: runnerObj.GenerateOwnerReference(),
 		},
@@ -38,14 +45,29 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					Labels: labels,
 					Annotations: map[string]string{
 						types.ConfigVersionAnnotationKey: runnerObj.ConfigMapVersion(),
+						types.SystemIDAnnotationKey:      systemID,
 					},
 				},
 				Spec: corev1.PodSpec{
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: runnerObj.ChildName(),
+							Projected: &corev1.ProjectedVolumeSource{
+								Sources: []corev1.VolumeProjection{
+									{Secret: &corev1.SecretProjection{
+										LocalObjectReference: corev1.LocalObjectReference{
+											Name: runnerObj.ChildName(),
+										},
+									}},
+									{DownwardAPI: &corev1.DownwardAPIProjection{
+										Items: []corev1.DownwardAPIVolumeFile{{
+											Path: types.SystemIDFileName,
+											FieldRef: &corev1.ObjectFieldSelector{
+												FieldPath: "metadata.annotations['" + types.SystemIDAnnotationKey + "']",
+											},
+										}},
+									}},
+								},
 							},
 						},
 					}},
@@ -104,18 +126,24 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 		return result.RequeueNow(), nil
 	}
 
-	// Deployment exists. Roll it only when the rendered config changed (the
-	// config-version annotation) or the runner image changed. We deliberately do
-	// NOT diff the whole spec: the API server defaults fields we never set
-	// (port protocol, terminationMessagePath, and so on), so a subset/derivative
-	// compare never converges and the controller re-applies its sparse spec
-	// forever, never reaching Ready.
+	// Deployment exists. Roll it only on a tracked change: the rendered config,
+	// the runner image, or the derived system_id. The system_id is read from
+	// the pod template, the copy the projection resolves, so a rollback to a
+	// revision without it is repaired instead of silently kept.
+	//
+	// We deliberately do NOT diff the whole spec: the API server defaults
+	// fields we never set (port protocol, terminationMessagePath, and so on),
+	// so a subset compare never converges and the controller re-applies its
+	// sparse spec forever, never reaching Ready.
 	existingImage := ""
 	if len(existingDeployment.Spec.Template.Spec.Containers) > 0 {
 		existingImage = existingDeployment.Spec.Template.Spec.Containers[0].Image
 	}
-	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() || existingImage != runnerObj.RunnerImage() {
-		logger.Info("deployment changed (config or image), updating", "deployment_name", existingDeployment.Name)
+	existingSystemID := existingDeployment.Spec.Template.GetAnnotations()[types.SystemIDAnnotationKey]
+	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() ||
+		existingSystemID != systemID ||
+		existingImage != runnerObj.RunnerImage() {
+		logger.Info("deployment changed (config, image or system id), updating", "deployment_name", existingDeployment.Name)
 		// Carry the live ResourceVersion so this is a conditional update: a
 		// concurrent change conflicts and requeues instead of being silently
 		// overwritten by our from-scratch spec.

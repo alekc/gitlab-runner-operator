@@ -3,6 +3,16 @@ package types
 const ConfigVersionAnnotationKey = "config-version"
 const ConfigMapKeyName = "config.toml"
 
+// SystemIDAnnotationKey carries the derived gitlab-runner system_id on the
+// deployment and its pod template; a downwardAPI projection turns the pod copy
+// into SystemIDFileName inside the config volume.
+const SystemIDAnnotationKey = "system-id"
+
+// SystemIDFileName is the gitlab-runner state file holding system_id. Its
+// location is not configurable: the runner always looks for it next to
+// config.toml, so it has to live in the config volume.
+const SystemIDFileName = ".runner_system_id"
+
 // ConfigTokenKeyPrefix prefixes the per-entry authentication-token keys stored
 // alongside config.toml in the rendered config Secret. The controller recovers
 // a managed runner's token from "<prefix><entryName>" so the token never has to
