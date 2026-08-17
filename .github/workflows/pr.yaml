@@ -13,12 +13,19 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.26.x
+      # GOTOOLCHAIN=auto on each line, as in the govulncheck job below: setup-go
+      # exports GOTOOLCHAIN=local via GITHUB_ENV, and whether a workflow-level
+      # env key outranks that is not specified. Per-command is unambiguous.
       - name: Build
-        run: go build ./...
+        run: GOTOOLCHAIN=auto go build ./...
       - name: Vet
-        run: go vet ./...
+        run: GOTOOLCHAIN=auto go vet ./...
       - name: Test (unit + envtest)
-        run: make test
+        run: GOTOOLCHAIN=auto make test
+      - name: Test (cve-report)
+        # A silent bug here closes the tracking issue and hides live CVEs, so
+        # the script does not ship without regression cover. gh is stubbed.
+        run: ./hack/cve-report_test.sh
 
   lint:
     runs-on: ubuntu-latest
