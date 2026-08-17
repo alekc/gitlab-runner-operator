@@ -77,6 +77,10 @@ jobs:
         env:
           VERSION: ${{  steps.ref_slug.outputs.github-ref-name }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # setup-go exports GOTOOLCHAIN=local and satisfied the 1.26.x wildcard
+          # from the runner tool cache, so v2.0.0 shipped stdlib 1.26.5 while
+          # go.mod pinned go1.26.6. auto restores the pin. See issue #49.
+          GOTOOLCHAIN: auto
 
       - name: set up buildx
         id: buildx
