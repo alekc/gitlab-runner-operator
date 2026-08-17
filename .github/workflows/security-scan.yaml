@@ -1,0 +1,162 @@
+name: security-scan
+
+# Scheduled CVE sweep. Scans main and, separately, the image users actually
+# pull, because main can be clean while a published tag rots: in #49 go.mod
+# pinned go1.26.6 and the shipped v2.0.0 binary was still built with 1.26.5, so
+# a main-only scan would have stayed green throughout.
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: security-scan
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  # Reachability pass over main. Narrower than the image scans (it reports only
+  # what the binary can actually call) and the same gate pr.yaml runs, repeated
+  # here so a CVE disclosed against unchanged code still surfaces.
+  govulncheck:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.x
+
+      - name: govulncheck
+        # Not via `make govulncheck`: make reports 2 for any failed recipe, which
+        # would mask govulncheck's 3-means-findings. Classified on output shape
+        # rather than exit code, and unrecognised output fails loudly instead of
+        # being reported as clean.
+        run: |
+          set -euo pipefail
+          mkdir -p findings
+          GOTOOLCHAIN=auto go build -o bin/manager-vulnscan ./cmd
+          rc=0
+          GOTOOLCHAIN=auto go run golang.org/x/vuln/cmd/govulncheck@latest \
+            -mode binary bin/manager-vulnscan > govulncheck.txt 2>&1 || rc=$?
+          cat govulncheck.txt
+          awk '
+            function flush() {
+              if (id != "") printf "%s\t-\t%s\t%s\t%s\n", id,
+                (mod ? mod : "-"), (found ? found : "-"), (fixed ? fixed : "-")
+            }
+            /^Vulnerability #[0-9]+: / { flush(); id = $3; mod = found = fixed = "" }
+            # stdlib findings print "Standard library", not a Module: line.
+            /^ +Standard library/ { mod = "stdlib" }
+            /^ +Module: /   { mod = $2 }
+            /^ +Found in: / { found = $3 }
+            /^ +Fixed in: / { fixed = $3 }
+            END { flush() }
+          ' govulncheck.txt > findings/source-govulncheck.tsv
+          if [ ! -s findings/source-govulncheck.tsv ] \
+            && ! grep -q 'No vulnerabilities found' govulncheck.txt; then
+            echo "govulncheck exited ${rc} with output this job cannot classify" >&2
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: findings-source
+          path: findings/
+
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Built from source so the scan sees the stdlib the current tree
+          # compiles to, which is where the eight stdlib CVEs in #49 lived.
+          - target: image-main
+            ref: local/gitlab-runner-operator:scan
+            build: true
+          - target: image-released
+            ref: ghcr.io/alekc/gitlab-runner-operator:latest
+            build: false
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: matrix.build
+
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        if: matrix.build
+
+      - name: Build ${{ matrix.ref }}
+        if: matrix.build
+        # Dockerfile.e2e builds from source; the release Dockerfile only repacks
+        # a goreleaser tarball and cannot be built here. Single arch on --load,
+        # since the Go stdlib and module set do not vary by GOARCH.
+        run: |
+          docker buildx build -f Dockerfile.e2e --load \
+            -t "${{ matrix.ref }}" .
+
+      # Authenticated pulls for the scanned image and for Trivy's own DB, both
+      # on ghcr; anonymous pulls there are rate limited per runner IP.
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan ${{ matrix.ref }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: image
+          image-ref: ${{ matrix.ref }}
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          # Only what can actually be acted on. A finding with no upstream fix
+          # would sit in the tracking issue forever and train us to ignore it.
+          ignore-unfixed: true
+          format: json
+          output: trivy.json
+          # Findings are triaged by the report job, so they must not fail this
+          # one; a non-zero here would mean Trivy itself broke.
+          exit-code: '0'
+
+      - name: Collect findings
+        run: |
+          set -euo pipefail
+          mkdir -p findings
+          jq -r '[.Results[]?.Vulnerabilities[]?]
+            | map([.VulnerabilityID, .Severity, .PkgName,
+                   (.InstalledVersion // "-"), (.FixedVersion // "-")] | @tsv)
+            | unique | .[]' trivy.json > "findings/${{ matrix.target }}.tsv"
+          wc -l < "findings/${{ matrix.target }}.tsv"
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: findings-${{ matrix.target }}
+          path: findings/
+
+  # Deliberately no `if: always()`. If a scan job fails its fragment is missing,
+  # and a partial run must not be able to close the tracking issue by reporting
+  # a clean result it never established. A red run is the signal instead.
+  report:
+    needs: [govulncheck, image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: findings
+          pattern: findings-*
+          merge-multiple: true
+
+      - name: File or update the tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: ./hack/cve-report.sh findings

@@ -22,6 +22,10 @@ jobs:
         run: GOTOOLCHAIN=auto go vet ./...
       - name: Test (unit + envtest)
         run: GOTOOLCHAIN=auto make test
+      - name: Test (cve-report)
+        # A silent bug here closes the tracking issue and hides live CVEs, so
+        # the script does not ship without regression cover. gh is stubbed.
+        run: ./hack/cve-report_test.sh
 
   lint:
     runs-on: ubuntu-latest
