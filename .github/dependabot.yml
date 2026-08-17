@@ -1,4 +1,9 @@
 version: 2
+
+# Groups default to applies-to: version-updates, so each group is declared
+# twice: once for version updates and once for security updates. Without the
+# second copy, security PRs arrive one per dependency and conflict with each
+# other exactly the way ungrouped version updates do.
 updates:
   # Go module dependencies. Addresses the standing dependency CVE alerts and
   # keeps the SDKs (controller-runtime, gitlab-org/api, k8s.io/*) current.
@@ -13,11 +18,52 @@ updates:
         patterns:
           - "k8s.io/*"
           - "sigs.k8s.io/*"
+      # Minimal version selection pulls the whole x/ family in behind any one
+      # member (#50 moved seven of them to bump x/text alone), so ungrouped
+      # bumps land as several PRs editing the same go.mod lines.
+      golang-x:
+        patterns:
+          - "golang.org/x/*"
+      kubernetes-security:
+        applies-to: security-updates
+        patterns:
+          - "k8s.io/*"
+          - "sigs.k8s.io/*"
+      golang-x-security:
+        applies-to: security-updates
+        patterns:
+          - "golang.org/x/*"
 
   # Keep the SHA-pinned GitHub Actions current (Dependabot updates pinned SHAs
-  # and the version comment together).
+  # and the version comment together). One PR for the lot: they are independent
+  # of each other, and a bump apiece costs a full CI run each.
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    groups:
+      actions:
+        patterns:
+          - "*"
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Base images in Dockerfile and Dockerfile.e2e. Previously uncovered, so a CVE
+  # in golang: or distroless was invisible here and only showed up in the image
+  # scan added by #50.
+  - package-ecosystem: docker
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      docker:
+        patterns:
+          - "*"
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
