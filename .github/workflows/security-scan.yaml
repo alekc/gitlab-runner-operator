@@ -141,7 +141,12 @@ jobs:
   # Deliberately no `if: always()`. If a scan job fails its fragment is missing,
   # and a partial run must not be able to close the tracking issue by reporting
   # a clean result it never established. A red run is the signal instead.
+  #
+  # Default branch only, for the same reason: workflow_dispatch can run on any
+  # branch, and a branch that happens to be clean would otherwise close an issue
+  # tracking real findings on main.
   report:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     needs: [govulncheck, image]
     runs-on: ubuntu-latest
     permissions:
