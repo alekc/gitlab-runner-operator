@@ -369,14 +369,23 @@ type KubernetesNFS struct {
 }
 
 // KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-// Requires Kubernetes 1.30 or newer.
+// Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+// cannot use, so the constraints here are validated at admission instead.
+//
+// +kubebuilder:validation:XValidation:rule="self.type != 'Localhost' || (has(self.localhost_profile) && size(self.localhost_profile) > 0)",message="app_armor_profile: localhost_profile is required when type is Localhost"
 type KubernetesAppArmorProfile struct {
-	Type             string `toml:"type,omitempty" json:"type,omitempty" description:"The AppArmor profile type: RuntimeDefault, Localhost or Unconfined"`
+	// +kubebuilder:validation:Enum=RuntimeDefault;Localhost;Unconfined
+	Type             string `toml:"type" json:"type" description:"The AppArmor profile type: RuntimeDefault, Localhost or Unconfined"`
 	LocalhostProfile string `toml:"localhost_profile,omitempty" json:"localhost_profile,omitempty" description:"The name of an AppArmor profile on the node, required when type is Localhost"`
 }
 
-// KubernetesSeccompProfile selects the seccomp profile for pod containers.
+// KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+// runner silently drops a profile it cannot use, so the constraints here are
+// validated at admission instead.
+//
+// +kubebuilder:validation:XValidation:rule="self.type != 'Localhost' || (has(self.localhost_profile) && size(self.localhost_profile) > 0)",message="seccomp_profile: localhost_profile is required when type is Localhost"
 type KubernetesSeccompProfile struct {
-	Type             string `toml:"type,omitempty" json:"type,omitempty" description:"The seccomp profile type: RuntimeDefault, Localhost or Unconfined"`
+	// +kubebuilder:validation:Enum=RuntimeDefault;Localhost;Unconfined
+	Type             string `toml:"type" json:"type" description:"The seccomp profile type: RuntimeDefault, Localhost or Unconfined"`
 	LocalhostProfile string `toml:"localhost_profile,omitempty" json:"localhost_profile,omitempty" description:"The path to a seccomp profile on the node, required when type is Localhost"`
 }

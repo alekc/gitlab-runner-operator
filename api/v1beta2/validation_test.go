@@ -2,6 +2,7 @@ package v1beta2
 
 import (
 	"errors"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -31,7 +32,16 @@ func expectInvalid(err error, wantMsg string) {
 	Expect(errors.As(err, &status)).To(BeTrue(), "want an APIStatus error, got: %v", err)
 	Expect(status.Status().Details).NotTo(BeNil(), "want status details, got: %v", err)
 
-	causes := status.Status().Details.Causes
+	// When a structural error (enum, required) coexists with a CEL rule, the
+	// apiserver appends a boilerplate cause saying the rules were not evaluated.
+	// It is not a second rule, so drop it before pinning the count.
+	var causes []metav1.StatusCause
+	for _, c := range status.Status().Details.Causes {
+		if strings.Contains(c.Message, "some validation rules were not checked") {
+			continue
+		}
+		causes = append(causes, c)
+	}
 	Expect(causes).To(HaveLen(1), "want exactly one cause so the spec pins one rule, got: %v", causes)
 	Expect(causes[0].Message).To(ContainSubstring(wantMsg))
 }
@@ -160,6 +170,35 @@ var _ = Describe("CRD validation", func() {
 				}},
 			}},
 		}, "at least 1 chars long"),
+		// The runner drops a profile it cannot use and only logs it, so a build
+		// container would run unconfined while the spec claims otherwise.
+		Entry("seccomp profile with an unknown type", "val-badseccomp", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{PodSecurityContext: &KubernetesPodSecurityContext{
+				SeccompProfile: &KubernetesSeccompProfile{Type: "runtimedefault"},
+			}},
+		}, "Unsupported value"),
+		Entry("seccomp Localhost without a profile path", "val-seccompnopath", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{PodSecurityContext: &KubernetesPodSecurityContext{
+				SeccompProfile: &KubernetesSeccompProfile{Type: "Localhost"},
+			}},
+		}, "localhost_profile is required when type is Localhost"),
+		// A typed client always sends type:"" because the field is a bare string,
+		// so the enum is what rejects an unset type; required covers a raw object
+		// that omits the key entirely.
+		Entry("apparmor profile with no type at all", "val-apparmornotype", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{PodSecurityContext: &KubernetesPodSecurityContext{
+				AppArmorProfile: &KubernetesAppArmorProfile{LocalhostProfile: "p"},
+			}},
+		}, `Unsupported value: ""`),
+		Entry("apparmor Localhost without a profile name", "val-apparmornopath", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{BuildContainerSecurityContext: &KubernetesContainerSecurityContext{
+				AppArmorProfile: &KubernetesAppArmorProfile{Type: "Localhost"},
+			}},
+		}, "localhost_profile is required when type is Localhost"),
 		Entry("cleanup_resources_timeout with a bad unit", "val-badtimeout", RunnerSpec{
 			Authentication: valByoAuth(),
 			ExecutorConfig: KubernetesConfig{CleanupResourcesTimeout: "1d"},

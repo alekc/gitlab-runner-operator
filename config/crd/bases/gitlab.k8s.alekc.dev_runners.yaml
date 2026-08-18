@@ -622,13 +622,25 @@ spec:
                       app_armor_profile:
                         description: |-
                           KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-                          Requires Kubernetes 1.30 or newer.
+                          Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                          cannot use, so the constraints here are validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'app_armor_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       capabilities:
                         properties:
                           add:
@@ -662,14 +674,27 @@ spec:
                         format: int64
                         type: integer
                       seccomp_profile:
-                        description: KubernetesSeccompProfile selects the seccomp
-                          profile for pod containers.
+                        description: |-
+                          KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                          runner silently drops a profile it cannot use, so the constraints here are
+                          validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'seccomp_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       selinux_type:
                         type: string
                     type: object
@@ -858,13 +883,25 @@ spec:
                       app_armor_profile:
                         description: |-
                           KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-                          Requires Kubernetes 1.30 or newer.
+                          Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                          cannot use, so the constraints here are validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'app_armor_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       capabilities:
                         properties:
                           add:
@@ -898,14 +935,27 @@ spec:
                         format: int64
                         type: integer
                       seccomp_profile:
-                        description: KubernetesSeccompProfile selects the seccomp
-                          profile for pod containers.
+                        description: |-
+                          KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                          runner silently drops a profile it cannot use, so the constraints here are
+                          validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'seccomp_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       selinux_type:
                         type: string
                     type: object
@@ -968,13 +1018,25 @@ spec:
                       app_armor_profile:
                         description: |-
                           KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-                          Requires Kubernetes 1.30 or newer.
+                          Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                          cannot use, so the constraints here are validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'app_armor_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       capabilities:
                         properties:
                           add:
@@ -1008,14 +1070,27 @@ spec:
                         format: int64
                         type: integer
                       seccomp_profile:
-                        description: KubernetesSeccompProfile selects the seccomp
-                          profile for pod containers.
+                        description: |-
+                          KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                          runner silently drops a profile it cannot use, so the constraints here are
+                          validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'seccomp_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       selinux_type:
                         type: string
                     type: object
@@ -1084,13 +1159,25 @@ spec:
                       app_armor_profile:
                         description: |-
                           KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-                          Requires Kubernetes 1.30 or newer.
+                          Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                          cannot use, so the constraints here are validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'app_armor_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       fs_group:
                         format: int64
                         type: integer
@@ -1103,14 +1190,27 @@ spec:
                         format: int64
                         type: integer
                       seccomp_profile:
-                        description: KubernetesSeccompProfile selects the seccomp
-                          profile for pod containers.
+                        description: |-
+                          KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                          runner silently drops a profile it cannot use, so the constraints here are
+                          validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'seccomp_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       selinux_type:
                         type: string
                       supplemental_groups:
@@ -1179,13 +1279,25 @@ spec:
                       app_armor_profile:
                         description: |-
                           KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
-                          Requires Kubernetes 1.30 or newer.
+                          Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                          cannot use, so the constraints here are validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'app_armor_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       capabilities:
                         properties:
                           add:
@@ -1219,14 +1331,27 @@ spec:
                         format: int64
                         type: integer
                       seccomp_profile:
-                        description: KubernetesSeccompProfile selects the seccomp
-                          profile for pod containers.
+                        description: |-
+                          KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                          runner silently drops a profile it cannot use, so the constraints here are
+                          validated at admission instead.
                         properties:
                           localhost_profile:
                             type: string
                           type:
+                            enum:
+                            - RuntimeDefault
+                            - Localhost
+                            - Unconfined
                             type: string
+                        required:
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: 'seccomp_profile: localhost_profile is required
+                            when type is Localhost'
+                          rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                            && size(self.localhost_profile) > 0)
                       selinux_type:
                         type: string
                     type: object
