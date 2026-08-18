@@ -395,6 +395,22 @@ out=$("${SCRIPT}" 2>&1)
 check "says the payload was unexpected" "unexpected payload" "${GH_BODY_CAPTURE}"
 absent "does not claim absence" "has not published yet" "${GH_BODY_CAPTURE}"
 
+echo "case 14c: Windows-only tags do not render an empty flavour list"
+reset; mk_types 19.1.0
+printf '{"count":2,"results":[{"name":"x86_64-v19.10.0-nanoserver1809"},{"name":"x86_64-v19.10.0-servercore21H2"}]}\n' \
+  > "${HUB_FIXTURE}"
+out=$("${SCRIPT}" 2>&1)
+check "says no Linux flavour matched" "none matches a Linux flavour" "${GH_BODY_CAPTURE}"
+absent "no empty bullet" '- ``' "${GH_BODY_CAPTURE}"
+absent "does not claim a flavour list" "Linux flavours:" "${GH_BODY_CAPTURE}"
+
+echo "case 14d: a config file without the flavour description says so"
+reset; mk_types 19.1.0
+mk_config_at "${ROOT}/ours.go" nested_shared shared_key
+out=$("${SCRIPT}" 2>&1)
+check "reports the missing description" "Could not find the" "${GH_BODY_CAPTURE}"
+check "still lists flavours" "Linux flavours:" "${GH_BODY_CAPTURE}"
+
 echo "case 15: genuinely absent helper tags warn against bumping"
 reset; mk_types 19.1.0; printf '{"count":0,"results":[]}\n' > "${HUB_FIXTURE}"
 out=$("${SCRIPT}" 2>&1)

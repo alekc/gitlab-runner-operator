@@ -205,6 +205,13 @@ helper_section() {
     | grep -E -- "(^|-)v${esc}\$" | sed -E "s/-?v${esc}\$//" \
     | sed -E 's/-?(x86_64|arm64|arm|ppc64le|riscv64|s390x)$//' \
     | sed -e 's/^$/(default)/' | sort -u)
+  # Tags exist but none is a Linux flavour, e.g. a Windows-only page. Printing
+  # the heading anyway renders an empty bullet and implies one was found.
+  if [ -z "${flavours}" ]; then
+    printf 'Helper tags exist for v%s (%s tags) but none matches a Linux flavour. **Check the helper image by hand.**\n' \
+      "${latest}" "${total}"
+    return
+  fi
   printf 'Helper image published for v%s (%s tags). Linux flavours:\n\n' "${latest}" "${total}"
   printf '%s\n' "${flavours}" | sed 's/^/- `/;s/$/`/'
   if [ "${total}" -gt "${shown}" ]; then
