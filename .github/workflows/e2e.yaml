@@ -8,13 +8,10 @@ on:
   push:
     branches: [main]
   pull_request:
+    # Deliberately unfiltered by path. e2e-gate is a required check, and a check
+    # that never runs blocks a PR forever, so the workflow always starts and the
+    # changes job decides whether the suite itself is worth a slot.
     types: [opened, synchronize, reopened, ready_for_review]
-    # Docs and workflow-only changes cannot break the suite; skip them rather
-    # than spending a serialized 15 minute slot.
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
   issue_comment:
     types: [created]
   # Target a commit with --ref (a branch or tag), not a free-form input. A run
@@ -98,9 +95,42 @@ jobs:
             });
             core.setOutput('ref', pr.data.head.sha);
 
+  # Docs and workflow-only PRs cannot break the suite, so they skip it rather
+  # than spending a serialized slot. Non-PR events always run.
+  changes:
+    needs: authorize
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+    outputs:
+      go: ${{ steps.filter.outputs.go }}
+    steps:
+      - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          if [ -z "${PR}" ]; then
+            echo "go=true" >> "${GITHUB_OUTPUT}"
+            echo "not a pull request; running the suite"
+            exit 0
+          fi
+          files="$(gh api --paginate "repos/${REPO}/pulls/${PR}/files" --jq '.[].filename')"
+          # Here-string, not a pipe: grep -q exits on first match and would
+          # SIGPIPE the producer, which pipefail then reports as failure.
+          if grep -qE '\.go$|^go\.(mod|sum)$' <<< "${files}"; then
+            echo "go=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "go=false" >> "${GITHUB_OUTPUT}"
+            echo "no Go changes in PR #${PR}; skipping the suite"
+          fi
+
   # Latest patch of each recent Kubernetes minor that has a kindest/node image.
   k8s_versions:
-    needs: authorize
+    needs: [authorize, changes]
+    if: needs.changes.outputs.go == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: imjasonh/setup-crane@feee3b6bb0d4c68370f256a4502498c9227e5c6b # v0.7
@@ -181,3 +211,22 @@ jobs:
           GITLAB_E2E_TOKEN: ${{ secrets.GITLAB_E2E_TOKEN }}
           GITLAB_E2E_PROJECT_ID: ${{ secrets.GITLAB_E2E_PROJECT_ID }}
         run: make test-e2e
+
+  # The one context worth marking required. Its name never changes, unlike the
+  # per-version e2e legs whose matrix comes from endoflife.date, and it reports
+  # on every PR, including ones the suite skips.
+  e2e-gate:
+    needs: [authorize, changes, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the suite result
+        env:
+          NEEDED: ${{ needs.changes.outputs.go }}
+          AUTHORIZE: ${{ needs.authorize.result }}
+          CHANGES: ${{ needs.changes.result }}
+          RESULT: ${{ needs.e2e.result }}
+        run: ./hack/e2e-gate.sh
