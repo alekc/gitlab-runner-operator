@@ -126,6 +126,44 @@ var _ = Describe("CRD validation", func() {
 				SecretKeyRef: &CAKeyRef{Name: "ca-secret"},
 			},
 		}, "set only one of value, secretKeyRef, or configMapKeyRef"),
+		// The runner rejects the whole config.toml if an NFS volume is missing a
+		// required field, so admission has to catch an empty name too.
+		Entry("nfs volume with an empty name", "val-nfsnoname", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{Volumes: &KubernetesVolumes{
+				NFSVolumes: []KubernetesNFS{{
+					Name: "", MountPath: "/mnt/nfs", Server: "10.0.0.1", Path: "/exports",
+				}},
+			}},
+		}, "at least 1 chars long"),
+		Entry("nfs volume with an empty server", "val-nfsnosrv", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{Volumes: &KubernetesVolumes{
+				NFSVolumes: []KubernetesNFS{{
+					Name: "nfs", MountPath: "/mnt/nfs", Server: "", Path: "/exports",
+				}},
+			}},
+		}, "at least 1 chars long"),
+		Entry("nfs volume with an empty path", "val-nfsnopath", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{Volumes: &KubernetesVolumes{
+				NFSVolumes: []KubernetesNFS{{
+					Name: "nfs", MountPath: "/mnt/nfs", Server: "10.0.0.1", Path: "",
+				}},
+			}},
+		}, "at least 1 chars long"),
+		Entry("nfs volume with an empty mount_path", "val-nfsnomp", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{Volumes: &KubernetesVolumes{
+				NFSVolumes: []KubernetesNFS{{
+					Name: "nfs", MountPath: "", Server: "10.0.0.1", Path: "/exports",
+				}},
+			}},
+		}, "at least 1 chars long"),
+		Entry("cleanup_resources_timeout with a bad unit", "val-badtimeout", RunnerSpec{
+			Authentication: valByoAuth(),
+			ExecutorConfig: KubernetesConfig{CleanupResourcesTimeout: "1d"},
+		}, "should match"),
 		Entry("caCertificate value and configMapKeyRef", "val-cacm", RunnerSpec{
 			Authentication: valByoAuth(),
 			CACertificate: &CASource{

@@ -60,6 +60,7 @@ type MultiRunnerReconciler struct {
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=gitlab.k8s.alekc.dev,resources=multirunners/finalizers,verbs=update
 // +kubebuilder:rbac:groups="apps",resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=policy,resources=poddisruptionbudgets,verbs=get;create
 // +kubebuilder:rbac:groups="core",resources=configmaps;secrets;serviceaccounts,verbs=get;list;watch;create;update;patch;delete
 // The shared RBAC markers (rolebindings, clusterroles, and the executor core
 // resources) are declared once on the Runner controller; controller-gen

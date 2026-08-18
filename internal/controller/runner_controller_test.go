@@ -194,6 +194,20 @@ func caseRBACCheck(tc *testCase) {
 			return k8sClient.Get(ctx, types.NamespacedName{Name: "gitlab-runner-operator-executor"}, &clusterRole) == nil
 		}, timeout, interval).Should(BeTrue())
 
+		// and carry the rules the reconcile computed, not merely exist. Without
+		// this the desired set and the live object are never compared anywhere.
+		var pdb *v1.PolicyRule
+		for i := range clusterRole.Rules {
+			for _, r := range clusterRole.Rules[i].Resources {
+				if r == "poddisruptionbudgets" {
+					pdb = &clusterRole.Rules[i]
+				}
+			}
+		}
+		Expect(pdb).NotTo(BeNil(), "the reconciled clusterrole has no poddisruptionbudgets rule")
+		Expect(pdb.APIGroups).To(ContainElement("policy"))
+		Expect(pdb.Verbs).To(ConsistOf("get", "create"))
+
 		// a per-runner RoleBinding should bind that SA to the shared ClusterRole
 		var roleBinding v1.RoleBinding
 		Eventually(func() bool {

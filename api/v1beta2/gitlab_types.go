@@ -94,9 +94,14 @@ type KubernetesConfig struct {
 	ContainerLifecycle                                *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                                 string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
 
-	// Fields below were synced from gitlab-runner v19.1.0. Custom-typed options
-	// (cleanup_resources_timeout, retry_limit(s), retry_backoff_max, autoscaler)
-	// are intentionally omitted: they need bespoke CRD type handling.
+	// Fields below were synced from gitlab-runner v19.1.0, then completed against
+	// v19.2.2. cleanup_resources_timeout is a string because the runner's toml
+	// decoder parses a duration string into time.Duration. The kubernetes
+	// autoscaler subtree (autoscaler, its pause-pod settings and its policy
+	// list) is deliberately not exposed: pause pods do nothing without a cluster
+	// autoscaler, preemptive_mode is dead config at v19.2.2, and the Deployments
+	// they create carry no owner reference. See #58.
+
 	Context                             string              `toml:"context,omitempty" json:"context,omitempty"`
 	NamespacePerJob                     bool                `toml:"namespace_per_job,omitempty" json:"namespace_per_job,omitempty"`
 	PodCPULimit                         string              `toml:"pod_cpu_limit,omitempty" json:"pod_cpu_limit,omitempty"`
@@ -112,6 +117,20 @@ type KubernetesConfig struct {
 	LogsBaseDir                         string              `toml:"logs_base_dir,omitempty" json:"logs_base_dir,omitempty"`
 	ScriptsBaseDir                      string              `toml:"scripts_base_dir,omitempty" json:"scripts_base_dir,omitempty"`
 	PodSpec                             []KubernetesPodSpec `toml:"pod_spec,omitempty" json:"pod_spec,omitempty"`
+	AllowedUsers                        []string            `toml:"allowed_users,omitempty" json:"allowed_users,omitempty" description:"A list of users allowed to run the build container"`
+	AllowedGroups                       []string            `toml:"allowed_groups,omitempty" json:"allowed_groups,omitempty" description:"A list of groups allowed to run the build container"`
+	AutomountServiceAccountToken        *bool               `toml:"automount_service_account_token,omitempty" json:"automount_service_account_token,omitempty" description:"Whether to mount the service account token into build pods"`
+	PodDisruptionBudget                 *bool               `toml:"pod_disruption_budget,omitempty" json:"pod_disruption_budget,omitempty" description:"Create a PodDisruptionBudget so build pods are not evicted mid-job. Upstream warns this can make node drains hang while a job runs"`
+	PrintPodWarningEvents               *bool               `toml:"print_pod_warning_events,omitempty" json:"print_pod_warning_events,omitempty" description:"Print pod warning events into the job log"`
+	UseServiceAccountImagePullSecrets   bool                `toml:"use_service_account_image_pull_secrets,omitempty" json:"use_service_account_image_pull_secrets,omitempty" description:"Use the image pull secrets of the service account instead of the configured ones"`
+	// A Go duration string such as 5m. The runner's toml decoder parses it into
+	// time.Duration, so no bespoke CRD type is needed.
+	// +kubebuilder:validation:MaxLength=32
+	// +kubebuilder:validation:Pattern=`^\+?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$`
+	CleanupResourcesTimeout string         `toml:"cleanup_resources_timeout,omitempty" json:"cleanup_resources_timeout,omitempty" description:"How long to wait for build-pod resources to be cleaned up"`
+	RequestRetryLimit       *int           `toml:"retry_limit,omitempty" json:"retry_limit,omitempty" description:"How many times to retry a failed Kubernetes API request"`
+	RequestRetryLimits      map[string]int `toml:"retry_limits,omitempty" json:"retry_limits,omitempty" description:"Per-error-type retry counts, keyed by the error string to match"`
+	RequestRetryBackoffMax  *int           `toml:"retry_backoff_max,omitempty" json:"retry_backoff_max,omitempty" description:"Upper bound in milliseconds on the retry backoff for Kubernetes API requests"`
 }
 
 // KubernetesPodSpec is an experimental gitlab-runner option that patches the
@@ -141,6 +160,7 @@ type KubernetesVolumes struct {
 	Secrets    []KubernetesSecret    `toml:"secret" json:"secret,omitempty"  description:"The secret maps which will be mounted"`
 	EmptyDirs  []KubernetesEmptyDir  `toml:"empty_dir" json:"empty_dir,omitempty" description:"The empty dirs which will be mounted"`
 	CSIs       []KubernetesCSI       `toml:"csi" json:"csi,omitempty" description:"The CSI volumes which will be mounted"`
+	NFSVolumes []KubernetesNFS       `toml:"nfs,omitempty" json:"nfs,omitempty" description:"The NFS volumes which will be mounted"`
 }
 
 type KubernetesConfigMap struct {
@@ -152,18 +172,20 @@ type KubernetesConfigMap struct {
 }
 
 type KubernetesHostPath struct {
-	Name      string `toml:"name" json:"name" description:"The name of the volume"`
-	MountPath string `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
-	SubPath   string `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
-	ReadOnly  bool   `toml:"read_only,omitempty" json:"read_only,omitempty" description:"If this volume should be mounted read only"`
-	HostPath  string `toml:"host_path,omitempty" json:"host_path,omitempty" description:"Path from the host that should be mounted as a volume"`
+	Name             string  `toml:"name" json:"name" description:"The name of the volume"`
+	MountPath        string  `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
+	SubPath          string  `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
+	ReadOnly         bool    `toml:"read_only,omitempty" json:"read_only,omitempty" description:"If this volume should be mounted read only"`
+	HostPath         string  `toml:"host_path,omitempty" json:"host_path,omitempty" description:"Path from the host that should be mounted as a volume"`
+	MountPropagation *string `toml:"mount_propagation,omitempty" json:"mount_propagation,omitempty" description:"Mount propagation mode for the volume: None, HostToContainer or Bidirectional"`
 }
 
 type KubernetesPVC struct {
-	Name      string `toml:"name" json:"name" description:"The name of the volume and PVC to use"`
-	MountPath string `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
-	SubPath   string `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
-	ReadOnly  bool   `toml:"read_only,omitempty" json:"read_only,omitempty" description:"If this volume should be mounted read only"`
+	Name             string  `toml:"name" json:"name" description:"The name of the volume and PVC to use"`
+	MountPath        string  `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
+	SubPath          string  `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
+	ReadOnly         bool    `toml:"read_only,omitempty" json:"read_only,omitempty" description:"If this volume should be mounted read only"`
+	MountPropagation *string `toml:"mount_propagation,omitempty" json:"mount_propagation,omitempty" description:"Mount propagation mode for the volume: None, HostToContainer or Bidirectional"`
 }
 
 type KubernetesSecret struct {
@@ -175,10 +197,12 @@ type KubernetesSecret struct {
 }
 
 type KubernetesEmptyDir struct {
-	Name      string `toml:"name" json:"name" description:"The name of the volume and EmptyDir to use"`
-	MountPath string `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
-	SubPath   string `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
-	Medium    string `toml:"medium,omitempty" json:"medium,omitempty" description:"Set to 'Memory' to have a tmpfs"`
+	Name             string  `toml:"name" json:"name" description:"The name of the volume and EmptyDir to use"`
+	MountPath        string  `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
+	SubPath          string  `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
+	Medium           string  `toml:"medium,omitempty" json:"medium,omitempty" description:"Set to 'Memory' to have a tmpfs"`
+	SizeLimit        string  `toml:"size_limit,omitempty" json:"size_limit,omitempty" description:"Total amount of local storage required"`
+	MountPropagation *string `toml:"mount_propagation,omitempty" json:"mount_propagation,omitempty" description:"Mount propagation mode for the volume: None, HostToContainer or Bidirectional"`
 }
 
 type KubernetesCSI struct {
@@ -192,11 +216,14 @@ type KubernetesCSI struct {
 }
 
 type KubernetesPodSecurityContext struct {
-	FSGroup            *int64  `toml:"fs_group,omitempty" json:"fs_group,omitempty" long:"fs-group" env:"KUBERNETES_POD_SECURITY_CONTEXT_FS_GROUP" description:"A special supplemental group that applies to all containers in a pod"`
-	RunAsGroup         *int64  `toml:"run_as_group,omitempty" json:"run_as_group,omitempty" long:"run-as-group" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_GROUP" description:"The GID to run the entrypoint of the container process"`
-	RunAsNonRoot       *bool   `toml:"run_as_non_root,omitempty" json:"run_as_non_root,omitempty" long:"run-as-non-root" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_NON_ROOT" description:"Indicates that the container must run as a non-root user"`
-	RunAsUser          *int64  `toml:"run_as_user,omitempty" json:"run_as_user,omitempty" long:"run-as-user" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_USER" description:"The UID to run the entrypoint of the container process"`
-	SupplementalGroups []int64 `toml:"supplemental_groups,omitempty" json:"supplemental_groups,omitempty" long:"supplemental-groups" description:"A list of groups applied to the first process run in each container, in addition to the container's primary GID"`
+	FSGroup            *int64                     `toml:"fs_group,omitempty" json:"fs_group,omitempty" long:"fs-group" env:"KUBERNETES_POD_SECURITY_CONTEXT_FS_GROUP" description:"A special supplemental group that applies to all containers in a pod"`
+	RunAsGroup         *int64                     `toml:"run_as_group,omitempty" json:"run_as_group,omitempty" long:"run-as-group" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_GROUP" description:"The GID to run the entrypoint of the container process"`
+	RunAsNonRoot       *bool                      `toml:"run_as_non_root,omitempty" json:"run_as_non_root,omitempty" long:"run-as-non-root" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_NON_ROOT" description:"Indicates that the container must run as a non-root user"`
+	RunAsUser          *int64                     `toml:"run_as_user,omitempty" json:"run_as_user,omitempty" long:"run-as-user" env:"KUBERNETES_POD_SECURITY_CONTEXT_RUN_AS_USER" description:"The UID to run the entrypoint of the container process"`
+	SupplementalGroups []int64                    `toml:"supplemental_groups,omitempty" json:"supplemental_groups,omitempty" long:"supplemental-groups" description:"A list of groups applied to the first process run in each container, in addition to the container's primary GID"`
+	SELinuxType        string                     `toml:"selinux_type,omitempty" json:"selinux_type,omitempty" description:"The SELinux type label applied to all containers in the pod"`
+	AppArmorProfile    *KubernetesAppArmorProfile `toml:"app_armor_profile,omitempty" json:"app_armor_profile,omitempty" description:"The AppArmor profile applied to all containers in the pod"`
+	SeccompProfile     *KubernetesSeccompProfile  `toml:"seccomp_profile,omitempty" json:"seccomp_profile,omitempty" description:"The seccomp profile applied to all containers in the pod"`
 }
 
 type KubernetesContainerCapabilities struct {
@@ -212,6 +239,10 @@ type KubernetesContainerSecurityContext struct {
 	RunAsNonRoot             *bool                            `toml:"run_as_non_root,omitempty" json:"run_as_non_root,omitempty" long:"run-as-non-root" env:"@RUN_AS_NON_ROOT" description:"Indicates that the container must run as a non-root user"`
 	ReadOnlyRootFilesystem   *bool                            `toml:"read_only_root_filesystem" json:"read_only_root_filesystem,omitempty" long:"read-only-root-filesystem" env:"@READ_ONLY_ROOT_FILESYSTEM" description:" Whether this container has a read-only root filesystem."`
 	AllowPrivilegeEscalation *bool                            `toml:"allow_privilege_escalation" json:"allow_privilege_escalation,omitempty" long:"allow-privilege-escalation" env:"@ALLOW_PRIVILEGE_ESCALATION" description:"AllowPrivilegeEscalation controls whether a process can gain more privileges than its parent process"`
+	ProcMount                string                           `toml:"proc_mount,omitempty" json:"proc_mount,omitempty" description:"The proc mount type for the container: Default or Unmasked"`
+	SELinuxType              string                           `toml:"selinux_type,omitempty" json:"selinux_type,omitempty" description:"The SELinux type label associated with the container process"`
+	SeccompProfile           *KubernetesSeccompProfile        `toml:"seccomp_profile,omitempty" json:"seccomp_profile,omitempty" description:"The seccomp profile for the container"`
+	AppArmorProfile          *KubernetesAppArmorProfile       `toml:"app_armor_profile,omitempty" json:"app_armor_profile,omitempty" description:"The AppArmor profile for the container, requires Kubernetes 1.30 or newer"`
 }
 
 type KubernetesAffinity struct {
@@ -304,6 +335,8 @@ type PodAffinityTerm struct {
 	Namespaces        []string       `toml:"namespaces,omitempty" json:"namespaces,omitempty" json:"namespaces"`
 	TopologyKey       string         `toml:"topology_key,omitempty" json:"topology_key,omitempty" json:"topology_key"`
 	NamespaceSelector *LabelSelector `toml:"namespace_selector,omitempty" json:"namespace_selector,omitempty" json:"namespace_selector"`
+	MatchLabelKeys    []string       `toml:"match_label_keys,omitempty" json:"match_label_keys,omitempty"`
+	MismatchLabelKeys []string       `toml:"mismatch_label_keys,omitempty" json:"mismatch_label_keys,omitempty"`
 }
 
 type LabelSelector struct {
@@ -312,8 +345,38 @@ type LabelSelector struct {
 }
 
 type Service struct {
-	Name       string   `toml:"name" json:"name" long:"name" description:"The image path for the service"`
-	Alias      string   `toml:"alias,omitempty" json:"alias,omitempty" long:"alias" description:"The alias of the service"`
-	Command    []string `toml:"command" json:"command" long:"command" description:"Command or script that should be used as the container’s command. Syntax is similar to https://docs.docker.com/engine/reference/builder/#cmd"`
-	Entrypoint []string `toml:"entrypoint" json:"entrypoint" long:"entrypoint" description:"Command or script that should be executed as the container’s entrypoint. syntax is similar to https://docs.docker.com/engine/reference/builder/#entrypoint"`
+	Name        string   `toml:"name" json:"name" long:"name" description:"The image path for the service"`
+	Alias       string   `toml:"alias,omitempty" json:"alias,omitempty" long:"alias" description:"The alias of the service"`
+	Command     []string `toml:"command" json:"command" long:"command" description:"Command or script that should be used as the container’s command. Syntax is similar to https://docs.docker.com/engine/reference/builder/#cmd"`
+	Entrypoint  []string `toml:"entrypoint" json:"entrypoint" long:"entrypoint" description:"Command or script that should be executed as the container’s entrypoint. syntax is similar to https://docs.docker.com/engine/reference/builder/#entrypoint"`
+	Environment []string `toml:"environment,omitempty" json:"environment,omitempty" description:"Custom environment variables injected into the service container"`
+}
+
+// KubernetesNFS is an NFS share mounted into the build pod. Upstream's
+// UnmarshalTOML rejects the volume unless name, mount_path, server and path are
+// all set, so those four are required here rather than optional.
+type KubernetesNFS struct {
+	// +kubebuilder:validation:MinLength=1
+	Name string `toml:"name" json:"name" description:"The name of the NFS volume and volumeMount to use"`
+	// +kubebuilder:validation:MinLength=1
+	MountPath string `toml:"mount_path" json:"mount_path" description:"Path where volume should be mounted inside of container"`
+	SubPath   string `toml:"sub_path,omitempty" json:"sub_path,omitempty" description:"The sub-path of the volume to mount (defaults to volume root)"`
+	// +kubebuilder:validation:MinLength=1
+	Server string `toml:"server" json:"server" description:"The NFS server that should be mounted"`
+	// +kubebuilder:validation:MinLength=1
+	Path     string `toml:"path" json:"path" description:"The path of the NFS share to mount"`
+	ReadOnly bool   `toml:"read_only,omitempty" json:"read_only,omitempty" description:"If this volume should be mounted read only"`
+}
+
+// KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+// Requires Kubernetes 1.30 or newer.
+type KubernetesAppArmorProfile struct {
+	Type             string `toml:"type,omitempty" json:"type,omitempty" description:"The AppArmor profile type: RuntimeDefault, Localhost or Unconfined"`
+	LocalhostProfile string `toml:"localhost_profile,omitempty" json:"localhost_profile,omitempty" description:"The name of an AppArmor profile on the node, required when type is Localhost"`
+}
+
+// KubernetesSeccompProfile selects the seccomp profile for pod containers.
+type KubernetesSeccompProfile struct {
+	Type             string `toml:"type,omitempty" json:"type,omitempty" description:"The seccomp profile type: RuntimeDefault, Localhost or Unconfined"`
+	LocalhostProfile string `toml:"localhost_profile,omitempty" json:"localhost_profile,omitempty" description:"The path to a seccomp profile on the node, required when type is Localhost"`
 }
