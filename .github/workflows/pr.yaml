@@ -26,6 +26,10 @@ jobs:
         # A silent bug here closes the tracking issue and hides live CVEs, so
         # the script does not ship without regression cover. gh is stubbed.
         run: ./hack/cve-report_test.sh
+      - name: Test (runner-release-watch)
+        # Same reasoning: a silent bug here means an upstream release goes
+        # unnoticed. gh and curl are stubbed.
+        run: ./hack/runner-release-watch_test.sh
 
   lint:
     runs-on: ubuntu-latest
