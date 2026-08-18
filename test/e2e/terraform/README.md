@@ -125,7 +125,7 @@ project, CI file) is unaffected.
 triggers a pipeline, using `GITLAB_E2E_RUNNER_TAG` if set and otherwise the
 `defaultJobTag` constant in `test/e2e/e2e_suite_test.go`.
 
-Locally you can ignore all of it: leave `GITLAB_E2E_RUNNER_TAG` unset and the
+Locally you can ignore all of this: leave `GITLAB_E2E_RUNNER_TAG` unset and the
 default applies, in which case `var.job_tag` and `defaultJobTag` must agree or
 the managed runner never picks up `build-job` and the suite times out.
 
