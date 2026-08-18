@@ -233,7 +233,8 @@ spec:
 ## RBAC and namespaces
 
 The kubernetes executor permission set (pods and pods/exec, pods/attach,
-pods/log, services, secrets, configmaps, serviceaccounts, events) lives in one
+pods/log, services, secrets, configmaps, serviceaccounts, events, and
+poddisruptionbudgets when `pod_disruption_budget` is set) lives in one
 shared ClusterRole, `gitlab-runner-operator-executor`, reconciled by the
 operator. For each Runner or MultiRunner the operator then provisions its own
 ServiceAccount (a distinct identity for audit and revocation) and a RoleBinding

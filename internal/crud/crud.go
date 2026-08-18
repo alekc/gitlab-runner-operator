@@ -186,10 +186,10 @@ func BuildNamespaces(obj internalTypes.RunnerInfo) []string {
 
 // desiredRoleRules is the permission set the gitlab-runner kubernetes executor
 // needs, applied to the shared executor ClusterRole. Source of truth: the
-// kubernetes executor RBAC reference in the GitLab Runner docs. Optional,
-// feature-flag-gated resources (namespaces, poddisruptionbudgets, autoscaler)
-// are intentionally omitted: namespace_per_job is rejected by CEL, and the rest
-// are not modelled.
+// kubernetes executor RBAC reference in the GitLab Runner docs. namespaces is
+// omitted because namespace_per_job is rejected by CEL, and deployments because
+// the autoscaler is not exposed. poddisruptionbudgets is needed by
+// pod_disruption_budget, which errors the whole job if the verb is missing.
 func desiredRoleRules() []v1.PolicyRule {
 	return []v1.PolicyRule{
 		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list", "watch", "create", "delete"}},
@@ -200,6 +200,9 @@ func desiredRoleRules() []v1.PolicyRule {
 		{APIGroups: []string{""}, Resources: []string{"services"}, Verbs: []string{"get", "create"}},
 		{APIGroups: []string{""}, Resources: []string{"serviceaccounts"}, Verbs: []string{"get"}},
 		{APIGroups: []string{""}, Resources: []string{"events"}, Verbs: []string{"list", "watch"}},
+		// The executor only creates and reads the PDB; the build pod owns it, so
+		// deletion happens by garbage collection rather than an explicit call.
+		{APIGroups: []string{"policy"}, Resources: []string{"poddisruptionbudgets"}, Verbs: []string{"get", "create"}},
 	}
 }
 

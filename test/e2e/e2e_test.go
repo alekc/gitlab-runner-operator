@@ -295,8 +295,21 @@ var _ = Describe("RBAC provisioning", func() {
 		got := waitRunnerReady(name)
 		child := got.ChildName()
 
-		By("the shared executor ClusterRole existing")
-		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: sharedExecutorClusterRole}, &rbacv1.ClusterRole{})).To(Succeed())
+		By("the shared executor ClusterRole existing with the rules the operator computed")
+		var executorRole rbacv1.ClusterRole
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: sharedExecutorClusterRole}, &executorRole)).To(Succeed())
+		// Existence alone would pass against a ClusterRole left by an older
+		// operator version, which is the upgrade case that matters.
+		var pdbVerbs []string
+		for _, r := range executorRole.Rules {
+			for _, res := range r.Resources {
+				if res == "poddisruptionbudgets" {
+					pdbVerbs = r.Verbs
+				}
+			}
+		}
+		Expect(pdbVerbs).To(ConsistOf("get", "create"),
+			"executor ClusterRole is missing the poddisruptionbudgets rule")
 
 		By("a per-runner ServiceAccount existing")
 		Eventually(func(g Gomega) {

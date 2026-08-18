@@ -112,3 +112,106 @@ func TestSingleRunnerConfig_CAInHash(t *testing.T) {
 		t.Fatal("expected the same CA bundle to produce the same hash")
 	}
 }
+
+// Every executor key added for #58, set on one Runner and asserted in the
+// rendered config.toml. Asserting on the rendered output rather than on struct
+// tags is what proves the key actually reaches the runner.
+func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
+	truthy := true
+	limit := 7
+	backoff := 2000
+
+	r := &v1beta2.Runner{
+		ObjectMeta: metav1.ObjectMeta{Name: "r1", Namespace: "ns"},
+		Spec: v1beta2.RunnerSpec{
+			GitlabInstanceURL: "https://gitlab.example.com",
+			ExecutorConfig: v1beta2.KubernetesConfig{
+				AllowedUsers:                      []string{"1000"},
+				AllowedGroups:                     []string{"2000"},
+				AutomountServiceAccountToken:      &truthy,
+				PodDisruptionBudget:               &truthy,
+				PrintPodWarningEvents:             &truthy,
+				UseServiceAccountImagePullSecrets: true,
+				CleanupResourcesTimeout:           "5m",
+				RequestRetryLimit:                 &limit,
+				RequestRetryLimits:                map[string]int{"connection refused": 3},
+				RequestRetryBackoffMax:            &backoff,
+				Services:                          []v1beta2.Service{{Name: "postgres:16", Environment: []string{"POSTGRES_DB=test"}}},
+				PodSecurityContext: &v1beta2.KubernetesPodSecurityContext{
+					SELinuxType:     "spc_t",
+					AppArmorProfile: &v1beta2.KubernetesAppArmorProfile{Type: "Localhost", LocalhostProfile: "k8s-apparmor-example-deny-write"},
+					SeccompProfile:  &v1beta2.KubernetesSeccompProfile{Type: "Localhost", LocalhostProfile: "profiles/audit.json"},
+				},
+				BuildContainerSecurityContext: &v1beta2.KubernetesContainerSecurityContext{ProcMount: "Unmasked"},
+				Affinity: &v1beta2.KubernetesAffinity{
+					PodAffinity: &v1beta2.KubernetesPodAffinity{
+						RequiredDuringSchedulingIgnoredDuringExecution: []v1beta2.PodAffinityTerm{{
+							TopologyKey:       "kubernetes.io/hostname",
+							MatchLabelKeys:    []string{"pod-template-hash"},
+							MismatchLabelKeys: []string{"release"},
+						}},
+					},
+				},
+				HelperContainerSecurityContext: &v1beta2.KubernetesContainerSecurityContext{
+					SELinuxType:     "spc_t",
+					SeccompProfile:  &v1beta2.KubernetesSeccompProfile{Type: "RuntimeDefault"},
+					AppArmorProfile: &v1beta2.KubernetesAppArmorProfile{Type: "RuntimeDefault"},
+				},
+				Volumes: &v1beta2.KubernetesVolumes{
+					HostPaths: []v1beta2.KubernetesHostPath{{
+						Name: "hp", MountPath: "/mnt/hp", HostPath: "/srv/hp",
+						MountPropagation: &[]string{"HostToContainer"}[0],
+					}},
+					EmptyDirs: []v1beta2.KubernetesEmptyDir{{Name: "ed", MountPath: "/mnt/ed", SizeLimit: "1Gi",
+						MountPropagation: &[]string{"None"}[0]}},
+					PVCs: []v1beta2.KubernetesPVC{{Name: "pvc", MountPath: "/mnt/pvc",
+						MountPropagation: &[]string{"Bidirectional"}[0]}},
+					NFSVolumes: []v1beta2.KubernetesNFS{{Name: "nfs", MountPath: "/mnt/nfs", Server: "10.0.0.1", Path: "/exports"}},
+				},
+			},
+		},
+	}
+
+	cfg, _, err := SingleRunnerConfig(r, map[string]string{"r1": "glrt-token"}, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Values, not just key names: a key rendered with the wrong value is worse
+	// than a missing one, because it looks configured.
+	for _, want := range []string{
+		`allowed_users = ["1000"]`,
+		`allowed_groups = ["2000"]`,
+		`automount_service_account_token = true`,
+		`pod_disruption_budget = true`,
+		`print_pod_warning_events = true`,
+		`use_service_account_image_pull_secrets = true`,
+		`cleanup_resources_timeout = "5m"`,
+		`retry_limit = 7`,
+		`retry_backoff_max = 2000`,
+		`[runners.kubernetes.retry_limits]`,
+		`"connection refused" = 3`,
+		`match_label_keys = ["pod-template-hash"]`,
+		`mismatch_label_keys = ["release"]`,
+		`[runners.kubernetes.helper_container_security_context]`,
+		`[runners.kubernetes.helper_container_security_context.seccomp_profile]`,
+		`[runners.kubernetes.helper_container_security_context.app_armor_profile]`,
+		`mount_propagation = "None"`,
+		`mount_propagation = "Bidirectional"`,
+		`environment = ["POSTGRES_DB=test"]`,
+		`selinux_type = "spc_t"`,
+		`[runners.kubernetes.pod_security_context.app_armor_profile]`,
+		`localhost_profile = "k8s-apparmor-example-deny-write"`,
+		`[runners.kubernetes.pod_security_context.seccomp_profile]`,
+		`localhost_profile = "profiles/audit.json"`,
+		`proc_mount = "Unmasked"`,
+		`mount_propagation = "HostToContainer"`,
+		`size_limit = "1Gi"`,
+		`[[runners.kubernetes.volumes.nfs]]`,
+		`server = "10.0.0.1"`,
+	} {
+		if !strings.Contains(cfg, want) {
+			t.Errorf("missing %q in rendered config:\n%s", want, cfg)
+		}
+	}
+}

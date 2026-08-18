@@ -376,6 +376,14 @@ spec:
                                                   type: string
                                                 type: object
                                             type: object
+                                          match_label_keys:
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatch_label_keys:
+                                            items:
+                                              type: string
+                                            type: array
                                           namespace_selector:
                                             properties:
                                               match_expressions:
@@ -434,6 +442,14 @@ spec:
                                               type: string
                                             type: object
                                         type: object
+                                      match_label_keys:
+                                        items:
+                                          type: string
+                                        type: array
+                                      mismatch_label_keys:
+                                        items:
+                                          type: string
+                                        type: array
                                       namespace_selector:
                                         properties:
                                           match_expressions:
@@ -490,6 +506,14 @@ spec:
                                                   type: string
                                                 type: object
                                             type: object
+                                          match_label_keys:
+                                            items:
+                                              type: string
+                                            type: array
+                                          mismatch_label_keys:
+                                            items:
+                                              type: string
+                                            type: array
                                           namespace_selector:
                                             properties:
                                               match_expressions:
@@ -548,6 +572,14 @@ spec:
                                               type: string
                                             type: object
                                         type: object
+                                      match_label_keys:
+                                        items:
+                                          type: string
+                                        type: array
+                                      mismatch_label_keys:
+                                        items:
+                                          type: string
+                                        type: array
                                       namespace_selector:
                                         properties:
                                           match_expressions:
@@ -580,6 +612,10 @@ spec:
                           type: object
                         allow_privilege_escalation:
                           type: boolean
+                        allowed_groups:
+                          items:
+                            type: string
+                          type: array
                         allowed_images:
                           items:
                             type: string
@@ -592,6 +628,12 @@ spec:
                           items:
                             type: string
                           type: array
+                        allowed_users:
+                          items:
+                            type: string
+                          type: array
+                        automount_service_account_token:
+                          type: boolean
                         bearer_token:
                           type: string
                         bearer_token_overwrite_allowed:
@@ -600,6 +642,28 @@ spec:
                           properties:
                             allow_privilege_escalation:
                               type: boolean
+                            app_armor_profile:
+                              description: |-
+                                KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+                                Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                                cannot use, so the constraints here are validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'app_armor_profile: localhost_profile is
+                                  required when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
                             capabilities:
                               properties:
                                 add:
@@ -620,6 +684,8 @@ spec:
                               type: object
                             privileged:
                               type: boolean
+                            proc_mount:
+                              type: string
                             read_only_root_filesystem:
                               type: boolean
                             run_as_group:
@@ -630,6 +696,30 @@ spec:
                             run_as_user:
                               format: int64
                               type: integer
+                            seccomp_profile:
+                              description: |-
+                                KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                                runner silently drops a profile it cannot use, so the constraints here are
+                                validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'seccomp_profile: localhost_profile is required
+                                  when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
+                            selinux_type:
+                              type: string
                           type: object
                         ca_file:
                           type: string
@@ -646,6 +736,13 @@ spec:
                         cleanup_grace_period_seconds:
                           format: int64
                           type: integer
+                        cleanup_resources_timeout:
+                          description: |-
+                            A Go duration string such as 5m. The runner's toml decoder parses it into
+                            time.Duration, so no bespoke CRD type is needed.
+                          maxLength: 32
+                          pattern: ^\+?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$
+                          type: string
                         container_lifecycle:
                           description: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.21/#lifecycle-v1-core
                           properties:
@@ -761,10 +858,6 @@ spec:
                               type: object
                           type: object
                         context:
-                          description: |-
-                            Fields below were synced from gitlab-runner v19.1.0. Custom-typed options
-                            (cleanup_resources_timeout, retry_limit(s), retry_backoff_max, autoscaler)
-                            are intentionally omitted: they need bespoke CRD type handling.
                           type: string
                         cpu_limit:
                           type: string
@@ -810,6 +903,28 @@ spec:
                           properties:
                             allow_privilege_escalation:
                               type: boolean
+                            app_armor_profile:
+                              description: |-
+                                KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+                                Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                                cannot use, so the constraints here are validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'app_armor_profile: localhost_profile is
+                                  required when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
                             capabilities:
                               properties:
                                 add:
@@ -830,6 +945,8 @@ spec:
                               type: object
                             privileged:
                               type: boolean
+                            proc_mount:
+                              type: string
                             read_only_root_filesystem:
                               type: boolean
                             run_as_group:
@@ -840,6 +957,30 @@ spec:
                             run_as_user:
                               format: int64
                               type: integer
+                            seccomp_profile:
+                              description: |-
+                                KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                                runner silently drops a profile it cannot use, so the constraints here are
+                                validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'seccomp_profile: localhost_profile is required
+                                  when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
+                            selinux_type:
+                              type: string
                           type: object
                         helper_cpu_limit:
                           type: string
@@ -897,6 +1038,28 @@ spec:
                           properties:
                             allow_privilege_escalation:
                               type: boolean
+                            app_armor_profile:
+                              description: |-
+                                KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+                                Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                                cannot use, so the constraints here are validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'app_armor_profile: localhost_profile is
+                                  required when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
                             capabilities:
                               properties:
                                 add:
@@ -917,6 +1080,8 @@ spec:
                               type: object
                             privileged:
                               type: boolean
+                            proc_mount:
+                              type: string
                             read_only_root_filesystem:
                               type: boolean
                             run_as_group:
@@ -927,6 +1092,30 @@ spec:
                             run_as_user:
                               format: int64
                               type: integer
+                            seccomp_profile:
+                              description: |-
+                                KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                                runner silently drops a profile it cannot use, so the constraints here are
+                                validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'seccomp_profile: localhost_profile is required
+                                  when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
+                            selinux_type:
+                              type: string
                           type: object
                         key_file:
                           type: string
@@ -972,6 +1161,8 @@ spec:
                           type: string
                         pod_cpu_request_overwrite_max_allowed:
                           type: string
+                        pod_disruption_budget:
+                          type: boolean
                         pod_labels:
                           additionalProperties:
                             type: string
@@ -988,6 +1179,28 @@ spec:
                           type: string
                         pod_security_context:
                           properties:
+                            app_armor_profile:
+                              description: |-
+                                KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+                                Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                                cannot use, so the constraints here are validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'app_armor_profile: localhost_profile is
+                                  required when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
                             fs_group:
                               format: int64
                               type: integer
@@ -999,6 +1212,30 @@ spec:
                             run_as_user:
                               format: int64
                               type: integer
+                            seccomp_profile:
+                              description: |-
+                                KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                                runner silently drops a profile it cannot use, so the constraints here are
+                                validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'seccomp_profile: localhost_profile is required
+                                  when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
+                            selinux_type:
+                              type: string
                             supplemental_groups:
                               items:
                                 format: int64
@@ -1028,6 +1265,8 @@ spec:
                           type: integer
                         poll_timeout:
                           type: integer
+                        print_pod_warning_events:
+                          type: boolean
                         priority_class_name:
                           type: string
                         privileged:
@@ -1038,6 +1277,14 @@ spec:
                           type: array
                         resource_availability_check_max_attempts:
                           type: integer
+                        retry_backoff_max:
+                          type: integer
+                        retry_limit:
+                          type: integer
+                        retry_limits:
+                          additionalProperties:
+                            type: integer
+                          type: object
                         runtime_class_name:
                           type: string
                         scheduler_name:
@@ -1052,6 +1299,28 @@ spec:
                           properties:
                             allow_privilege_escalation:
                               type: boolean
+                            app_armor_profile:
+                              description: |-
+                                KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+                                Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+                                cannot use, so the constraints here are validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'app_armor_profile: localhost_profile is
+                                  required when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
                             capabilities:
                               properties:
                                 add:
@@ -1072,6 +1341,8 @@ spec:
                               type: object
                             privileged:
                               type: boolean
+                            proc_mount:
+                              type: string
                             read_only_root_filesystem:
                               type: boolean
                             run_as_group:
@@ -1082,6 +1353,30 @@ spec:
                             run_as_user:
                               format: int64
                               type: integer
+                            seccomp_profile:
+                              description: |-
+                                KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+                                runner silently drops a profile it cannot use, so the constraints here are
+                                validated at admission instead.
+                              properties:
+                                localhost_profile:
+                                  type: string
+                                type:
+                                  enum:
+                                  - RuntimeDefault
+                                  - Localhost
+                                  - Unconfined
+                                  type: string
+                              required:
+                              - type
+                              type: object
+                              x-kubernetes-validations:
+                              - message: 'seccomp_profile: localhost_profile is required
+                                  when type is Localhost'
+                                rule: self.type != 'Localhost' || (has(self.localhost_profile)
+                                  && size(self.localhost_profile) > 0)
+                            selinux_type:
+                              type: string
                           type: object
                         service_cpu_limit:
                           type: string
@@ -1120,6 +1415,10 @@ spec:
                                 items:
                                   type: string
                                 type: array
+                              environment:
+                                items:
+                                  type: string
+                                type: array
                               name:
                                 type: string
                             required:
@@ -1131,6 +1430,8 @@ spec:
                         terminationGracePeriodSeconds:
                           format: int64
                           type: integer
+                        use_service_account_image_pull_secrets:
+                          type: boolean
                         volumes:
                           properties:
                             config_map:
@@ -1186,7 +1487,11 @@ spec:
                                     type: string
                                   mount_path:
                                     type: string
+                                  mount_propagation:
+                                    type: string
                                   name:
+                                    type: string
+                                  size_limit:
                                     type: string
                                   sub_path:
                                     type: string
@@ -1202,6 +1507,8 @@ spec:
                                     type: string
                                   mount_path:
                                     type: string
+                                  mount_propagation:
+                                    type: string
                                   name:
                                     type: string
                                   read_only:
@@ -1213,10 +1520,42 @@ spec:
                                 - name
                                 type: object
                               type: array
+                            nfs:
+                              items:
+                                description: |-
+                                  KubernetesNFS is an NFS share mounted into the build pod. Upstream's
+                                  UnmarshalTOML rejects the volume unless name, mount_path, server and path are
+                                  all set, so those four are required here rather than optional.
+                                properties:
+                                  mount_path:
+                                    minLength: 1
+                                    type: string
+                                  name:
+                                    minLength: 1
+                                    type: string
+                                  path:
+                                    minLength: 1
+                                    type: string
+                                  read_only:
+                                    type: boolean
+                                  server:
+                                    minLength: 1
+                                    type: string
+                                  sub_path:
+                                    type: string
+                                required:
+                                - mount_path
+                                - name
+                                - path
+                                - server
+                                type: object
+                              type: array
                             pvc:
                               items:
                                 properties:
                                   mount_path:
+                                    type: string
+                                  mount_propagation:
                                     type: string
                                   name:
                                     type: string
