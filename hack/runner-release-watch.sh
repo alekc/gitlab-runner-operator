@@ -39,11 +39,17 @@ fi
 # front so a typo stops the run rather than silently excluding nothing.
 suppress=""
 if [ -e "${SUPPRESS_FILE}" ]; then
-  if [ ! -r "${SUPPRESS_FILE}" ]; then
-    echo "cannot read ${SUPPRESS_FILE}; refusing to report a config delta" >&2
+  # -f as well as -r: a directory is readable, and BSD sed exits 0 on one, so
+  # the parse below would report an exclusion file with zero exclusions.
+  if [ ! -f "${SUPPRESS_FILE}" ] || [ ! -r "${SUPPRESS_FILE}" ]; then
+    echo "${SUPPRESS_FILE} is not a readable file; refusing to report a config delta" >&2
     exit 1
   fi
-  suppress=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "${SUPPRESS_FILE}" | grep -E '.' || true)
+  raw=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "${SUPPRESS_FILE}") || {
+    echo "could not read ${SUPPRESS_FILE}; refusing to report a config delta" >&2
+    exit 1
+  }
+  suppress=$(printf '%s\n' "${raw}" | grep -E '.' || true)
   malformed=$(printf '%s' "${suppress}" | grep -vE '^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$' || true)
   if [ -n "${malformed}" ]; then
     printf 'malformed entries in %s, want Struct.key:\n%s\n' "${SUPPRESS_FILE}" "${malformed}" >&2

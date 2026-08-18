@@ -336,6 +336,18 @@ rc_is "exits 0" "${rc}" 0
 check "still creates an issue" "issue create" "${GH_CALLS}"
 check "says the file is absent" "no exclusion file at" "${GH_BODY_CAPTURE}"
 
+echo "case 3g: a directory as the exclusion path refuses"
+reset; mk_types 19.1.0
+# A directory is readable and BSD sed exits 0 on one, so without the -f guard
+# this reports an exclusion file that excludes nothing.
+mkdir -p "${ROOT}/suppress.d"
+export RUNNER_WATCH_SUPPRESS_FILE="${ROOT}/suppress.d"
+out=$("${SCRIPT}" 2>&1); rc=$?
+rc_is "exits non-zero" "$(nonzero "${rc}")" "nonzero"
+printf '%s\n' "${out}" > "${ROOT}/o3g"
+check "says it is not a file" "is not a readable file" "${ROOT}/o3g"
+absent "does not create" "issue create" "${GH_CALLS}"
+
 echo "case 4: label-matched issue suppresses a duplicate"
 reset; mk_types 19.1.0
 printf '[{"number":9,"body":"x\\n<!-- runner-release: v19.10.0 -->"}]\n' > "${GH_LIST_FIXTURE}"
