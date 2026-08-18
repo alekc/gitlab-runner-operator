@@ -3,6 +3,7 @@ package v1beta2
 import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 )
@@ -13,6 +14,16 @@ func valMeta(name string) metav1.ObjectMeta {
 
 func valByoAuth() GitlabAuth {
 	return GitlabAuth{Token: &TokenSource{Value: "glrt-x"}}
+}
+
+// expectInvalid asserts the apiserver rejected the create as Invalid (a schema
+// or CEL rule) and that the message names the expected rule. Checking only that
+// some error occurred would let a transport failure pass as a rejection.
+func expectInvalid(err error, wantMsg string) {
+	GinkgoHelper()
+	Expect(err).To(HaveOccurred(), "expected the apiserver to reject: %s", wantMsg)
+	Expect(apierrors.IsInvalid(err)).To(BeTrue(), "want an Invalid (schema/CEL) rejection, got: %v", err)
+	Expect(err.Error()).To(ContainSubstring(wantMsg))
 }
 
 var _ = Describe("CRD validation", func() {
@@ -32,11 +43,32 @@ var _ = Describe("CRD validation", func() {
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
 	})
 
+	// Positive controls for the conditional rules. Without these, inverting a
+	// rule so it rejects every input still passes the whole suite.
+	It("accepts a single caCertificate source", func() {
+		r := &Runner{ObjectMeta: valMeta("val-ca-one"), Spec: RunnerSpec{
+			Authentication: valByoAuth(),
+			CACertificate:  &CASource{ConfigMapKeyRef: &CAKeyRef{Name: "ca-cm"}},
+		}}
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+	})
+
+	It("accepts a project_type runner with project_id", func() {
+		r := &Runner{ObjectMeta: valMeta("val-project-ok"), Spec: RunnerSpec{Authentication: GitlabAuth{
+			AccessToken: &TokenSource{Value: "glpat-x"},
+			CreateOptions: &RunnerCreateOptions{
+				RunnerType: "project_type",
+				ProjectID:  new(42),
+			},
+		}}}
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+	})
+
 	DescribeTable("rejects an invalid Runner with a CEL message",
 		func(name string, spec RunnerSpec, wantMsg string) {
-			err := k8sClient.Create(ctx, &Runner{ObjectMeta: valMeta(name), Spec: spec})
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring(wantMsg))
+			expectInvalid(k8sClient.Create(ctx, &Runner{ObjectMeta: valMeta(name), Spec: spec}), wantMsg)
 		},
 		Entry("both auth modes set", "val-both", RunnerSpec{Authentication: GitlabAuth{
 			Token:         &TokenSource{Value: "glrt-x"},
@@ -47,10 +79,20 @@ var _ = Describe("CRD validation", func() {
 		Entry("create_options without access_token", "val-noat", RunnerSpec{Authentication: GitlabAuth{
 			CreateOptions: &RunnerCreateOptions{RunnerType: "instance_type"},
 		}}, "create_options requires access_token"),
+		// token is set so the "one of token or create_options" rule passes, leaving
+		// this input to trip the access_token rule alone.
+		Entry("access_token without create_options", "val-atnoco", RunnerSpec{Authentication: GitlabAuth{
+			Token:       &TokenSource{Value: "glrt-x"},
+			AccessToken: &TokenSource{Value: "glpat-x"},
+		}}, "access_token is only used with create_options"),
 		Entry("group_type without group_id", "val-nogid", RunnerSpec{Authentication: GitlabAuth{
 			AccessToken:   &TokenSource{Value: "x"},
 			CreateOptions: &RunnerCreateOptions{RunnerType: "group_type"},
 		}}, "group_type runner requires group_id"),
+		Entry("project_type without project_id", "val-nopid", RunnerSpec{Authentication: GitlabAuth{
+			AccessToken:   &TokenSource{Value: "x"},
+			CreateOptions: &RunnerCreateOptions{RunnerType: "project_type"},
+		}}, "project_type runner requires project_id"),
 		Entry("token value and secret_key_ref", "val-bothsrc", RunnerSpec{Authentication: GitlabAuth{
 			Token: &TokenSource{Value: "x", SecretKeyRef: &SecretKeySelector{Name: "s"}},
 		}}, "set either value or secret_key_ref"),
@@ -65,6 +107,22 @@ var _ = Describe("CRD validation", func() {
 			Authentication: valByoAuth(),
 			ExecutorConfig: KubernetesConfig{NamespaceOverwriteAllowed: ".*"},
 		}, "namespace_overwrite_allowed is not supported"),
+		// Two entries so that dropping any single source from the exclusivity list
+		// fails a test; one pair alone leaves the third source unexercised.
+		Entry("caCertificate value and secretKeyRef", "val-catwo", RunnerSpec{
+			Authentication: valByoAuth(),
+			CACertificate: &CASource{
+				Value:        "-----BEGIN CERTIFICATE-----",
+				SecretKeyRef: &CAKeyRef{Name: "ca-secret"},
+			},
+		}, "set only one of value, secretKeyRef, or configMapKeyRef"),
+		Entry("caCertificate value and configMapKeyRef", "val-cacm", RunnerSpec{
+			Authentication: valByoAuth(),
+			CACertificate: &CASource{
+				Value:           "-----BEGIN CERTIFICATE-----",
+				ConfigMapKeyRef: &CAKeyRef{Name: "ca-cm"},
+			},
+		}, "set only one of value, secretKeyRef, or configMapKeyRef"),
 	)
 
 	It("rejects an explicitly empty inline token value (raw object)", func() {
@@ -75,27 +133,23 @@ var _ = Describe("CRD validation", func() {
 		u.SetNamespace("default")
 		u.SetName("val-emptyvalue")
 		Expect(unstructured.SetNestedField(u.Object, "", "spec", "authentication", "token", "value")).To(Succeed())
-		err := k8sClient.Create(ctx, u)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("set either value or secret_key_ref"))
+		expectInvalid(k8sClient.Create(ctx, u), "set either value or secret_key_ref")
 	})
 
 	It("rejects a MultiRunner with no entries", func() {
-		err := k8sClient.Create(ctx, &MultiRunner{
+		expectInvalid(k8sClient.Create(ctx, &MultiRunner{
 			ObjectMeta: valMeta("val-mr-noentries"),
 			Spec:       MultiRunnerSpec{Entries: []MultiRunnerEntry{}},
-		})
-		Expect(err).To(HaveOccurred())
+		}), "should have at least 1 items")
 	})
 
 	It("rejects a MultiRunner with duplicate entry names", func() {
-		err := k8sClient.Create(ctx, &MultiRunner{
+		expectInvalid(k8sClient.Create(ctx, &MultiRunner{
 			ObjectMeta: valMeta("val-mr-dup"),
 			Spec: MultiRunnerSpec{Entries: []MultiRunnerEntry{
 				{Name: "dup", Authentication: valByoAuth()},
 				{Name: "dup", Authentication: valByoAuth()},
 			}},
-		})
-		Expect(err).To(HaveOccurred())
+		}), "Duplicate value")
 	})
 })
