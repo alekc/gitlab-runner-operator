@@ -25,9 +25,9 @@ simplest and fully-IaC option.
 
 - **Project** is a throwaway. Shared runners and Auto DevOps are disabled so the
   only thing that can run `build-job` is the operator-managed runner the suite
-  creates. All e2e matrix jobs share this single project, so the CI workflow runs
-  the k8s matrix with `max-parallel: 1`; parallel jobs would let a build-job land
-  on a sibling's runner and die when that sibling tears down first.
+  creates. All e2e matrix jobs share this single project, and they run
+  concurrently: each pins its pipeline to a tag unique to that run and leg, so a
+  build-job can only be picked up by the runner its own pipeline named.
 - **`.gitlab-ci.yml`** defines a single `build-job` tagged with `$RUNNER_TAG`,
   a pipeline variable defaulting to `var.job_tag`.
   The suite registers its managed runner with `run_untagged = false` and that

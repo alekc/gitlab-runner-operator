@@ -92,7 +92,7 @@ jobs:
             core.setOutput('ref', pr.data.head.sha);
 
   # Docs and workflow-only PRs cannot break the suite, so they skip it rather
-  # than spending a serialized slot. Non-PR events always run.
+  # than spending four runners and a few minutes. Non-PR events always run.
   changes:
     needs: authorize
     runs-on: ubuntu-latest
