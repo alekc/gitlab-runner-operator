@@ -24,12 +24,22 @@ import (
 
 const (
 	e2eNamespace = "default"
-	// jobTag must match the tags on build-job in the test project's
-	// .gitlab-ci.yml so the registered runner picks the job up.
-	jobTag   = "test-gitlab-runner"
-	timeout  = 6 * time.Minute
-	interval = 5 * time.Second
+	// defaultJobTag is the RUNNER_TAG default in the test project's
+	// .gitlab-ci.yml, used when GITLAB_E2E_RUNNER_TAG is unset.
+	defaultJobTag = "test-gitlab-runner"
+	timeout       = 6 * time.Minute
+	interval      = 5 * time.Second
 )
+
+// jobTag is the tag this run registers its runner with and pins its pipeline
+// to. CI sets a per-run value so concurrent runs cannot pick up each other's
+// jobs; a sibling doing so would kill the job when it tears its cluster down.
+var jobTag = func() string {
+	if t := os.Getenv("GITLAB_E2E_RUNNER_TAG"); t != "" {
+		return t
+	}
+	return defaultJobTag
+}()
 
 var (
 	k8sClient     client.Client

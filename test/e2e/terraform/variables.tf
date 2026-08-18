@@ -36,9 +36,11 @@ variable "project_name" {
 
 variable "job_tag" {
   description = <<-DESC
-    Tag applied to build-job in the generated .gitlab-ci.yml. MUST match the
-    jobTag constant in test/e2e/e2e_suite_test.go (currently "test-gitlab-runner")
-    or the managed runner never picks the job up and the suite times out.
+    Default RUNNER_TAG in the generated .gitlab-ci.yml, used when a pipeline
+    does not set one. MUST match the defaultJobTag constant in
+    test/e2e/e2e_suite_test.go, or a locally run suite never picks the job up.
+    CI overrides it per run via GITLAB_E2E_RUNNER_TAG so concurrent runs cannot
+    steal each other's jobs.
   DESC
   type        = string
   default     = "test-gitlab-runner"

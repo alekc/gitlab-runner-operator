@@ -21,11 +21,18 @@ locals {
     stages:
       - build
 
+    variables:
+      # The e2e suite overrides this per pipeline so a run's job can only be
+      # picked up by that run's runner. Without it every concurrent run shares
+      # one tag and a job can land on a sibling's runner, which then tears its
+      # cluster down mid-job. The default keeps a manual pipeline working.
+      RUNNER_TAG: ${var.job_tag}
+
     build-job:
       stage: build
       image: ${var.ci_job_image}
       tags:
-        - ${var.job_tag}
+        - $RUNNER_TAG
       script:
         - echo "e2e build-job on runner $CI_RUNNER_ID ($CI_RUNNER_DESCRIPTION)"
         - echo "commit $CI_COMMIT_SHORT_SHA on ref $CI_COMMIT_REF_NAME"
@@ -50,6 +57,13 @@ resource "gitlab_project" "e2e" {
   # and before the suite can trigger a pipeline on it.
   initialize_with_readme = true
   default_branch         = "main"
+
+  # The suite sets RUNNER_TAG as a pipeline variable so a run's job can only be
+  # picked up by that run's runner. GitLab refuses that with "Insufficient
+  # permissions to set pipeline variables" unless this is at or below the
+  # token's role, and new projects default to no_one_allowed. The e2e token is
+  # a Maintainer, so maintainer is the least-privilege value that works.
+  ci_pipeline_variables_minimum_override_role = "maintainer"
 
   # The suite asserts build-job ran on our operator-managed runner. Keep shared
   # runners out of the picture and silence Auto DevOps pipelines.

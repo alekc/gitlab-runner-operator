@@ -11,7 +11,7 @@ Run everything with `tofu`, not `terraform`.
 
 ```text
 project (private)                       var.project_name
-  ├── .gitlab-ci.yml                    build-job, tagged var.job_tag
+  ├── .gitlab-ci.yml                    build-job, tagged $RUNNER_TAG
   └── project access token              scopes: api, create_runner (Maintainer)
 ```
 
@@ -25,10 +25,11 @@ simplest and fully-IaC option.
 
 - **Project** is a throwaway. Shared runners and Auto DevOps are disabled so the
   only thing that can run `build-job` is the operator-managed runner the suite
-  creates. All e2e matrix jobs share this single project, so the CI workflow runs
-  the k8s matrix with `max-parallel: 1`; parallel jobs would let a build-job land
-  on a sibling's runner and die when that sibling tears down first.
-- **`.gitlab-ci.yml`** defines a single `build-job` tagged with `var.job_tag`.
+  creates. All e2e matrix jobs share this single project, and they run
+  concurrently: each pins its pipeline to a tag unique to that run and leg, so a
+  build-job can only be picked up by the runner its own pipeline named.
+- **`.gitlab-ci.yml`** defines a single `build-job` tagged with `$RUNNER_TAG`,
+  a pipeline variable defaulting to `var.job_tag`.
   The suite registers its managed runner with `run_untagged = false` and that
   same tag, then asserts the job ran on *our* runner id.
 - **Project access token** is what the suite consumes as `GITLAB_E2E_TOKEN`. It
@@ -117,12 +118,26 @@ too and use it directly as `GITLAB_E2E_TOKEN`. A personal access token always
 has a real user owner and will mint the runner. The rest of the fixture (group,
 project, CI file) is unaffected.
 
-## Keep the CI tag in sync
+## How the CI tag is chosen
 
-`var.job_tag` defaults to `test-gitlab-runner`, which must match the `jobTag`
-constant in `test/e2e/e2e_suite_test.go`. Change one and you must change the
-other, otherwise the managed runner never picks up `build-job` and the suite
-times out.
+`build-job` is tagged `$RUNNER_TAG`, a pipeline variable whose default comes from
+`var.job_tag` (`test-gitlab-runner`). The suite sets that variable when it
+triggers a pipeline, using `GITLAB_E2E_RUNNER_TAG` if set and otherwise the
+`defaultJobTag` constant in `test/e2e/e2e_suite_test.go`.
+
+Locally you can ignore all of it: leave `GITLAB_E2E_RUNNER_TAG` unset and the
+default applies, in which case `var.job_tag` and `defaultJobTag` must agree or
+the managed runner never picks up `build-job` and the suite times out.
+
+The project sets `ci_pipeline_variables_minimum_override_role = "maintainer"`
+because GitLab refuses `RUNNER_TAG` with "Insufficient permissions to set
+pipeline variables" otherwise, and new projects default to `no_one_allowed`.
+Lowering it further is not needed; raising it breaks the suite.
+
+CI sets a unique tag per run, attempt and matrix leg. That is what lets the
+matrix and separate runs execute concurrently against this one shared project: a
+job can only be picked up by the runner its own pipeline named, so a sibling
+cannot take it and then kill it by tearing down its cluster.
 
 ## Cleanup
 
