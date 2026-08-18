@@ -1,0 +1,42 @@
+name: runner-release
+
+# Upstream gitlab-runner is pinned as a Go constant, so no dependency scanner
+# sees it. This opens one tracking issue per release carrying the executor
+# config-key delta, which is what decides whether new CRD fields are needed.
+on:
+  schedule:
+    # Daily. Upstream ships roughly monthly, so this is about latency to notice
+    # rather than frequency of change; the script is idempotent per version.
+    - cron: '41 7 * * *'
+  # GitHub disables cron on repos with no activity for 60 days, and this is the
+  # only workflow whose whole value is firing unattended. Dispatch manually if
+  # the schedule ever goes quiet.
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: runner-release
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    # workflow_dispatch can run on any branch, and a stale branch's pin would
+    # file an issue for a release main already carries.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      # Needed to open the tracking issue.
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # This job holds issues: write and needs no git credentials.
+          persist-credentials: false
+      - name: Check for a newer upstream release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: ./hack/runner-release-watch.sh
