@@ -71,7 +71,15 @@ func waitGone(name string) {
 
 func triggerPipeline() int64 {
 	GinkgoHelper()
-	p, _, err := glab.Pipelines.CreatePipeline(projectID, &gitlab.CreatePipelineOptions{Ref: gitlab.Ptr(defaultBranch)})
+	// RUNNER_TAG pins build-job to this run's runner. Without it the job takes
+	// the CI file's default tag, which every concurrent run shares.
+	p, _, err := glab.Pipelines.CreatePipeline(projectID, &gitlab.CreatePipelineOptions{
+		Ref: gitlab.Ptr(defaultBranch),
+		Variables: &[]*gitlab.PipelineVariableOptions{{
+			Key:   gitlab.Ptr("RUNNER_TAG"),
+			Value: gitlab.Ptr(jobTag),
+		}},
+	})
 	Expect(err).NotTo(HaveOccurred(), "could not trigger a pipeline (token needs api scope + Developer role)")
 	return p.ID
 }

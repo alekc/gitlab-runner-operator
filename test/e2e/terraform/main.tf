@@ -21,11 +21,18 @@ locals {
     stages:
       - build
 
+    variables:
+      # The e2e suite overrides this per pipeline so a run's job can only be
+      # picked up by that run's runner. Without it every concurrent run shares
+      # one tag and a job can land on a sibling's runner, which then tears its
+      # cluster down mid-job. The default keeps a manual pipeline working.
+      RUNNER_TAG: ${var.job_tag}
+
     build-job:
       stage: build
       image: ${var.ci_job_image}
       tags:
-        - ${var.job_tag}
+        - $RUNNER_TAG
       script:
         - echo "e2e build-job on runner $CI_RUNNER_ID ($CI_RUNNER_DESCRIPTION)"
         - echo "commit $CI_COMMIT_SHORT_SHA on ref $CI_COMMIT_REF_NAME"
