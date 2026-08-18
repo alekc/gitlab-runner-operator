@@ -1,0 +1,20 @@
+# Deliberate omissions for hack/runner-release-watch.sh: one `Struct.key` per
+# line, `#` comments and blank lines ignored. An entry matching neither side of
+# the comparison is reported as unused, so a stale line cannot hide here.
+
+# The Kubernetes autoscaler subtree is not exposed on purpose (see #58): pause
+# pods do nothing without a cluster autoscaler, `preemptive_mode` is dead config
+# at v19.2.2, and the Deployments it creates carry no owner reference.
+KubernetesConfig.autoscaler
+KubernetesAutoscalerConfig.max_pause_pods
+KubernetesAutoscalerConfig.pause_pod_image
+KubernetesAutoscalerConfig.pause_pod_image_pull_secrets
+KubernetesAutoscalerConfig.pause_pod_priority_class_name
+KubernetesAutoscalerConfig.policy
+AutoscalerPolicyConfig.idle_count
+AutoscalerPolicyConfig.idle_time
+AutoscalerPolicyConfig.periods
+AutoscalerPolicyConfig.preemptive_mode
+AutoscalerPolicyConfig.scale_factor
+AutoscalerPolicyConfig.scale_factor_limit
+AutoscalerPolicyConfig.timezone

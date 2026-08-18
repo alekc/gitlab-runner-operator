@@ -141,6 +141,16 @@ in_section() {
   fi
 }
 
+not_in_section() {
+  local name=$1 needle=$2 file=$3
+  if awk -v h="### ${name}" '$0 ~ "^"h {f=1;next} /^### /{f=0} f' "${file}" \
+    | grep -qF -- "${needle}"; then
+    echo "  FAIL: '${needle}' under '${name}'"; fail=$((fail + 1))
+  else
+    echo "  ok: '${needle}' not under '${name}'"; pass=$((pass + 1))
+  fi
+}
+
 mk_types() {
   printf 'const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v%s"\n' "$1" > "${ROOT}/types.go"
 }
@@ -163,6 +173,25 @@ mk_config_at() {
     echo '}'
   } > "${out}"
 }
+# Same three structs, but each nested struct's key is set independently, so a
+# name can sit on one struct and not another. A flat name set cannot see that
+# gap; a (struct, key) set can.
+mk_config_pairs() {
+  local out=$1 csi=$2 ref=$3; shift 3
+  { echo 'type KubernetesConfig struct {'
+    printf '\tCSI KubernetesCSI `toml:"csi,omitempty"`\n'
+    printf '\tSvc Referenced `toml:"svc,omitempty"`\n'
+    for k in "$@"; do printf '\tField string `toml:"%s,omitempty"`\n' "${k}"; done
+    echo '}'
+    echo 'type KubernetesCSI struct {'
+    printf '\tField string `toml:"%s,omitempty"`\n' "${csi}"
+    echo '}'
+    echo 'type Referenced struct {'
+    printf '\tField string `toml:"%s,omitempty"`\n' "${ref}"
+    echo '}'
+    printf 'Set helper image flavor (alpine, ubuntu)\n'
+  } > "${out}"
+}
 
 export GH_CALLS="${ROOT}/calls.log"
 export GH_BODY_CAPTURE="${ROOT}/body.md"
@@ -176,6 +205,9 @@ export GH_CONFIG_NEW="${ROOT}/new.go"
 export HUB_FIXTURE="${ROOT}/hub.json"
 export RUNNER_WATCH_TYPES_FILE="${ROOT}/types.go"
 export RUNNER_WATCH_CONFIG_FILE="${ROOT}/ours.go"
+# Pinned at a fixture, or a run from the repo root would read the real
+# exclusion list and a run from anywhere else would not.
+export RUNNER_WATCH_SUPPRESS_FILE="${ROOT}/suppress"
 
 reset() {
   : > "${GH_CALLS}"; : > "${GH_BODY_CAPTURE}"; : > "${GH_TITLE_CAPTURE}"
@@ -195,6 +227,8 @@ reset() {
   mk_config_at "${GH_CONFIG_NEW}" nested_shared shared_key brand_new_key
   mk_config_at "${ROOT}/ours.go" nested_shared shared_key
   printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
+  : > "${ROOT}/suppress"
+  export RUNNER_WATCH_SUPPRESS_FILE="${ROOT}/suppress"
   unset GH_CONFIG_FAIL HUB_FAIL GITLAB_FAIL GH_LABEL_FAIL GH_SEARCH_FAIL
   unset RUNNER_WATCH_DRY_RUN GH_TRACKED_STATE
   export PINNED_V=19.1.0
@@ -220,9 +254,9 @@ check "picks the numeric maximum" "v19.10.0" "${GH_BODY_CAPTURE}"
 absent "ignores rc tags" "19.11.0" "${GH_BODY_CAPTURE}"
 check "carries the marker" "<!-- runner-release: v19.10.0 -->" "${GH_BODY_CAPTURE}"
 check "has an added heading" "### Added upstream" "${GH_BODY_CAPTURE}"
-in_section "Added upstream" "brand_new_key" "${GH_BODY_CAPTURE}"
+in_section "Added upstream" "KubernetesConfig.brand_new_key" "${GH_BODY_CAPTURE}"
 check "has a removed heading" "### Removed upstream" "${GH_BODY_CAPTURE}"
-in_section "Removed upstream" "gone_upstream" "${GH_BODY_CAPTURE}"
+in_section "Removed upstream" "KubernetesConfig.gone_upstream" "${GH_BODY_CAPTURE}"
 absent "no false 'nothing added'" "No keys added upstream" "${GH_BODY_CAPTURE}"
 check "reports helper flavours" "ubuntu" "${GH_BODY_CAPTURE}"
 absent "flavours exclude arch tokens" '- `x86_64`' "${GH_BODY_CAPTURE}"
@@ -244,10 +278,63 @@ echo "case 3: nested Kubernetes* types are in scope"
 reset; mk_types 19.1.0
 mk_config_at "${GH_CONFIG_NEW}" nested_added shared_key
 out=$("${SCRIPT}" 2>&1)
-check "diffs a nested-type key" "nested_added" "${GH_BODY_CAPTURE}"
+check "diffs a nested-type key" "KubernetesCSI.nested_added" "${GH_BODY_CAPTURE}"
 # Referenced is reachable only through a field type, so a roots-only extraction
 # would miss it entirely.
-check "follows type references" "nested_added_via_ref" "${GH_BODY_CAPTURE}"
+check "follows type references" "Referenced.nested_added_via_ref" "${GH_BODY_CAPTURE}"
+
+echo "case 3b: a per-struct gap a flat name set cannot see"
+reset; mk_types 19.1.0
+# `shared_key` is present in both files, so a bare-name comparison is satisfied.
+# Only upstream puts it on KubernetesCSI, and only we put `other_key` there.
+mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
+mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
+out=$("${SCRIPT}" 2>&1)
+in_section "In upstream v19.10.0 but not exposed by" "KubernetesCSI.shared_key" \
+  "${GH_BODY_CAPTURE}"
+in_section "Exposed by" "KubernetesCSI.other_key" "${GH_BODY_CAPTURE}"
+# The exposed placement of the same name is reported nowhere, which is the
+# whole point: the pair is what is compared, not the name.
+absent "does not flag the exposed placement" "KubernetesConfig.shared_key" "${GH_BODY_CAPTURE}"
+check "states the comparison performed" "Compared as (struct, key) pairs" "${GH_BODY_CAPTURE}"
+
+echo "case 3c: an exclusion drops a pair from both directions"
+reset; mk_types 19.1.0
+mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
+mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
+printf '# why\nKubernetesCSI.shared_key\nKubernetesCSI.other_key\n' > "${ROOT}/suppress"
+out=$("${SCRIPT}" 2>&1)
+not_in_section "In upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
+check "reports full exposure instead" "Every upstream key is exposed" "${GH_BODY_CAPTURE}"
+absent "drops the stale section too" "but gone from upstream" "${GH_BODY_CAPTURE}"
+check "keeps the exclusion visible" "with 2 of them excluded by" "${GH_BODY_CAPTURE}"
+# Upstream-against-itself is not filtered: a key added to a skipped subtree is
+# still a real upstream change, and it is reported once, not every release.
+in_section "Added upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
+
+echo "case 3d: an exclusion that matches nothing is reported"
+reset; mk_types 19.1.0
+printf 'KubernetesCSI.no_such_key\n' > "${ROOT}/suppress"
+out=$("${SCRIPT}" 2>&1)
+check "flags the dead entry" "that matched nothing" "${GH_BODY_CAPTURE}"
+in_section "Exclusions in" "KubernetesCSI.no_such_key" "${GH_BODY_CAPTURE}"
+
+echo "case 3e: a malformed exclusion refuses before filing"
+reset; mk_types 19.1.0
+printf '# comment\nnot-a-pair\n' > "${ROOT}/suppress"
+out=$("${SCRIPT}" 2>&1); rc=$?
+rc_is "exits non-zero" "$(nonzero "${rc}")" "nonzero"
+printf '%s\n' "${out}" > "${ROOT}/o3e"
+check "names the file" "malformed entries in" "${ROOT}/o3e"
+check "quotes the entry" "not-a-pair" "${ROOT}/o3e"
+absent "does not create" "issue create" "${GH_CALLS}"
+
+echo "case 3f: no exclusion file is stated, not silently treated as empty"
+reset; mk_types 19.1.0; rm -f "${ROOT}/suppress"
+out=$("${SCRIPT}" 2>&1); rc=$?
+rc_is "exits 0" "${rc}" 0
+check "still creates an issue" "issue create" "${GH_CALLS}"
+check "says the file is absent" "no exclusion file at" "${GH_BODY_CAPTURE}"
 
 echo "case 4: label-matched issue suppresses a duplicate"
 reset; mk_types 19.1.0

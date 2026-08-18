@@ -15,6 +15,7 @@ CONFIG_FILE=${RUNNER_WATCH_CONFIG_FILE:-api/v1beta2/gitlab_types.go}
 MIRROR=${RUNNER_WATCH_MIRROR:-gitlabhq/gitlab-runner}
 GITLAB_API=${RUNNER_WATCH_GITLAB_API:-https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-runner}
 HUB=${RUNNER_WATCH_HUB:-https://hub.docker.com/v2/repositories}
+SUPPRESS_FILE=${RUNNER_WATCH_SUPPRESS_FILE:-hack/runner-release-watch.suppress}
 DRY_RUN=${RUNNER_WATCH_DRY_RUN:-}
 
 # The pin is a Go constant rather than a dependency, so nothing else would
@@ -31,6 +32,23 @@ fi
 if [ ! -r "${CONFIG_FILE}" ]; then
   echo "cannot read ${CONFIG_FILE}; refusing to report a config delta" >&2
   exit 1
+fi
+
+# Deliberate omissions are data the script consults, not prose in a Go comment:
+# one `Struct.key` per line, `#` comments and blank lines ignored. Parsed up
+# front so a typo stops the run rather than silently excluding nothing.
+suppress=""
+if [ -e "${SUPPRESS_FILE}" ]; then
+  if [ ! -r "${SUPPRESS_FILE}" ]; then
+    echo "cannot read ${SUPPRESS_FILE}; refusing to report a config delta" >&2
+    exit 1
+  fi
+  suppress=$(sed -e 's/#.*//' -e 's/[[:space:]]//g' "${SUPPRESS_FILE}" | grep -E '.' || true)
+  malformed=$(printf '%s' "${suppress}" | grep -vE '^[A-Za-z0-9_]+\.[A-Za-z0-9_]+$' || true)
+  if [ -n "${malformed}" ]; then
+    printf 'malformed entries in %s, want Struct.key:\n%s\n' "${SUPPRESS_FILE}" "${malformed}" >&2
+    exit 1
+  fi
 fi
 
 # Field-wise so the result does not depend on GNU sort -V being present. 10# so
@@ -100,7 +118,8 @@ fi
 
 # Every struct reachable from a Kubernetes* root, not just the roots: the
 # operator mirrors the nested types too, so a key added to one of those still
-# needs a CRD field. Following references keeps that self-maintaining.
+# needs a CRD field. Emitted as `Struct.key`, because a bare name set counts a
+# key as exposed everywhere once it is exposed anywhere (see #63).
 KEYS_AWK='
 /^type [A-Za-z0-9_]+ struct \{$/ { t = $2; seen[t] = 1; next }
 /^\}$/ { t = ""; next }
@@ -123,7 +142,10 @@ END {
     split(refs[cur], r, " ")
     for (j in r) if (r[j] != "" && (r[j] in seen) && !(r[j] in done)) queue[++n] = r[j]
   }
-  for (x in done) { split(keys[x], kk, " "); for (j in kk) if (kk[j] != "") print kk[j] }
+  for (x in done) {
+    split(keys[x], kk, " ")
+    for (j in kk) if (kk[j] != "") print x "." kk[j]
+  }
 }'
 kube_keys() { awk "${KEYS_AWK}" "$1" | sort -u; }
 
@@ -139,6 +161,10 @@ by_hand() {
   echo "**Compare the executor config by hand before closing this.**"
 }
 
+bullets() { sed 's/^/- `/;s/$/`/' "$1"; }
+# wc pads on some platforms, and the count is interpolated into prose.
+count_lines() { wc -l <"$1" | tr -d '[:space:]'; }
+
 config_section() {
   local old="${tmp}/old.go" new="${tmp}/new.go"
   if ! fetch_upstream_config "${pinned}" >"${old}" 2>/dev/null ||
@@ -147,32 +173,74 @@ config_section() {
     by_hand
     return
   fi
+  kube_keys "${old}" >"${tmp}/old.keys"
+  kube_keys "${new}" >"${tmp}/new.keys"
+  kube_keys "${CONFIG_FILE}" >"${tmp}/ours.keys"
   # An empty extraction means the structs moved or were renamed. Saying "no keys
   # added" there would be the most misleading output this tool emits. All three
   # inputs are checked: a silent zero on any side skews the whole comparison.
   local f
-  for f in "${old}:v${pinned}" "${new}:v${latest}" "${CONFIG_FILE}:${CONFIG_FILE}"; do
-    if [ -z "$(kube_keys "${f%%:*}")" ]; then
+  for f in "old.keys:v${pinned}" "new.keys:v${latest}" "ours.keys:${CONFIG_FILE}"; do
+    if [ ! -s "${tmp}/${f%%:*}" ]; then
       echo "Extracted no toml keys from ${f##*:}; the config structs may have moved."
       by_hand
       return
     fi
   done
-  local added removed missing
-  added=$(comm -13 <(kube_keys "${old}") <(kube_keys "${new}") | sed 's/^/- `/;s/$/`/')
-  removed=$(comm -23 <(kube_keys "${old}") <(kube_keys "${new}") | sed 's/^/- `/;s/$/`/')
-  missing=$(comm -23 <(kube_keys "${new}") <(kube_keys "${CONFIG_FILE}") | sed 's/^/- `/;s/$/`/')
+  printf '%s' "${suppress}" | grep -E '.' | sort -u >"${tmp}/sup" || true
 
-  printf 'Upstream executor toml keys, v%s to v%s:\n\n' "${pinned}" "${latest}"
-  if [ -n "${added}" ]; then
-    printf '### Added upstream, so likely new CRD fields\n\n%s\n\n' "${added}"
+  # Release delta, upstream against itself. Not filtered by the exclusion list:
+  # a key added to a subtree we skip is still a real upstream change, and it is
+  # reported once rather than on every release.
+  comm -13 "${tmp}/old.keys" "${tmp}/new.keys" >"${tmp}/added"
+  comm -23 "${tmp}/old.keys" "${tmp}/new.keys" >"${tmp}/removed"
+  # Exposure gap, both directions, so a key we carry that upstream deleted shows
+  # up too. Only these are filtered, because they recompute the whole backlog on
+  # every release and would otherwise repeat the same omissions forever.
+  comm -23 "${tmp}/new.keys" "${tmp}/ours.keys" >"${tmp}/missing.all"
+  comm -13 "${tmp}/new.keys" "${tmp}/ours.keys" >"${tmp}/stale.all"
+  sort -u "${tmp}/missing.all" "${tmp}/stale.all" >"${tmp}/gaps"
+  comm -23 "${tmp}/missing.all" "${tmp}/sup" >"${tmp}/missing"
+  comm -23 "${tmp}/stale.all" "${tmp}/sup" >"${tmp}/stale"
+  comm -12 "${tmp}/gaps" "${tmp}/sup" >"${tmp}/sup.used"
+  comm -13 "${tmp}/gaps" "${tmp}/sup" >"${tmp}/sup.unused"
+
+  local excluded
+  if [ -e "${SUPPRESS_FILE}" ]; then
+    excluded=$(printf 'with %s of them excluded by `%s`' \
+      "$(count_lines "${tmp}/sup.used")" "${SUPPRESS_FILE}")
+  else
+    excluded=$(printf 'with no exclusion file at `%s`' "${SUPPRESS_FILE}")
+  fi
+  # State the comparison performed. "Nothing unexposed" is worth very little
+  # without it, and the flat-name version of this check read as a proof it was
+  # not: it reported zero while four placements were genuinely missing (#63).
+  printf 'Upstream executor toml keys, v%s to v%s. Compared as (struct, key) pairs rather than bare key names: %s upstream, %s here. ' \
+    "${pinned}" "${latest}" "$(count_lines "${tmp}/new.keys")" "$(count_lines "${tmp}/ours.keys")"
+  printf 'The exposure check runs in both directions, %s.\n\n' "${excluded}"
+
+  if [ -s "${tmp}/added" ]; then
+    printf '### Added upstream, so likely new CRD fields\n\n%s\n\n' "$(bullets "${tmp}/added")"
   else
     printf '### No keys added upstream\n\nNo new CRD fields needed for the executor config.\n\n'
   fi
-  [ -n "${removed}" ] && printf '### Removed upstream, so possibly dead here\n\n%s\n\n' "${removed}"
-  if [ -n "${missing}" ]; then
+  if [ -s "${tmp}/removed" ]; then
+    printf '### Removed upstream, so possibly dead here\n\n%s\n\n' "$(bullets "${tmp}/removed")"
+  fi
+  if [ -s "${tmp}/missing" ]; then
     printf '### In upstream v%s but not exposed by `%s`\n\n%s\n\n' \
-      "${latest}" "${CONFIG_FILE}" "${missing}"
+      "${latest}" "${CONFIG_FILE}" "$(bullets "${tmp}/missing")"
+  else
+    printf '### Every upstream key is exposed\n\nNo (struct, key) pair in v%s is missing from `%s`.\n\n' \
+      "${latest}" "${CONFIG_FILE}"
+  fi
+  if [ -s "${tmp}/stale" ]; then
+    printf '### Exposed by `%s` but gone from upstream v%s\n\n%s\n\n' \
+      "${CONFIG_FILE}" "${latest}" "$(bullets "${tmp}/stale")"
+  fi
+  if [ -s "${tmp}/sup.unused" ]; then
+    printf '### Exclusions in `%s` that matched nothing\n\n%s\n\n' \
+      "${SUPPRESS_FILE}" "$(bullets "${tmp}/sup.unused")"
   fi
 }
 
