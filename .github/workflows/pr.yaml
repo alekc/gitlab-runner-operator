@@ -30,6 +30,10 @@ jobs:
         # Same reasoning: a silent bug here means an upstream release goes
         # unnoticed. gh and curl are stubbed.
         run: ./hack/runner-release-watch_test.sh
+      - name: Test (e2e-gate)
+        # e2e-gate is the required check, so a bug that reads a skip as a pass
+        # would let a PR merge with a suite that never ran.
+        run: ./hack/e2e-gate_test.sh
 
   lint:
     runs-on: ubuntu-latest
