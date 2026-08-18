@@ -1,6 +1,8 @@
 package v1beta2
 
 import (
+	"errors"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -17,13 +19,21 @@ func valByoAuth() GitlabAuth {
 }
 
 // expectInvalid asserts the apiserver rejected the create as Invalid (a schema
-// or CEL rule) and that the message names the expected rule. Checking only that
-// some error occurred would let a transport failure pass as a rejection.
+// or CEL rule) for exactly one reason, and that it is the expected one.
+// Matching err.Error() instead searches all causes concatenated, so an input
+// that trips two rules would still satisfy a spec naming only one of them.
 func expectInvalid(err error, wantMsg string) {
 	GinkgoHelper()
 	Expect(err).To(HaveOccurred(), "expected the apiserver to reject: %s", wantMsg)
 	Expect(apierrors.IsInvalid(err)).To(BeTrue(), "want an Invalid (schema/CEL) rejection, got: %v", err)
-	Expect(err.Error()).To(ContainSubstring(wantMsg))
+
+	var status apierrors.APIStatus
+	Expect(errors.As(err, &status)).To(BeTrue(), "want an APIStatus error, got: %v", err)
+	Expect(status.Status().Details).NotTo(BeNil(), "want status details, got: %v", err)
+
+	causes := status.Status().Details.Causes
+	Expect(causes).To(HaveLen(1), "want exactly one cause so the spec pins one rule, got: %v", causes)
+	Expect(causes[0].Message).To(ContainSubstring(wantMsg))
 }
 
 var _ = Describe("CRD validation", func() {
