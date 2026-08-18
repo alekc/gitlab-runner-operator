@@ -58,6 +58,13 @@ resource "gitlab_project" "e2e" {
   initialize_with_readme = true
   default_branch         = "main"
 
+  # The suite sets RUNNER_TAG as a pipeline variable so a run's job can only be
+  # picked up by that run's runner. GitLab refuses that with "Insufficient
+  # permissions to set pipeline variables" unless this is at or below the
+  # token's role, and new projects default to no_one_allowed. The e2e token is
+  # a Maintainer, so maintainer is the least-privilege value that works.
+  ci_pipeline_variables_minimum_override_role = "maintainer"
+
   # The suite asserts build-job ran on our operator-managed runner. Keep shared
   # runners out of the picture and silence Auto DevOps pipelines.
   shared_runners_enabled = false

@@ -129,6 +129,11 @@ Locally you can ignore all of it: leave `GITLAB_E2E_RUNNER_TAG` unset and the
 default applies, in which case `var.job_tag` and `defaultJobTag` must agree or
 the managed runner never picks up `build-job` and the suite times out.
 
+The project sets `ci_pipeline_variables_minimum_override_role = "maintainer"`
+because GitLab refuses `RUNNER_TAG` with "Insufficient permissions to set
+pipeline variables" otherwise, and new projects default to `no_one_allowed`.
+Lowering it further is not needed; raising it breaks the suite.
+
 CI sets a unique tag per run, attempt and matrix leg. That is what lets the
 matrix and separate runs execute concurrently against this one shared project: a
 job can only be picked up by the runner its own pipeline named, so a sibling
