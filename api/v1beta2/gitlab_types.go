@@ -110,13 +110,10 @@ type KubernetesConfig struct {
 	ContainerLifecycle                      *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                       string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
 
-	// Fields below were synced from gitlab-runner v19.1.0, then completed against
-	// v19.2.2. cleanup_resources_timeout is a string because the runner's toml
-	// decoder parses a duration string into time.Duration. The kubernetes
-	// autoscaler subtree (autoscaler, its pause-pod settings and its policy
-	// list) is deliberately not exposed: pause pods do nothing without a cluster
-	// autoscaler, preemptive_mode is dead config at v19.2.2, and the Deployments
-	// they create carry no owner reference. See #58.
+	// Fields below were synced from gitlab-runner v19.2.2.
+	// cleanup_resources_timeout is a string because the runner's toml decoder
+	// parses a duration string into time.Duration. The kubernetes autoscaler
+	// subtree is deliberately not exposed; see runner-release-watch.suppress.
 
 	Context                             string              `toml:"context,omitempty" json:"context,omitempty"`
 	NamespacePerJob                     bool                `toml:"namespace_per_job,omitempty" json:"namespace_per_job,omitempty"`
