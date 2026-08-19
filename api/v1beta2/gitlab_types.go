@@ -74,7 +74,7 @@ type KubernetesConfig struct {
 	// A value set here is accepted, rendered into config.toml, then silently
 	// dropped by the runner. Set pod_termination_grace_period_seconds and
 	// cleanup_grace_period_seconds instead.
-	TerminationGracePeriodSeconds *int64 `toml:"terminationGracePeriodSeconds,omitzero" json:"terminationGracePeriodSeconds,omitempty" long:"terminationGracePeriodSeconds" env:"KUBERNETES_TERMINATIONGRACEPERIODSECONDS" description:"Duration after the processes running in the pod are sent a termination signal and the time when the processes are forcibly halted with a kill signal.DEPRECATED: use KUBERNETES_POD_TERMINATION_GRACE_PERIOD_SECONDS and KUBERNETES_CLEANUP_GRACE_PERIOD_SECONDS instead."`
+	TerminationGracePeriodSeconds *int64 `toml:"terminationGracePeriodSeconds,omitzero" json:"terminationGracePeriodSeconds,omitempty" long:"terminationGracePeriodSeconds" env:"KUBERNETES_TERMINATIONGRACEPERIODSECONDS" description:"Duration after the processes running in the pod are sent a termination signal and the time when the processes are forcibly halted with a kill signal. DEPRECATED: use KUBERNETES_POD_TERMINATION_GRACE_PERIOD_SECONDS and KUBERNETES_CLEANUP_GRACE_PERIOD_SECONDS instead."`
 	// PodTerminationGracePeriodSeconds is the build pod's grace period. Unset
 	// means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an
 	// unset grace period meant 0s, so a runner upgraded across that boundary
