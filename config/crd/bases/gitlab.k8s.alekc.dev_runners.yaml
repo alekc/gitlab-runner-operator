@@ -980,6 +980,11 @@ spec:
                   helper_image_autoset_arch_and_os:
                     type: boolean
                   helper_image_flavor:
+                    description: |-
+                      HelperImageFlavor selects the OS base for the helper image. Upstream
+                      interpolates it into the image tag rather than validating it, so an
+                      unrecognised value fails as an ImagePullBackOff on the build pod rather
+                      than at admission. Empty means alpine.
                     type: string
                   helper_memory_limit:
                     type: string
