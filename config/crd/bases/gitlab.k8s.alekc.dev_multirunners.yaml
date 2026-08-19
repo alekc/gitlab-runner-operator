@@ -734,6 +734,11 @@ spec:
                         cert_file:
                           type: string
                         cleanup_grace_period_seconds:
+                          description: |-
+                            CleanupGracePeriodSeconds is the DeleteOptions grace period used when
+                            tearing down the build pod and its credentials secret after a job. Unset
+                            defers to each object's own grace period, which for the pod is
+                            pod_termination_grace_period_seconds.
                           format: int64
                           type: integer
                         cleanup_resources_timeout:
@@ -1264,6 +1269,11 @@ spec:
                             type: object
                           type: array
                         pod_termination_grace_period_seconds:
+                          description: |-
+                            PodTerminationGracePeriodSeconds is the build pod's grace period. Unset
+                            means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an
+                            unset grace period meant 0s, so a runner upgraded across that boundary
+                            waits 30s where it used to terminate at once.
                           format: int64
                           type: integer
                         poll_interval:
@@ -1433,6 +1443,11 @@ spec:
                             type: object
                           type: array
                         terminationGracePeriodSeconds:
+                          description: |-
+                            Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.
+                            A value set here is accepted, rendered into config.toml, then silently
+                            dropped by the runner. Set pod_termination_grace_period_seconds and
+                            cleanup_grace_period_seconds instead.
                           format: int64
                           type: integer
                         use_service_account_image_pull_secrets:
