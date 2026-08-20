@@ -68,7 +68,7 @@ type KubernetesConfig struct {
 	// HelperImageFlavor selects the OS base for the helper image. Upstream
 	// interpolates it into the image tag rather than validating it, so an
 	// unrecognised value fails as an ImagePullBackOff on the build pod rather
-	// than at admission. Empty means alpine.
+	// than at admission. Empty means alpine, or concrete under FF_CONCRETE.
 	HelperImageFlavor string `toml:"helper_image_flavor,omitempty" json:"helper_image_flavor,omitempty" long:"helper-image-flavor" env:"KUBERNETES_HELPER_IMAGE_FLAVOR" description:"Set helper image flavor (alpine, alpine-edge, alpine-latest, alpine3.21, concrete, ubi-fips, ubuntu), defaults to alpine"`
 	// Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.
 	// A value set here is accepted, rendered into config.toml, then silently
@@ -110,7 +110,7 @@ type KubernetesConfig struct {
 	ContainerLifecycle                      *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                       string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
 
-	// Fields below were synced from gitlab-runner v19.2.2.
+	// The field set below matches gitlab-runner v19.3.0.
 	// cleanup_resources_timeout is a string because the runner's toml decoder
 	// parses a duration string into time.Duration. The kubernetes autoscaler
 	// subtree is deliberately not exposed; see runner-release-watch.suppress.
