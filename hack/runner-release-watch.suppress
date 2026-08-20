@@ -4,7 +4,7 @@
 
 # The Kubernetes autoscaler subtree is not exposed on purpose (see #58): pause
 # pods do nothing without a cluster autoscaler, `preemptive_mode` is dead config
-# at v19.2.2, and the Deployments it creates carry no owner reference.
+# at v19.3.0, and the Deployments it creates carry no owner reference.
 KubernetesConfig.autoscaler
 KubernetesAutoscalerConfig.max_pause_pods
 KubernetesAutoscalerConfig.pause_pod_image

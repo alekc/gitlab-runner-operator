@@ -989,7 +989,7 @@ spec:
                       HelperImageFlavor selects the OS base for the helper image. Upstream
                       interpolates it into the image tag rather than validating it, so an
                       unrecognised value fails as an ImagePullBackOff on the build pod rather
-                      than at admission. Empty means alpine.
+                      than at admission. Empty means alpine, or concrete under FF_CONCRETE.
                     type: string
                   helper_memory_limit:
                     type: string
