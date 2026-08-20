@@ -2,6 +2,7 @@ package crud
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -570,6 +571,72 @@ func TestOptionalBindingNamesCannotCollideWithABaseName(t *testing.T) {
 	for _, g := range optionalGrants() {
 		if got := g.namePrefix + attacker.ChildName(); got == victim.ChildName() {
 			t.Errorf("optional name %q collides with the base binding of runner %q", got, victim.GetName())
+		}
+	}
+}
+
+// recordingClient captures the order of Create calls. Neither the fake client
+// nor envtest enforces the apiserver's escalation check, so ordering is the
+// only thing a unit test can assert here.
+type recordingClient struct {
+	client.Client
+	order *[]string
+}
+
+func (r recordingClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+	*r.order = append(*r.order, fmt.Sprintf("%T/%s", obj, obj.GetName()))
+	return r.Client.Create(ctx, obj, opts...)
+}
+
+// A RoleBinding whose roleRef names a missing ClusterRole is rejected by the
+// apiserver: it resolves roleRef during the escalation check. On a fresh
+// cluster that makes creation order load-bearing, and no fake client will
+// catch it, so assert the order directly.
+func TestClusterRolesAreCreatedBeforeAnyBinding(t *testing.T) {
+	s := crudScheme(t)
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add corev1: %v", err)
+	}
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+
+	var order []string
+	base := fake.NewClientBuilder().WithScheme(s).Build()
+	cl := recordingClient{Client: base, order: &order}
+
+	if err := CreateRBACIfMissing(context.Background(), cl, base, r, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	indexOf := func(want string) int {
+		for i, got := range order {
+			if got == want {
+				return i
+			}
+		}
+		return -1
+	}
+	roles := map[string]int{
+		executorClusterRoleName:    indexOf("*v1.ClusterRole/" + executorClusterRoleName),
+		executorPDBClusterRoleName: indexOf("*v1.ClusterRole/" + executorPDBClusterRoleName),
+	}
+	bindings := map[string]int{
+		r.ChildName():                    indexOf("*v1.RoleBinding/" + r.ChildName()),
+		pdbBindingPrefix + r.ChildName(): indexOf("*v1.RoleBinding/" + pdbBindingPrefix + r.ChildName()),
+	}
+	for name, at := range roles {
+		if at < 0 {
+			t.Fatalf("clusterrole %q was never created (order: %v)", name, order)
+		}
+	}
+	for name, at := range bindings {
+		if at < 0 {
+			t.Fatalf("rolebinding %q was never created (order: %v)", name, order)
+		}
+		for role, roleAt := range roles {
+			if roleAt > at {
+				t.Errorf("rolebinding %q is created before clusterrole %q; the apiserver would reject it", name, role)
+			}
 		}
 	}
 }

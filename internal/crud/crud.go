@@ -115,11 +115,14 @@ func ExistingConfigCA(ctx context.Context, cl client.Client, namespace, childNam
 // stays in the runner's namespace (the manager Deployment mounts it).
 // RoleBindings in namespaces no longer targeted are pruned.
 func CreateRBACIfMissing(ctx context.Context, cl client.Client, apiReader client.Reader, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	// Grant before revoke. The optional roles and this runner's bindings are
-	// written first, so converging the base role (which drops a rule that used
-	// to be unconditional) never leaves this runner without the permission it
-	// still wants. See the upgrade note in ensureBaseClusterRole.
+	// Every referenced ClusterRole must exist before any binding: the apiserver
+	// resolves roleRef during the escalation check and rejects a RoleBinding
+	// whose role is absent. Rules are converged after the bindings, so an
+	// upgrade grants before it revokes.
 	if err := ensureOptionalClusterRoles(ctx, apiReader, cl, log); err != nil {
+		return err
+	}
+	if err := ensureClusterRoleExists(ctx, apiReader, cl, executorClusterRoleName, desiredRoleRules(), log); err != nil {
 		return err
 	}
 	if err := CreateSaIfMissing(ctx, cl, runnerObject, log); err != nil {
@@ -258,6 +261,31 @@ func ensureClusterRole(
 	desired []v1.PolicyRule,
 	log logr.Logger,
 ) error {
+	return reconcileClusterRole(ctx, apiReader, cl, name, desired, true, log)
+}
+
+// ensureClusterRoleExists creates the role when absent and leaves an existing
+// one untouched, so a binding can be written before the rules converge.
+func ensureClusterRoleExists(
+	ctx context.Context,
+	apiReader client.Reader,
+	cl client.Client,
+	name string,
+	desired []v1.PolicyRule,
+	log logr.Logger,
+) error {
+	return reconcileClusterRole(ctx, apiReader, cl, name, desired, false, log)
+}
+
+func reconcileClusterRole(
+	ctx context.Context,
+	apiReader client.Reader,
+	cl client.Client,
+	name string,
+	desired []v1.PolicyRule,
+	converge bool,
+	log logr.Logger,
+) error {
 	existing := &v1.ClusterRole{}
 	err := apiReader.Get(ctx, client.ObjectKey{Name: name}, existing)
 	switch {
@@ -281,7 +309,7 @@ func ensureClusterRole(
 		log.Error(err, "cannot get the executor clusterrole")
 		return err
 	}
-	if !equality.Semantic.DeepEqual(existing.Rules, desired) {
+	if converge && !equality.Semantic.DeepEqual(existing.Rules, desired) {
 		existing.Rules = desired
 		log.Info("updating shared executor clusterrole rules", "name", name)
 		// Concurrent reconciles all compute identical desired rules, so a lost
