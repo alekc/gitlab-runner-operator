@@ -22,6 +22,21 @@ import (
 
 const sharedExecutorClusterRole = "gitlab-runner-operator-executor"
 
+// optionalPDBClusterRole carries the pod_disruption_budget grant on its own.
+const optionalPDBClusterRole = "gitlab-runner-operator-executor-pdb"
+
+// e2eVerbsFor returns the verbs granted on resource, or nil when ungranted.
+func e2eVerbsFor(rules []rbacv1.PolicyRule, resource string) []string {
+	for _, r := range rules {
+		for _, res := range r.Resources {
+			if res == resource {
+				return r.Verbs
+			}
+		}
+	}
+	return nil
+}
+
 func objMeta(name string) metav1.ObjectMeta {
 	return metav1.ObjectMeta{Name: name, Namespace: e2eNamespace}
 }
@@ -308,16 +323,24 @@ var _ = Describe("RBAC provisioning", func() {
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: sharedExecutorClusterRole}, &executorRole)).To(Succeed())
 		// Existence alone would pass against a ClusterRole left by an older
 		// operator version, which is the upgrade case that matters.
-		var pdbVerbs []string
-		for _, r := range executorRole.Rules {
-			for _, res := range r.Resources {
-				if res == "poddisruptionbudgets" {
-					pdbVerbs = r.Verbs
-				}
-			}
-		}
-		Expect(pdbVerbs).To(ConsistOf("get", "create"),
-			"executor ClusterRole is missing the poddisruptionbudgets rule")
+		Expect(e2eVerbsFor(executorRole.Rules, "secrets")).To(ContainElement("create"),
+			"executor ClusterRole is missing the base rules")
+		// The optional grant must not ride the shared role. On an upgraded
+		// cluster this rule was there, so this asserts the revocation landed.
+		Expect(e2eVerbsFor(executorRole.Rules, "poddisruptionbudgets")).To(BeEmpty(),
+			"the shared executor ClusterRole still grants poddisruptionbudgets unconditionally")
+
+		By("the optional pod_disruption_budget ClusterRole existing, bound to nobody")
+		var pdbRole rbacv1.ClusterRole
+		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: optionalPDBClusterRole}, &pdbRole)).To(Succeed())
+		Expect(e2eVerbsFor(pdbRole.Rules, "poddisruptionbudgets")).To(ConsistOf("get", "create"),
+			"optional ClusterRole is missing the poddisruptionbudgets rule")
+		Consistently(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx,
+				types.NamespacedName{Namespace: runner.GetNamespace(), Name: "pdb-" + child},
+				&rbacv1.RoleBinding{}))
+		}, "5s", interval).Should(BeTrue(),
+			"an optional binding was created for a runner that never set pod_disruption_budget")
 
 		By("a per-runner ServiceAccount existing")
 		Eventually(func(g Gomega) {

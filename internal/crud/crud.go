@@ -26,10 +26,22 @@ const (
 	ownerNamespaceLabel = "gitlab.k8s.alekc.dev/owner-namespace"
 	ownerUIDLabel       = "gitlab.k8s.alekc.dev/owner-uid"
 
-	// executorClusterRoleName is the single, shared ClusterRole that holds the
-	// kubernetes executor permission set. Every runner RoleBinding references
-	// it, so the rules are defined once instead of duplicated per runner.
+	// executorClusterRoleName is the shared ClusterRole holding the permissions
+	// every kubernetes executor needs. Every runner RoleBinding references it,
+	// so the rules are defined once instead of duplicated per runner.
 	executorClusterRoleName = "gitlab-runner-operator-executor"
+
+	// executorPDBClusterRoleName carries the pod_disruption_budget grant alone,
+	// bound only in build namespaces whose executor entries enable the flag.
+	// One role per optional permission, so opting into a future one does not
+	// hand out this one as well.
+	executorPDBClusterRoleName = "gitlab-runner-operator-executor-pdb"
+
+	// pdbBindingPrefix separates the optional binding from the base one. A
+	// prefix, not a suffix: ChildName() always starts "gitlab-runner-", so a
+	// prefixed name can never equal another runner's base binding, whereas
+	// "<child>-pdb" collides with a runner literally named "<name>-pdb".
+	pdbBindingPrefix = "pdb-"
 )
 
 // SingleRunner init single runner from k8s
@@ -103,44 +115,161 @@ func ExistingConfigCA(ctx context.Context, cl client.Client, namespace, childNam
 // stays in the runner's namespace (the manager Deployment mounts it).
 // RoleBindings in namespaces no longer targeted are pruned.
 func CreateRBACIfMissing(ctx context.Context, cl client.Client, apiReader client.Reader, runnerObject internalTypes.RunnerInfo, log logr.Logger) error {
-	if err := ensureExecutorClusterRole(ctx, apiReader, cl, log); err != nil {
+	// Grant before revoke. The optional roles and this runner's bindings are
+	// written first, so converging the base role (which drops a rule that used
+	// to be unconditional) never leaves this runner without the permission it
+	// still wants. See the upgrade note in ensureBaseClusterRole.
+	if err := ensureOptionalClusterRoles(ctx, apiReader, cl, log); err != nil {
 		return err
 	}
 	if err := CreateSaIfMissing(ctx, cl, runnerObject, log); err != nil {
 		return err
 	}
-	namespaces := BuildNamespaces(runnerObject)
-	for _, namespace := range namespaces {
-		if err := reconcileRoleBinding(ctx, cl, runnerObject, namespace, log); err != nil {
+	desired := DesiredBindings(runnerObject, BuildNamespaces(runnerObject))
+	for _, key := range desired {
+		if err := reconcileRoleBinding(ctx, cl, runnerObject, key.Namespace, key.Name, key.ClusterRole, log); err != nil {
 			return err
 		}
 	}
-	return DeleteRBACExcept(ctx, cl, apiReader, runnerObject, namespaces, log)
+	if err := ensureBaseClusterRole(ctx, apiReader, cl, log); err != nil {
+		return err
+	}
+	return DeleteRBACExcept(ctx, cl, apiReader, runnerObject, desired, log)
 }
 
-// ensureExecutorClusterRole reconciles the single shared ClusterRole to the
-// desired rules. It is not owner-referenced (it outlives any one runner) and is
-// created once, then updated only when the rules drift, so a rule change in the
-// operator reaches every runner at once. The operator holds these permissions
-// itself (manager ClusterRole), so the API server's escalation check permits
-// both writing this ClusterRole and binding runner SAs to it. The read uses the
-// uncached APIReader so the operator does not spin up a cluster-wide informer on
-// every ClusterRole (a type it neither owns nor watches); writes go through the
-// regular cached client.
-func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
-	desired := desiredRoleRules()
+// optionalGrant is an executor permission gated behind a spec field. Each has
+// its own ClusterRole, so opting into one does not hand out the others.
+type optionalGrant struct {
+	namePrefix  string
+	clusterRole string
+	rules       []v1.PolicyRule
+	// wanted reports the build namespaces whose entries enable this grant.
+	wanted func(obj internalTypes.RunnerInfo) map[string]struct{}
+}
+
+func optionalGrants() []optionalGrant {
+	return []optionalGrant{{
+		namePrefix:  pdbBindingPrefix,
+		clusterRole: executorPDBClusterRoleName,
+		rules:       desiredPDBRules(),
+		wanted:      pdbNamespaces,
+	}}
+}
+
+// BindingKey identifies one operator-managed RoleBinding and the ClusterRole it
+// grants. Callers pass these to DeleteRBACExcept, so the prune compares against
+// the bindings that should exist rather than against namespaces alone, which
+// cannot see an optional grant that a spec change has just turned off.
+type BindingKey struct {
+	Namespace   string
+	Name        string
+	ClusterRole string
+}
+
+// DesiredBindings returns the RoleBindings the object should have across the
+// given namespaces: the base binding everywhere, plus the optional
+// pod_disruption_budget binding in namespaces whose entries enable it.
+func DesiredBindings(obj internalTypes.RunnerInfo, namespaces []string) []BindingKey {
+	grants := optionalGrants()
+	wanted := make([]map[string]struct{}, len(grants))
+	for i, g := range grants {
+		wanted[i] = g.wanted(obj)
+	}
+	out := make([]BindingKey, 0, len(namespaces))
+	for _, namespace := range namespaces {
+		out = append(out, BindingKey{
+			Namespace:   namespace,
+			Name:        obj.ChildName(),
+			ClusterRole: executorClusterRoleName,
+		})
+		for i, g := range grants {
+			if _, ok := wanted[i][namespace]; !ok {
+				continue
+			}
+			out = append(out, BindingKey{
+				Namespace:   namespace,
+				Name:        g.namePrefix + obj.ChildName(),
+				ClusterRole: g.clusterRole,
+			})
+		}
+	}
+	return out
+}
+
+// AllBindingsIn returns every binding name the object can own in a namespace,
+// wanted or not. The finalizer keeps same-namespace bindings (owner references
+// collect them) regardless of whether the optional grant is currently on.
+func AllBindingsIn(obj internalTypes.RunnerInfo, namespace string) []BindingKey {
+	out := []BindingKey{
+		{Namespace: namespace, Name: obj.ChildName(), ClusterRole: executorClusterRoleName},
+	}
+	for _, g := range optionalGrants() {
+		out = append(out, BindingKey{
+			Namespace:   namespace,
+			Name:        g.namePrefix + obj.ChildName(),
+			ClusterRole: g.clusterRole,
+		})
+	}
+	return out
+}
+
+// ensureBaseClusterRole converges the shared role every executor needs. It is
+// shared, so the first runner to reconcile after an upgrade drops a removed
+// rule for the whole fleet, and each runner that still wants it regains it only
+// on its own next reconcile. Reconciled last for that reason.
+func ensureBaseClusterRole(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
+	return ensureClusterRole(ctx, apiReader, cl, executorClusterRoleName, desiredRoleRules(), log)
+}
+
+// ensureOptionalClusterRoles converges one ClusterRole per optional grant. They
+// are created whether or not anything binds them: an unbound ClusterRole grants
+// nothing, and having it present means a binding never races its role.
+func ensureOptionalClusterRoles(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
+	for _, g := range optionalGrants() {
+		if err := ensureClusterRole(ctx, apiReader, cl, g.clusterRole, g.rules, log); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ensureExecutorClusterRoles converges every shared executor ClusterRole. Used
+// where ordering does not matter; CreateRBACIfMissing splits the two halves so
+// it can grant before it revokes.
+func ensureExecutorClusterRoles(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
+	if err := ensureOptionalClusterRoles(ctx, apiReader, cl, log); err != nil {
+		return err
+	}
+	return ensureBaseClusterRole(ctx, apiReader, cl, log)
+}
+
+// ensureClusterRole converges one shared ClusterRole on its desired rules. It
+// carries no owner reference (it outlives any one runner). The operator holds
+// these permissions itself, so the apiserver escalation check permits writing
+// the role and binding runner SAs to it.
+//
+// The read uses the uncached APIReader to avoid a cluster-wide informer on a
+// type the operator neither owns nor watches; writes use the cached client.
+func ensureClusterRole(
+	ctx context.Context,
+	apiReader client.Reader,
+	cl client.Client,
+	name string,
+	desired []v1.PolicyRule,
+	log logr.Logger,
+) error {
 	existing := &v1.ClusterRole{}
-	err := apiReader.Get(ctx, client.ObjectKey{Name: executorClusterRoleName}, existing)
+	err := apiReader.Get(ctx, client.ObjectKey{Name: name}, existing)
 	switch {
 	case errors.IsNotFound(err):
 		role := &v1.ClusterRole{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:   executorClusterRoleName,
+				Name:   name,
 				Labels: map[string]string{managedByLabel: managedByValue},
 			},
 			Rules: desired,
 		}
-		log.Info("creating shared executor clusterrole", "name", executorClusterRoleName)
+		log.Info("creating shared executor clusterrole", "name", name)
 		// The ClusterRole is shared, so many runner reconciles race to create
 		// it; the loser seeing AlreadyExists has nothing to do (whoever won
 		// wrote the same desired rules).
@@ -154,7 +283,7 @@ func ensureExecutorClusterRole(ctx context.Context, apiReader client.Reader, cl 
 	}
 	if !equality.Semantic.DeepEqual(existing.Rules, desired) {
 		existing.Rules = desired
-		log.Info("updating shared executor clusterrole rules", "name", executorClusterRoleName)
+		log.Info("updating shared executor clusterrole rules", "name", name)
 		// Concurrent reconciles all compute identical desired rules, so a lost
 		// optimistic-lock race means another reconcile already converged it.
 		if err := cl.Update(ctx, existing); err != nil && !errors.IsConflict(err) {
@@ -184,12 +313,10 @@ func BuildNamespaces(obj internalTypes.RunnerInfo) []string {
 	return out
 }
 
-// desiredRoleRules is the permission set the gitlab-runner kubernetes executor
-// needs, applied to the shared executor ClusterRole. Source of truth: the
-// kubernetes executor RBAC reference in the GitLab Runner docs. namespaces is
-// omitted because namespace_per_job is rejected by CEL, and deployments because
-// the autoscaler is not exposed. poddisruptionbudgets is needed by
-// pod_disruption_budget, which errors the whole job if the verb is missing.
+// desiredRoleRules is the permission set the kubernetes executor always needs,
+// applied to the shared executor ClusterRole. Source of truth: the executor
+// RBAC reference in the GitLab Runner docs. namespaces and deployments are
+// omitted (namespace_per_job is CEL-rejected, the autoscaler is not exposed).
 func desiredRoleRules() []v1.PolicyRule {
 	return []v1.PolicyRule{
 		{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get", "list", "watch", "create", "delete"}},
@@ -200,10 +327,32 @@ func desiredRoleRules() []v1.PolicyRule {
 		{APIGroups: []string{""}, Resources: []string{"services"}, Verbs: []string{"get", "create"}},
 		{APIGroups: []string{""}, Resources: []string{"serviceaccounts"}, Verbs: []string{"get"}},
 		{APIGroups: []string{""}, Resources: []string{"events"}, Verbs: []string{"list", "watch"}},
+	}
+}
+
+// desiredPDBRules is the grant pod_disruption_budget needs. It is separate
+// because upstream defaults the flag to false, so a runner that never sets it
+// creates no PDB; when it is set, a missing verb errors the whole job.
+func desiredPDBRules() []v1.PolicyRule {
+	return []v1.PolicyRule{
 		// The executor only creates and reads the PDB; the build pod owns it, so
 		// deletion happens by garbage collection rather than an explicit call.
 		{APIGroups: []string{"policy"}, Resources: []string{"poddisruptionbudgets"}, Verbs: []string{"get", "create"}},
 	}
+}
+
+// pdbNamespaces reports the build namespaces whose executor entries enable
+// pod_disruption_budget. Per namespace rather than per object: the PDB is
+// created next to the build pod, so a MultiRunner enabling it on one entry
+// must not widen the grant in namespaces its other entries target.
+func pdbNamespaces(obj internalTypes.RunnerInfo) map[string]struct{} {
+	out := map[string]struct{}{}
+	for _, cfg := range obj.ExecutorConfigs() {
+		if cfg.PodDisruptionBudget != nil && *cfg.PodDisruptionBudget {
+			out[cfg.EffectiveNamespace(obj.GetNamespace())] = struct{}{}
+		}
+	}
+	return out
 }
 
 // rbacLabels scope a List to one runner object's RBAC across namespaces. The
@@ -247,10 +396,10 @@ func CreateSaIfMissing(ctx context.Context, cl client.Client, runnerObject inter
 // shared executor ClusterRole in namespace. Owner references are set only in
 // the runner's own namespace; cross-namespace owner refs are invalid and would
 // be garbage collected, so build-namespace bindings are cleaned up explicitly.
-func desiredRoleBinding(obj internalTypes.RunnerInfo, namespace string) *v1.RoleBinding {
+func desiredRoleBinding(obj internalTypes.RunnerInfo, namespace, name, clusterRole string) *v1.RoleBinding {
 	binding := &v1.RoleBinding{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      obj.ChildName(),
+			Name:      name,
 			Namespace: namespace,
 			Labels:    rbacLabels(obj),
 		},
@@ -262,7 +411,7 @@ func desiredRoleBinding(obj internalTypes.RunnerInfo, namespace string) *v1.Role
 		RoleRef: v1.RoleRef{
 			APIGroup: "rbac.authorization.k8s.io",
 			Kind:     "ClusterRole",
-			Name:     executorClusterRoleName,
+			Name:     clusterRole,
 		},
 	}
 	if namespace == obj.GetNamespace() {
@@ -276,10 +425,16 @@ func desiredRoleBinding(obj internalTypes.RunnerInfo, namespace string) *v1.Role
 // usually needs no update; if its roleRef differs (for example a binding left
 // by an older operator version that referenced a per-runner Role) it is
 // recreated, because roleRef is immutable.
-func reconcileRoleBinding(ctx context.Context, cl client.Client, obj internalTypes.RunnerInfo, namespace string, log logr.Logger) error {
-	desired := desiredRoleBinding(obj, namespace)
+func reconcileRoleBinding(
+	ctx context.Context,
+	cl client.Client,
+	obj internalTypes.RunnerInfo,
+	namespace, name, clusterRole string,
+	log logr.Logger,
+) error {
+	desired := desiredRoleBinding(obj, namespace, name, clusterRole)
 	existing := &v1.RoleBinding{}
-	key := client.ObjectKey{Namespace: namespace, Name: obj.ChildName()}
+	key := client.ObjectKey{Namespace: namespace, Name: name}
 	err := cl.Get(ctx, key, existing)
 	switch {
 	case errors.IsNotFound(err):
@@ -309,20 +464,23 @@ func reconcileRoleBinding(ctx context.Context, cl client.Client, obj internalTyp
 }
 
 // DeleteRBACExcept deletes the operator-managed RoleBindings for the runner that
-// live in a namespace not present in keep. With keep set to the current build
-// namespaces it prunes bindings left behind when an executor namespace is
-// removed from the spec. With keep set to just the runner's own namespace it is
-// the finalizer's cross-namespace cleanup (same-namespace bindings carry owner
-// references and are garbage collected by Kubernetes). The shared ClusterRole
-// and the ServiceAccount are not touched here.
+// are not in keep, matched on namespace and name. Keying on the binding rather
+// than the namespace is what lets an optional grant be revoked: turning
+// pod_disruption_budget off leaves the namespace in use, only the binding goes.
+//
+// With keep from DesiredBindings it also prunes bindings left behind when an
+// executor namespace leaves the spec. With keep from AllBindingsIn(own) it is
+// the finalizer's cross-namespace cleanup; same-namespace bindings carry owner
+// references and are collected by Kubernetes. ClusterRoles and the
+// ServiceAccount are not touched here.
 //
 // The List uses the uncached reader (APIReader): a cross-namespace binding has
 // no owner reference, so the cache-list could miss one just created (or, during
 // finalization, drop the finalizer before observing it) and orphan a live grant.
-func DeleteRBACExcept(ctx context.Context, cl client.Client, reader client.Reader, obj internalTypes.RunnerInfo, keep []string, log logr.Logger) error {
+func DeleteRBACExcept(ctx context.Context, cl client.Client, reader client.Reader, obj internalTypes.RunnerInfo, keep []BindingKey, log logr.Logger) error {
 	keepSet := map[string]struct{}{}
-	for _, namespace := range keep {
-		keepSet[namespace] = struct{}{}
+	for _, k := range keep {
+		keepSet[k.Namespace+"/"+k.Name] = struct{}{}
 	}
 	selector := client.MatchingLabels(rbacLabels(obj))
 
@@ -331,11 +489,12 @@ func DeleteRBACExcept(ctx context.Context, cl client.Client, reader client.Reade
 		return err
 	}
 	for i := range bindings.Items {
-		if _, ok := keepSet[bindings.Items[i].Namespace]; ok {
+		item := &bindings.Items[i]
+		if _, ok := keepSet[item.Namespace+"/"+item.Name]; ok {
 			continue
 		}
-		log.Info("pruning runner rolebinding", "namespace", bindings.Items[i].Namespace)
-		if err := cl.Delete(ctx, &bindings.Items[i]); err != nil && !errors.IsNotFound(err) {
+		log.Info("pruning runner rolebinding", "namespace", item.Namespace, "name", item.Name)
+		if err := cl.Delete(ctx, item); err != nil && !errors.IsNotFound(err) {
 			return err
 		}
 	}

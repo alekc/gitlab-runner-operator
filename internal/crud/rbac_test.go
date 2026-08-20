@@ -7,7 +7,10 @@ import (
 	"testing"
 
 	"gitlab.k8s.alekc.dev/api/v1beta2"
+	internalTypes "gitlab.k8s.alekc.dev/internal/types"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/go-logr/logr"
@@ -49,8 +52,6 @@ func TestDesiredRoleRules(t *testing.T) {
 		"secrets":         {"get", "create", "update", "delete"},
 		"services":        {"get", "create"},
 		"serviceaccounts": {"get"},
-		// pod_disruption_budget errors the whole job without these.
-		"poddisruptionbudgets": {"get", "create"},
 	}
 	for resource, wantVerbs := range want {
 		verbs := verbsFor(rules, resource)
@@ -63,11 +64,33 @@ func TestDesiredRoleRules(t *testing.T) {
 			}
 		}
 	}
+	// The point of #64: an optional grant must not ride the always-on set.
+	if pdbRule(rules) != nil {
+		t.Error("poddisruptionbudgets is in the base rules; it belongs to the optional role")
+	}
 	// least privilege: no wildcards anywhere
 	for _, r := range rules {
 		if contains(r.APIGroups, "*") || contains(r.Resources, "*") || contains(r.Verbs, "*") {
 			t.Errorf("rule contains a wildcard: %+v", r)
 		}
+	}
+}
+
+func TestDesiredPDBRules(t *testing.T) {
+	rule := pdbRule(desiredPDBRules())
+	if rule == nil {
+		t.Fatal("no poddisruptionbudgets rule in the optional set")
+	}
+	if !contains(rule.APIGroups, "policy") {
+		t.Errorf("wrong apiGroup: %v", rule.APIGroups)
+	}
+	for _, v := range []string{"get", "create"} {
+		if !contains(rule.Verbs, v) {
+			t.Errorf("missing verb %q (got %v)", v, rule.Verbs)
+		}
+	}
+	if len(desiredPDBRules()) != 1 {
+		t.Errorf("optional role carries %d rules, want exactly the PDB one", len(desiredPDBRules()))
 	}
 }
 
@@ -141,7 +164,7 @@ func TestExecutorRulesAreHeldByTheManager(t *testing.T) {
 		}
 		return false
 	}
-	for _, rule := range desiredRoleRules() {
+	for _, rule := range append(desiredRoleRules(), desiredPDBRules()...) {
 		for _, g := range rule.APIGroups {
 			for _, res := range rule.Resources {
 				for _, v := range rule.Verbs {
@@ -174,19 +197,27 @@ func pdbRule(rules []rbacv1.PolicyRule) *rbacv1.PolicyRule {
 }
 
 // A fresh cluster gets the full rule set on create.
-func TestEnsureExecutorClusterRoleCreates(t *testing.T) {
+func TestEnsureExecutorClusterRolesCreatesBoth(t *testing.T) {
 	s := crudScheme(t)
 	cl := fake.NewClientBuilder().WithScheme(s).Build()
-	if err := ensureExecutorClusterRole(context.Background(), cl, cl, logr.Discard()); err != nil {
+	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	var got rbacv1.ClusterRole
+	var base rbacv1.ClusterRole
 	if err := cl.Get(context.Background(),
-		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
-		t.Fatalf("clusterrole not created: %v", err)
+		client.ObjectKey{Name: executorClusterRoleName}, &base); err != nil {
+		t.Fatalf("base clusterrole not created: %v", err)
 	}
-	if pdbRule(got.Rules) == nil {
-		t.Error("created clusterrole has no poddisruptionbudgets rule")
+	if pdbRule(base.Rules) != nil {
+		t.Error("base clusterrole still grants poddisruptionbudgets")
+	}
+	var optional rbacv1.ClusterRole
+	if err := cl.Get(context.Background(),
+		client.ObjectKey{Name: executorPDBClusterRoleName}, &optional); err != nil {
+		t.Fatalf("optional clusterrole not created: %v", err)
+	}
+	if pdbRule(optional.Rules) == nil {
+		t.Error("optional clusterrole has no poddisruptionbudgets rule")
 	}
 }
 
@@ -204,7 +235,7 @@ func TestEnsureExecutorClusterRoleCorrectsDrift(t *testing.T) {
 	}
 	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
 
-	if err := ensureExecutorClusterRole(context.Background(), cl, cl, logr.Discard()); err != nil {
+	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var got rbacv1.ClusterRole
@@ -212,21 +243,36 @@ func TestEnsureExecutorClusterRoleCorrectsDrift(t *testing.T) {
 		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
 		t.Fatalf("get clusterrole: %v", err)
 	}
-	rule := pdbRule(got.Rules)
-	if rule == nil {
-		t.Fatal("drift was not corrected: no poddisruptionbudgets rule after reconcile")
-	}
-	if !contains(rule.APIGroups, "policy") {
-		t.Errorf("wrong apiGroup: %v", rule.APIGroups)
-	}
-	for _, v := range []string{"get", "create"} {
-		if !contains(rule.Verbs, v) {
-			t.Errorf("missing verb %q (got %v)", v, rule.Verbs)
-		}
+	if verbsFor(got.Rules, "secrets") == nil {
+		t.Fatal("drift was not corrected: base rules missing after reconcile")
 	}
 	// Convergence is to the full desired set, not an append.
 	if len(got.Rules) != len(desiredRoleRules()) {
 		t.Errorf("rule count %d, want %d", len(got.Rules), len(desiredRoleRules()))
+	}
+}
+
+// The #64 upgrade path: an existing cluster carries poddisruptionbudgets in the
+// shared role. Revocation only reaches it through the drift branch, so without
+// this every pre-existing install would keep the unconditional grant forever.
+func TestEnsureExecutorClusterRoleDropsPDBFromTheBaseRole(t *testing.T) {
+	s := crudScheme(t)
+	legacy := append(desiredRoleRules(), desiredPDBRules()...)
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(&rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: executorClusterRoleName},
+		Rules:      legacy,
+	}).Build()
+
+	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	var got rbacv1.ClusterRole
+	if err := cl.Get(context.Background(),
+		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
+		t.Fatalf("get clusterrole: %v", err)
+	}
+	if pdbRule(got.Rules) != nil {
+		t.Error("the unconditional poddisruptionbudgets grant survived the upgrade")
 	}
 }
 
@@ -242,7 +288,7 @@ func TestEnsureExecutorClusterRoleRevokesExtraRules(t *testing.T) {
 		Rules:      extra,
 	}).Build()
 
-	if err := ensureExecutorClusterRole(context.Background(), cl, cl, logr.Discard()); err != nil {
+	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	var got rbacv1.ClusterRole
@@ -253,6 +299,277 @@ func TestEnsureExecutorClusterRoleRevokesExtraRules(t *testing.T) {
 	for _, r := range got.Rules {
 		if contains(r.Resources, "deployments") {
 			t.Error("an extra rule survived the reconcile; revocation would not reach existing clusters")
+		}
+	}
+}
+
+func pdbTrue() *bool  { b := true; return &b }
+func pdbFalse() *bool { b := false; return &b }
+
+// bindingNames renders BindingKeys as "namespace/name" for set comparison.
+func bindingNames(keys []BindingKey) []string {
+	out := make([]string, 0, len(keys))
+	for _, k := range keys {
+		out = append(out, k.Namespace+"/"+k.Name)
+	}
+	return out
+}
+
+func TestPDBNamespaces(t *testing.T) {
+	t.Run("unset grants nothing", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		if got := pdbNamespaces(r); len(got) != 0 {
+			t.Errorf("got %v, want none: upstream defaults the flag to false", got)
+		}
+	})
+	t.Run("explicit false grants nothing", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		r.Spec.ExecutorConfig.PodDisruptionBudget = pdbFalse()
+		if got := pdbNamespaces(r); len(got) != 0 {
+			t.Errorf("got %v, want none", got)
+		}
+	})
+	t.Run("true grants the effective namespace", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		r.Spec.ExecutorConfig.Namespace = "build"
+		r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+		got := pdbNamespaces(r)
+		if _, ok := got["build"]; !ok || len(got) != 1 {
+			t.Errorf("got %v, want only build", got)
+		}
+	})
+	// The refinement over a global OR: one entry must not widen the grant into
+	// the namespaces its siblings target.
+	t.Run("multirunner keeps namespaces independent", func(t *testing.T) {
+		mr := &v1beta2.MultiRunner{ObjectMeta: metav1.ObjectMeta{Name: "m", Namespace: "rns"}}
+		on := v1beta2.MultiRunnerEntry{Name: "on"}
+		on.ExecutorConfig.Namespace = "a"
+		on.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+		off := v1beta2.MultiRunnerEntry{Name: "off"}
+		off.ExecutorConfig.Namespace = "b"
+		mr.Spec.Entries = []v1beta2.MultiRunnerEntry{on, off}
+		got := pdbNamespaces(mr)
+		if _, ok := got["a"]; !ok {
+			t.Error("namespace a should be granted")
+		}
+		if _, ok := got["b"]; ok {
+			t.Error("namespace b must not inherit the grant from a sibling entry")
+		}
+	})
+}
+
+func TestDesiredBindings(t *testing.T) {
+	t.Run("base only when the flag is unset", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		assertSet(t, bindingNames(DesiredBindings(r, []string{"rns"})), []string{"rns/" + r.ChildName()})
+	})
+	t.Run("adds the optional binding when set", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+		assertSet(t, bindingNames(DesiredBindings(r, []string{"rns"})),
+			[]string{"rns/" + r.ChildName(), "rns/" + pdbBindingPrefix + r.ChildName()})
+	})
+	t.Run("the two bindings reference different clusterroles", func(t *testing.T) {
+		r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+		r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+		seen := map[string]string{}
+		for _, k := range DesiredBindings(r, []string{"rns"}) {
+			seen[k.Name] = k.ClusterRole
+		}
+		if seen[r.ChildName()] != executorClusterRoleName {
+			t.Errorf("base binding references %q", seen[r.ChildName()])
+		}
+		if seen[pdbBindingPrefix+r.ChildName()] != executorPDBClusterRoleName {
+			t.Errorf("optional binding references %q", seen[pdbBindingPrefix+r.ChildName()])
+		}
+	})
+}
+
+// managedBinding builds a labelled RoleBinding the way the operator would, so
+// the prune's label selector matches it.
+func managedBinding(obj internalTypes.RunnerInfo, namespace, name string) *rbacv1.RoleBinding {
+	return &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: namespace, Labels: rbacLabels(obj)},
+	}
+}
+
+func bindingExists(t *testing.T, cl client.Client, namespace, name string) bool {
+	t.Helper()
+	var got rbacv1.RoleBinding
+	err := cl.Get(context.Background(), client.ObjectKey{Namespace: namespace, Name: name}, &got)
+	if err != nil && !errors.IsNotFound(err) {
+		t.Fatalf("get rolebinding %s/%s: %v", namespace, name, err)
+	}
+	return err == nil
+}
+
+// The defect #64 is really about. A namespace-keyed prune cannot see this,
+// because the namespace is still in use by the base binding.
+func TestDeleteRBACExceptRevokesTheOptionalBindingOnSpecFlip(t *testing.T) {
+	s := crudScheme(t)
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	base, optional := r.ChildName(), pdbBindingPrefix+r.ChildName()
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(
+		managedBinding(r, "rns", base),
+		managedBinding(r, "rns", optional),
+	).Build()
+
+	// The flag is now unset, so DesiredBindings omits the optional binding.
+	keep := DesiredBindings(r, []string{"rns"})
+	if err := DeleteRBACExcept(context.Background(), cl, cl, r, keep, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bindingExists(t, cl, "rns", base) {
+		t.Error("the base binding was pruned; the runner lost its executor RBAC")
+	}
+	if bindingExists(t, cl, "rns", optional) {
+		t.Error("the optional binding survived a spec flip to off; the grant was never revoked")
+	}
+}
+
+func TestDeleteRBACExceptKeepsTheOptionalBindingWhileEnabled(t *testing.T) {
+	s := crudScheme(t)
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	optional := pdbBindingPrefix + r.ChildName()
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(
+		managedBinding(r, "rns", r.ChildName()),
+		managedBinding(r, "rns", optional),
+	).Build()
+
+	keep := DesiredBindings(r, []string{"rns"})
+	if err := DeleteRBACExcept(context.Background(), cl, cl, r, keep, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !bindingExists(t, cl, "rns", optional) {
+		t.Error("the optional binding was pruned while the flag is still set")
+	}
+}
+
+// The pre-existing behaviour must survive the rework: dropping a namespace from
+// the spec prunes everything the runner had there, optional binding included.
+func TestDeleteRBACExceptPrunesARemovedNamespace(t *testing.T) {
+	s := crudScheme(t)
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(
+		managedBinding(r, "rns", r.ChildName()),
+		managedBinding(r, "gone", r.ChildName()),
+		managedBinding(r, "gone", pdbBindingPrefix+r.ChildName()),
+	).Build()
+
+	keep := DesiredBindings(r, []string{"rns"})
+	if err := DeleteRBACExcept(context.Background(), cl, cl, r, keep, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bindingExists(t, cl, "gone", r.ChildName()) {
+		t.Error("base binding in the removed namespace survived")
+	}
+	if bindingExists(t, cl, "gone", pdbBindingPrefix+r.ChildName()) {
+		t.Error("optional binding in the removed namespace survived")
+	}
+	if !bindingExists(t, cl, "rns", r.ChildName()) {
+		t.Error("binding in a kept namespace was pruned")
+	}
+}
+
+// The finalizer path keeps both same-namespace bindings regardless of the flag,
+// because owner references collect them, and prunes cross-namespace ones.
+func TestDeleteRBACExceptFinalizerKeepsOwnNamespace(t *testing.T) {
+	s := crudScheme(t)
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	optional := pdbBindingPrefix + r.ChildName()
+	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(
+		managedBinding(r, "rns", r.ChildName()),
+		managedBinding(r, "rns", optional),
+		managedBinding(r, "build", r.ChildName()),
+		managedBinding(r, "build", optional),
+	).Build()
+
+	keep := AllBindingsIn(r, r.GetNamespace())
+	if err := DeleteRBACExcept(context.Background(), cl, cl, r, keep, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, name := range []string{r.ChildName(), optional} {
+		if !bindingExists(t, cl, "rns", name) {
+			t.Errorf("own-namespace binding %q was pruned; owner-reference GC should handle it", name)
+		}
+		if bindingExists(t, cl, "build", name) {
+			t.Errorf("cross-namespace binding %q survived finalization and is orphaned", name)
+		}
+	}
+}
+
+// The grant path, end to end through CreateRBACIfMissing. Without this the
+// whole feature can be a no-op and every other test still passes: the predicate
+// and the prune are covered, but nothing asserts a binding is ever created.
+func TestCreateRBACIfMissingGrantsTheOptionalBinding(t *testing.T) {
+	s := crudScheme(t)
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add corev1: %v", err)
+	}
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+	if err := CreateRBACIfMissing(context.Background(), cl, cl, r, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var optional rbacv1.RoleBinding
+	if err := cl.Get(context.Background(), client.ObjectKey{
+		Namespace: "rns", Name: pdbBindingPrefix + r.ChildName(),
+	}, &optional); err != nil {
+		t.Fatalf("optional binding was never created: %v", err)
+	}
+	// A binding pointing at the base role would grant nothing, and would look
+	// correct to any test that only checks the object exists.
+	if optional.RoleRef.Name != executorPDBClusterRoleName {
+		t.Errorf("optional binding references %q, want %q", optional.RoleRef.Name, executorPDBClusterRoleName)
+	}
+	if optional.RoleRef.Kind != "ClusterRole" {
+		t.Errorf("optional binding roleRef kind %q", optional.RoleRef.Kind)
+	}
+	if len(optional.Subjects) != 1 || optional.Subjects[0].Name != r.ChildName() {
+		t.Errorf("optional binding subjects %+v", optional.Subjects)
+	}
+
+	var base rbacv1.RoleBinding
+	if err := cl.Get(context.Background(), client.ObjectKey{
+		Namespace: "rns", Name: r.ChildName(),
+	}, &base); err != nil {
+		t.Fatalf("base binding missing: %v", err)
+	}
+	if base.RoleRef.Name != executorClusterRoleName {
+		t.Errorf("base binding references %q", base.RoleRef.Name)
+	}
+}
+
+func TestCreateRBACIfMissingSkipsTheOptionalBindingWhenUnset(t *testing.T) {
+	s := crudScheme(t)
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add corev1: %v", err)
+	}
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	cl := fake.NewClientBuilder().WithScheme(s).Build()
+
+	if err := CreateRBACIfMissing(context.Background(), cl, cl, r, logr.Discard()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if bindingExists(t, cl, "rns", pdbBindingPrefix+r.ChildName()) {
+		t.Error("an optional binding was created for a runner that never asked for it")
+	}
+}
+
+// A prefix is collision-proof by construction: ChildName() always begins
+// "gitlab-runner-", so no optional name can equal another runner's base name.
+func TestOptionalBindingNamesCannotCollideWithABaseName(t *testing.T) {
+	victim := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "x-pdb", Namespace: "rns"}}
+	attacker := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "rns"}}
+	attacker.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	for _, g := range optionalGrants() {
+		if got := g.namePrefix + attacker.ChildName(); got == victim.ChildName() {
+			t.Errorf("optional name %q collides with the base binding of runner %q", got, victim.GetName())
 		}
 	}
 }

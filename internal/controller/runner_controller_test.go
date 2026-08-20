@@ -196,17 +196,30 @@ func caseRBACCheck(tc *testCase) {
 
 		// and carry the rules the reconcile computed, not merely exist. Without
 		// this the desired set and the live object are never compared anywhere.
-		var pdb *v1.PolicyRule
-		for i := range clusterRole.Rules {
-			for _, r := range clusterRole.Rules[i].Resources {
-				if r == "poddisruptionbudgets" {
-					pdb = &clusterRole.Rules[i]
-				}
-			}
-		}
-		Expect(pdb).NotTo(BeNil(), "the reconciled clusterrole has no poddisruptionbudgets rule")
+		Expect(ruleFor(clusterRole.Rules, "secrets")).NotTo(BeNil(),
+			"the reconciled clusterrole has no secrets rule")
+		Expect(ruleFor(clusterRole.Rules, "poddisruptionbudgets")).To(BeNil(),
+			"pod_disruption_budget is unset, so the base role must not grant it")
+
+		// the optional grant lives in its own ClusterRole, always reconciled
+		var pdbRole v1.ClusterRole
+		Eventually(func() bool {
+			return k8sClient.Get(ctx,
+				types.NamespacedName{Name: "gitlab-runner-operator-executor-pdb"}, &pdbRole) == nil
+		}, timeout, interval).Should(BeTrue())
+		pdb := ruleFor(pdbRole.Rules, "poddisruptionbudgets")
+		Expect(pdb).NotTo(BeNil(), "the optional clusterrole has no poddisruptionbudgets rule")
 		Expect(pdb.APIGroups).To(ContainElement("policy"))
 		Expect(pdb.Verbs).To(ConsistOf("get", "create"))
+
+		// but nothing binds it: this runner never asked for a PDB
+		var optionalBinding v1.RoleBinding
+		Consistently(func() bool {
+			return apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{
+				Namespace: runner.GetNamespace(),
+				Name:      runner.ChildName() + "-pdb",
+			}, &optionalBinding))
+		}, "2s", interval).Should(BeTrue(), "an unrequested optional binding was created")
 
 		// a per-runner RoleBinding should bind that SA to the shared ClusterRole
 		var roleBinding v1.RoleBinding
@@ -418,4 +431,16 @@ func defaultRunner(name string, nameSpace string) *v1beta2.Runner {
 			},
 		},
 	}
+}
+
+// ruleFor returns the first policy rule covering resource, or nil.
+func ruleFor(rules []v1.PolicyRule, resource string) *v1.PolicyRule {
+	for i := range rules {
+		for _, r := range rules[i].Resources {
+			if r == resource {
+				return &rules[i]
+			}
+		}
+	}
+	return nil
 }

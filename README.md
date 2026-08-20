@@ -232,16 +232,29 @@ spec:
 
 ## RBAC and namespaces
 
-The kubernetes executor permission set (pods and pods/exec, pods/attach,
-pods/log, services, secrets, configmaps, serviceaccounts, events, and
-poddisruptionbudgets when `pod_disruption_budget` is set) lives in one
-shared ClusterRole, `gitlab-runner-operator-executor`, reconciled by the
-operator. For each Runner or MultiRunner the operator then provisions its own
-ServiceAccount (a distinct identity for audit and revocation) and a RoleBinding
-that binds that ServiceAccount to the shared ClusterRole. A MultiRunner shares a
-single ServiceAccount across all its entries. Because the rules live in one
-ClusterRole, a permission change in a new operator version applies to every
-runner at once.
+The permissions every kubernetes executor needs (pods and pods/exec,
+pods/attach, pods/log, services, secrets, configmaps, serviceaccounts and
+events) live in one shared ClusterRole, `gitlab-runner-operator-executor`,
+reconciled by the operator. For each Runner or MultiRunner the operator then
+provisions its own ServiceAccount (a distinct identity for audit and
+revocation) and a RoleBinding that binds that ServiceAccount to the shared
+ClusterRole. A MultiRunner shares a single ServiceAccount across all its
+entries. Because the rules live in one ClusterRole, a permission change in a
+new operator version applies to every runner at once.
+
+Permissions only some runners need are not in that role. Each optional grant
+has its own ClusterRole and its own RoleBinding, created only where the spec
+asks for it, so enabling one does not hand out the others. Today there is one:
+`pod_disruption_budget` needs `policy/poddisruptionbudgets`, held in
+`gitlab-runner-operator-executor-pdb` and bound by a RoleBinding named
+`pdb-<child-name>`. The grant is per build namespace, so a MultiRunner that
+sets the flag on one entry does not widen it into the namespaces its other
+entries target. Turning the flag off deletes the binding on the next reconcile.
+
+Upgrading from an operator version that granted `poddisruptionbudgets`
+unconditionally revokes it fleet-wide as soon as the first runner reconciles,
+and each runner that still wants it regains it on its own next reconcile. A job
+starting in that gap fails with a `poddisruptionbudgets is forbidden` error.
 
 The operator can only grant a runner what the operator itself holds (it has no
 RBAC `escalate` verb), so the manager ClusterRole is the explicit ceiling for

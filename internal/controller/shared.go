@@ -165,7 +165,7 @@ func enforceAllowedBuildNamespaces(ctx context.Context, cl client.Client, reader
 	obj.SetReadyCondition(false, "ExecutorNamespaceNotAllowed", msg)
 	// Revoke a previously-created binding for the now-disallowed namespace so a
 	// tightened policy or edited namespace takes effect immediately.
-	if err := crud.DeleteRBACExcept(ctx, cl, reader, obj, keep, logger); err != nil {
+	if err := crud.DeleteRBACExcept(ctx, cl, reader, obj, crud.DesiredBindings(obj, keep), logger); err != nil {
 		return false, err
 	}
 	return false, nil
@@ -460,7 +460,7 @@ func finalizeDeletion(ctx context.Context, cl client.Client, apiReader client.Re
 	// runner's own; those lack owner references so Kubernetes will not garbage
 	// collect them. Same-namespace RBAC is owner-referenced and collected on
 	// object deletion. Keep the finalizer and requeue on failure.
-	if err := crud.DeleteRBACExcept(ctx, cl, apiReader, obj, []string{obj.GetNamespace()}, logger); err != nil {
+	if err := crud.DeleteRBACExcept(ctx, cl, apiReader, obj, crud.AllBindingsIn(obj, obj.GetNamespace()), logger); err != nil {
 		logger.Error(err, "cannot clean up cross-namespace runner RBAC, will retry")
 		return resultRequeueAfterDefaultTimeout, err
 	}
