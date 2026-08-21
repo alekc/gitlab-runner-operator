@@ -288,6 +288,35 @@ require cluster-scoped RBAC.
 > `--allowed-build-namespaces` tight, and additionally restrict who can create
 > Runner/MultiRunner objects by RBAC.
 
+## Uninstalling
+
+Delete your Runner and MultiRunner objects first, and wait for them to go, then
+remove the operator. They carry a finalizer that deregisters them from GitLab
+and prunes the RoleBindings the operator created in other namespaces, and only a
+running operator can complete it: take the operator away first and they wedge in
+`Terminating`.
+
+The executor ClusterRoles need one more step. They are created by the operator
+at runtime rather than by the install manifest, so neither `helm uninstall` nor
+`kubectl delete -k config/default` removes them, and because they are shared by
+every runner they carry no ownerReferences and outlive the last Runner or
+MultiRunner as well as the operator. Unbound they grant nothing, so this is
+clutter rather than a security problem:
+
+```
+kubectl delete clusterrole -l app.kubernetes.io/managed-by=gitlab-runner-operator
+```
+
+Run it last: while a runner still exists, the next reconcile recreates them.
+Today the selector matches `gitlab-runner-operator-executor` and
+`gitlab-runner-operator-executor-pdb`, and each future optional grant adds one.
+It matches only what the operator created, as the chart's own ClusterRoles are
+labelled `app.kubernetes.io/managed-by: Helm` and the kustomize ones carry no
+labels at all.
+
+`helm uninstall` leaves the CRDs behind as well, since Helm never removes
+anything installed from a chart's `crds/` directory.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE).
