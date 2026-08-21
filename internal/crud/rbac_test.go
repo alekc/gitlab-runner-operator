@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"gitlab.k8s.alekc.dev/api/v1beta2"
@@ -53,6 +54,8 @@ func TestDesiredRoleRules(t *testing.T) {
 		"secrets":         {"get", "create", "update", "delete"},
 		"services":        {"get", "create"},
 		"serviceaccounts": {"get"},
+		"configmaps":      {"get", "create", "delete"},
+		"events":          {"list", "watch"},
 	}
 	for resource, wantVerbs := range want {
 		verbs := verbsFor(rules, resource)
@@ -178,6 +181,35 @@ func TestExecutorRulesAreHeldByTheManager(t *testing.T) {
 	}
 }
 
+// rbacClient builds a fake client with the scheme CreateRBACIfMissing needs.
+func rbacClient(t *testing.T, objs ...client.Object) client.WithWatch {
+	t.Helper()
+	s := crudScheme(t)
+	if err := corev1.AddToScheme(s); err != nil {
+		t.Fatalf("add corev1 to scheme: %v", err)
+	}
+	return fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
+}
+
+// testRunner is a Runner with the optional flag off unless pdb is true.
+func testRunner(pdb bool) *v1beta2.Runner {
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns", UID: "uid-1"}}
+	if pdb {
+		r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	}
+	return r
+}
+
+// reconcileRBAC drives the production entry point. Every ClusterRole assertion
+// goes through here: a helper reachable only from tests can stop being what
+// production calls, and nothing would notice.
+func reconcileRBAC(t *testing.T, cl client.WithWatch, r *v1beta2.Runner) {
+	t.Helper()
+	if err := CreateRBACIfMissing(context.Background(), cl, cl, r, logr.Discard()); err != nil {
+		t.Fatalf("CreateRBACIfMissing: %v", err)
+	}
+}
+
 // crudScheme is the minimal scheme the RBAC reconcile needs.
 func crudScheme(t *testing.T) *runtime.Scheme {
 	t.Helper()
@@ -199,11 +231,8 @@ func pdbRule(rules []rbacv1.PolicyRule) *rbacv1.PolicyRule {
 
 // A fresh cluster gets the full rule set on create.
 func TestEnsureExecutorClusterRolesCreatesBoth(t *testing.T) {
-	s := crudScheme(t)
-	cl := fake.NewClientBuilder().WithScheme(s).Build()
-	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cl := rbacClient(t)
+	reconcileRBAC(t, cl, testRunner(false))
 	var base rbacv1.ClusterRole
 	if err := cl.Get(context.Background(),
 		client.ObjectKey{Name: executorClusterRoleName}, &base); err != nil {
@@ -222,23 +251,18 @@ func TestEnsureExecutorClusterRolesCreatesBoth(t *testing.T) {
 	}
 }
 
-// The upgrade path. An existing cluster already carries this ClusterRole without
-// the newer rules, so the whole grant depends on the drift branch converging it.
-// Without this, a new install would work and every existing one would silently
-// keep the old rules.
+// Drift convergence, driven through CreateRBACIfMissing. A fresh install gets
+// correct rules from the create branch, so only this covers an existing cluster
+// whose role predates a rule change.
 func TestEnsureExecutorClusterRoleCorrectsDrift(t *testing.T) {
-	s := crudScheme(t)
 	stale := &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: executorClusterRoleName},
 		Rules: []rbacv1.PolicyRule{
 			{APIGroups: []string{""}, Resources: []string{"pods"}, Verbs: []string{"get"}},
 		},
 	}
-	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(stale).Build()
-
-	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	cl := rbacClient(t, stale)
+	reconcileRBAC(t, cl, testRunner(false))
 	var got rbacv1.ClusterRole
 	if err := cl.Get(context.Background(),
 		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
@@ -253,20 +277,16 @@ func TestEnsureExecutorClusterRoleCorrectsDrift(t *testing.T) {
 	}
 }
 
-// The #64 upgrade path: an existing cluster carries poddisruptionbudgets in the
-// shared role. Revocation only reaches it through the drift branch, so without
-// this every pre-existing install would keep the unconditional grant forever.
+// The #64 revocation, driven through CreateRBACIfMissing. e2e cannot cover it:
+// CI builds a fresh cluster, where the role is created already correct, so the
+// drift branch is the only path that reaches a pre-existing install.
 func TestEnsureExecutorClusterRoleDropsPDBFromTheBaseRole(t *testing.T) {
-	s := crudScheme(t)
 	legacy := append(desiredRoleRules(), desiredPDBRules()...)
-	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(&rbacv1.ClusterRole{
+	cl := rbacClient(t, &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: executorClusterRoleName},
 		Rules:      legacy,
-	}).Build()
-
-	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	})
+	reconcileRBAC(t, cl, testRunner(false))
 	var got rbacv1.ClusterRole
 	if err := cl.Get(context.Background(),
 		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
@@ -280,18 +300,14 @@ func TestEnsureExecutorClusterRoleDropsPDBFromTheBaseRole(t *testing.T) {
 // Rules removed from desiredRoleRules must also reach existing clusters, which
 // is how a grant would be revoked in a later operator release.
 func TestEnsureExecutorClusterRoleRevokesExtraRules(t *testing.T) {
-	s := crudScheme(t)
 	extra := append(desiredRoleRules(), rbacv1.PolicyRule{
 		APIGroups: []string{"apps"}, Resources: []string{"deployments"}, Verbs: []string{"create"},
 	})
-	cl := fake.NewClientBuilder().WithScheme(s).WithObjects(&rbacv1.ClusterRole{
+	cl := rbacClient(t, &rbacv1.ClusterRole{
 		ObjectMeta: metav1.ObjectMeta{Name: executorClusterRoleName},
 		Rules:      extra,
-	}).Build()
-
-	if err := ensureExecutorClusterRoles(context.Background(), cl, cl, logr.Discard()); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
+	})
+	reconcileRBAC(t, cl, testRunner(false))
 	var got rbacv1.ClusterRole
 	if err := cl.Get(context.Background(),
 		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
@@ -562,15 +578,23 @@ func TestCreateRBACIfMissingSkipsTheOptionalBindingWhenUnset(t *testing.T) {
 	}
 }
 
-// A prefix is collision-proof by construction: ChildName() always begins
-// "gitlab-runner-", so no optional name can equal another runner's base name.
+// Collision-proofness is the property that no optional name can equal ANY
+// runner's base name. Asserted over the shape rather than one example pair: a
+// base name always begins "gitlab-runner-", so a prefix that does not start
+// with that string cannot produce one.
 func TestOptionalBindingNamesCannotCollideWithABaseName(t *testing.T) {
-	victim := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "x-pdb", Namespace: "rns"}}
-	attacker := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "x", Namespace: "rns"}}
-	attacker.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	const basePrefix = "gitlab-runner-"
+	if got := (&v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "x"}}).ChildName(); !strings.HasPrefix(got, basePrefix) {
+		t.Fatalf("ChildName() is %q, which invalidates this test's premise", got)
+	}
 	for _, g := range optionalGrants() {
-		if got := g.namePrefix + attacker.ChildName(); got == victim.ChildName() {
-			t.Errorf("optional name %q collides with the base binding of runner %q", got, victim.GetName())
+		if g.namePrefix == "" {
+			t.Errorf("grant for %q has an empty name prefix, so its binding collides with the base one", g.clusterRole)
+			continue
+		}
+		if strings.HasPrefix(g.namePrefix, basePrefix) {
+			t.Errorf("name prefix %q starts with %q, so it can collide with a base binding name",
+				g.namePrefix, basePrefix)
 		}
 	}
 }
@@ -584,8 +608,13 @@ type recordingClient struct {
 }
 
 func (r recordingClient) Create(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
-	*r.order = append(*r.order, fmt.Sprintf("%T/%s", obj, obj.GetName()))
+	*r.order = append(*r.order, "create "+fmt.Sprintf("%T/%s", obj, obj.GetName()))
 	return r.Client.Create(ctx, obj, opts...)
+}
+
+func (r recordingClient) Update(ctx context.Context, obj client.Object, opts ...client.UpdateOption) error {
+	*r.order = append(*r.order, "update "+fmt.Sprintf("%T/%s", obj, obj.GetName()))
+	return r.Client.Update(ctx, obj, opts...)
 }
 
 // A RoleBinding whose roleRef names a missing ClusterRole is rejected by the
@@ -617,12 +646,12 @@ func TestClusterRolesAreCreatedBeforeAnyBinding(t *testing.T) {
 		return -1
 	}
 	roles := map[string]int{
-		executorClusterRoleName:    indexOf("*v1.ClusterRole/" + executorClusterRoleName),
-		executorPDBClusterRoleName: indexOf("*v1.ClusterRole/" + executorPDBClusterRoleName),
+		executorClusterRoleName:    indexOf("create *v1.ClusterRole/" + executorClusterRoleName),
+		executorPDBClusterRoleName: indexOf("create *v1.ClusterRole/" + executorPDBClusterRoleName),
 	}
 	bindings := map[string]int{
-		r.ChildName():                    indexOf("*v1.RoleBinding/" + r.ChildName()),
-		pdbBindingPrefix + r.ChildName(): indexOf("*v1.RoleBinding/" + pdbBindingPrefix + r.ChildName()),
+		r.ChildName():                    indexOf("create *v1.RoleBinding/" + r.ChildName()),
+		pdbBindingPrefix + r.ChildName(): indexOf("create *v1.RoleBinding/" + pdbBindingPrefix + r.ChildName()),
 	}
 	for name, at := range roles {
 		if at < 0 {
@@ -657,5 +686,98 @@ func TestOptionalBindingNameIsStable(t *testing.T) {
 	}
 	if len(got) != 1 || got[0] != want {
 		t.Errorf("optional binding named %v, want [%q]; update README and the controller/e2e suites together", got, want)
+	}
+}
+
+// The upgrade ordering commit 782f336 exists to establish, asserted through the
+// production entry point. Seeded like a pre-#64 cluster: the base role still
+// carries the PDB rule and no optional role exists.
+func TestUpgradeGrantsBeforeItRevokes(t *testing.T) {
+	legacy := append(desiredRoleRules(), desiredPDBRules()...)
+	var order []string
+	base := rbacClient(t, &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: executorClusterRoleName},
+		Rules:      legacy,
+	})
+	cl := recordingClient{Client: base, order: &order}
+	r := testRunner(true)
+
+	if err := CreateRBACIfMissing(context.Background(), cl, base, r, logr.Discard()); err != nil {
+		t.Fatalf("CreateRBACIfMissing: %v", err)
+	}
+
+	idx := func(want string) int {
+		for i, got := range order {
+			if got == want {
+				return i
+			}
+		}
+		return -1
+	}
+	revoke := idx("update *v1.ClusterRole/" + executorClusterRoleName)
+	grant := idx("create *v1.RoleBinding/" + pdbBindingPrefix + r.ChildName())
+	if revoke < 0 {
+		t.Fatalf("the base role was never converged, so the unconditional grant survives (order: %v)", order)
+	}
+	if grant < 0 {
+		t.Fatalf("the optional binding was never created (order: %v)", order)
+	}
+	if revoke < grant {
+		t.Errorf("the base role is stripped at %d before the optional binding is created at %d; "+
+			"this runner loses the permission mid-reconcile (order: %v)", revoke, grant, order)
+	}
+	// And the revocation actually landed.
+	var got rbacv1.ClusterRole
+	if err := base.Get(context.Background(),
+		client.ObjectKey{Name: executorClusterRoleName}, &got); err != nil {
+		t.Fatalf("get base clusterrole: %v", err)
+	}
+	if pdbRule(got.Rules) != nil {
+		t.Error("the unconditional poddisruptionbudgets grant survived the reconcile")
+	}
+}
+
+// The prune must run from the reconcile, not just be correct in isolation.
+func TestCreateRBACIfMissingRevokesAStaleOptionalBinding(t *testing.T) {
+	r := testRunner(false) // flag now off
+	stale := &rbacv1.RoleBinding{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: pdbBindingPrefix + r.ChildName(), Namespace: "rns", Labels: rbacLabels(r),
+		},
+	}
+	cl := rbacClient(t, stale)
+	reconcileRBAC(t, cl, r)
+
+	if bindingExists(t, cl, "rns", pdbBindingPrefix+r.ChildName()) {
+		t.Error("a stale optional binding survived the reconcile; the grant is never revoked")
+	}
+	if !bindingExists(t, cl, "rns", r.ChildName()) {
+		t.Error("the base binding is missing")
+	}
+}
+
+// Drift on the optional role must converge too. Without this the base role has
+// three drift tests and the new role has none, so a later rule correction would
+// reach fresh installs only.
+func TestOptionalClusterRoleConvergesOnDrift(t *testing.T) {
+	cl := rbacClient(t, &rbacv1.ClusterRole{
+		ObjectMeta: metav1.ObjectMeta{Name: executorPDBClusterRoleName},
+		Rules: []rbacv1.PolicyRule{
+			{APIGroups: []string{"policy"}, Resources: []string{"poddisruptionbudgets"}, Verbs: []string{"get"}},
+		},
+	})
+	reconcileRBAC(t, cl, testRunner(true))
+
+	var got rbacv1.ClusterRole
+	if err := cl.Get(context.Background(),
+		client.ObjectKey{Name: executorPDBClusterRoleName}, &got); err != nil {
+		t.Fatalf("get optional clusterrole: %v", err)
+	}
+	rule := pdbRule(got.Rules)
+	if rule == nil {
+		t.Fatal("no poddisruptionbudgets rule after reconcile")
+	}
+	if !contains(rule.Verbs, "create") {
+		t.Errorf("optional role drift was not corrected: verbs %v, want get and create", rule.Verbs)
 	}
 }

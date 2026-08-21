@@ -321,12 +321,11 @@ var _ = Describe("RBAC provisioning", func() {
 		By("the shared executor ClusterRole existing with the rules the operator computed")
 		var executorRole rbacv1.ClusterRole
 		Expect(k8sClient.Get(ctx, types.NamespacedName{Name: sharedExecutorClusterRole}, &executorRole)).To(Succeed())
-		// Existence alone would pass against a ClusterRole left by an older
-		// operator version, which is the upgrade case that matters.
+		// CI builds a fresh cluster, so this pins what the operator creates,
+		// not an upgrade. Drift convergence is covered in internal/crud.
 		Expect(e2eVerbsFor(executorRole.Rules, "secrets")).To(ContainElement("create"),
 			"executor ClusterRole is missing the base rules")
-		// The optional grant must not ride the shared role. On an upgraded
-		// cluster this rule was there, so this asserts the revocation landed.
+		// The optional grant must not ride the shared role.
 		Expect(e2eVerbsFor(executorRole.Rules, "poddisruptionbudgets")).To(BeEmpty(),
 			"the shared executor ClusterRole still grants poddisruptionbudgets unconditionally")
 

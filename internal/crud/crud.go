@@ -236,16 +236,6 @@ func ensureOptionalClusterRoles(ctx context.Context, apiReader client.Reader, cl
 	return nil
 }
 
-// ensureExecutorClusterRoles converges every shared executor ClusterRole. Used
-// where ordering does not matter; CreateRBACIfMissing splits the two halves so
-// it can grant before it revokes.
-func ensureExecutorClusterRoles(ctx context.Context, apiReader client.Reader, cl client.Client, log logr.Logger) error {
-	if err := ensureOptionalClusterRoles(ctx, apiReader, cl, log); err != nil {
-		return err
-	}
-	return ensureBaseClusterRole(ctx, apiReader, cl, log)
-}
-
 // ensureClusterRole converges one shared ClusterRole on its desired rules. It
 // carries no owner reference (it outlives any one runner). The operator holds
 // these permissions itself, so the apiserver escalation check permits writing
