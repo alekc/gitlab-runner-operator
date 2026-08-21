@@ -217,7 +217,7 @@ func caseRBACCheck(tc *testCase) {
 		Consistently(func() bool {
 			return apierrors.IsNotFound(k8sClient.Get(ctx, types.NamespacedName{
 				Namespace: runner.GetNamespace(),
-				Name:      runner.ChildName() + "-pdb",
+				Name:      "pdb-" + runner.ChildName(),
 			}, &optionalBinding))
 		}, "2s", interval).Should(BeTrue(), "an unrequested optional binding was created")
 

@@ -640,3 +640,22 @@ func TestClusterRolesAreCreatedBeforeAnyBinding(t *testing.T) {
 		}
 	}
 }
+
+// The optional binding name is observable contract: it is documented in the
+// README and hardcoded in the controller and e2e suites, which cannot import
+// this package's unexported constant. Pin it here so a change fails loudly
+// rather than silently making those assertions query a name nothing creates.
+func TestOptionalBindingNameIsStable(t *testing.T) {
+	r := &v1beta2.Runner{ObjectMeta: metav1.ObjectMeta{Name: "r", Namespace: "rns"}}
+	r.Spec.ExecutorConfig.PodDisruptionBudget = pdbTrue()
+	want := "pdb-" + r.ChildName()
+	var got []string
+	for _, k := range DesiredBindings(r, []string{"rns"}) {
+		if k.ClusterRole == executorPDBClusterRoleName {
+			got = append(got, k.Name)
+		}
+	}
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("optional binding named %v, want [%q]; update README and the controller/e2e suites together", got, want)
+	}
+}
