@@ -107,3 +107,59 @@ jobs:
             --build-arg VERSION=latest \
             --push \
             -t ${DOCKER_REPO}:latest .
+
+  # Docs land after the image, so the site never announces a version nobody can
+  # pull. Prerelease tags are skipped: they must not move the latest alias.
+  docs:
+    needs: goreleaser
+    if: ${{ !contains(github.ref_name, '-') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Shared with docs.yml: both push to gh-pages, and concurrent mike pushes
+    # make the loser fail on a non-fast-forward.
+    concurrency:
+      group: docs-deploy
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        # fetch-depth 0 so mike can see the gh-pages branch it has to amend.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.x
+
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Publish the version and move the latest alias
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          if [[ ! "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "ERROR: tag $GITHUB_REF_NAME is not vX.Y.Z, refusing to guess a docs version" >&2
+            exit 1
+          fi
+          # One docs version per minor: a patch refreshes the same directory.
+          minor="${ver%.*}"
+          # A backport on an older minor must publish its own docs without
+          # dragging latest, and the site root, back to it.
+          published=$(mike list --json 2>/dev/null \
+            | python3 -c "import sys,json;d=json.load(sys.stdin);print(next((v['version'] for v in d if 'latest' in v.get('aliases',[])),''))" \
+            || true)
+          if [ -n "$published" ] && \
+             [ "$(printf '%s\n%s\n' "$published" "$minor" | sort -V | tail -n1)" != "$minor" ]; then
+            echo "$minor is older than the published latest ($published): publishing without moving the alias"
+            mike deploy --push "$minor"
+          else
+            mike deploy --push --update-aliases "$minor" latest
+            mike set-default --push latest
+          fi

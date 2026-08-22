@@ -1,0 +1,74 @@
+name: docs
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  # Publish a docs-only fix to an already released version without cutting a
+  # new operator release.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version or alias to deploy into, e.g. 2.0. Defaults to dev.'
+        required: false
+        default: dev
+      update_latest:
+        description: 'Also move the latest alias to this version'
+        type: boolean
+        default: false
+
+# mike commits to gh-pages, so two deploys in flight means the loser fails on a
+# non-fast-forward push. The release workflow shares this group.
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        # fetch-depth 0 so mike can see the gh-pages branch it has to amend.
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.x
+
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Deploy
+        env:
+          VERSION: ${{ inputs.version || 'dev' }}
+          UPDATE_LATEST: ${{ inputs.update_latest }}
+        run: |
+          if [[ "${UPDATE_LATEST}" == "true" ]]; then
+            # version defaults to dev, and dev must never become latest.
+            if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              echo "ERROR: refusing to alias latest to '${VERSION}': expected MAJOR.MINOR" >&2
+              exit 1
+            fi
+            mike deploy --push --update-aliases "${VERSION}" latest
+            # Idempotent, and the one-off bootstrap: the automatic push-to-main
+            # path only deploys dev, so the site root gets its redirect from a
+            # release or from this dispatch.
+            mike set-default --push latest
+          else
+            mike deploy --push "${VERSION}"
+          fi

@@ -63,3 +63,25 @@ jobs:
         # toolchain directive; GOTOOLCHAIN=auto restores it so the build uses the
         # pinned patch. A failure means a reachable CVE to address.
         run: GOTOOLCHAIN=auto make govulncheck
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.x
+      - name: Reference matches the API types
+        # Regenerates docs/reference/api.md into a temp file and diffs. An API
+        # change with a stale reference fails here rather than shipping wrong
+        # field docs to the site.
+        run: GOTOOLCHAIN=auto make docs-verify
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: 3.x
+      - name: Install the docs toolchain
+        run: pip install -r docs/requirements.txt
+      - name: Build the site
+        # strict mode: a broken internal link or a nav entry pointing at a
+        # missing file fails the build.
+        run: mkdocs build --strict
