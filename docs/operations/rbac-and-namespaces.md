@@ -1,3 +1,9 @@
+---
+description: >-
+  What RBAC the operator grants each runner, and how to let job pods run in a
+  namespace other than the runner's own.
+---
+
 # RBAC and namespaces
 
 ## What every runner gets

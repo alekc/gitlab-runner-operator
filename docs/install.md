@@ -1,3 +1,9 @@
+---
+description: >-
+  Install the GitLab Runner Operator with Helm or kustomize, upgrade it, and
+  migrate from the v1beta1 API.
+---
+
 # Install
 
 ## Requirements

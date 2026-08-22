@@ -1,3 +1,9 @@
+---
+description: >-
+  Kubernetes operator for GitLab CI runners: typed CRDs instead of config.toml,
+  with registration, config, RBAC and cleanup handled for you.
+---
+
 # GitLab Runner Operator
 
 A Kubernetes operator that manages GitLab CI runners using the
@@ -57,6 +63,7 @@ a Secret instead: see [authentication](authentication.md#token-sources).
 
 | If you want to | Read |
 | --- | --- |
+| Solve a specific problem, or look up an error message | [Guides](guides/index.md) |
 | Install with kustomize, or pin versions | [Install](install.md) |
 | Let the operator create the runner in GitLab for you | [Authentication](authentication.md) |
 | Run jobs in a namespace other than the runner's | [RBAC and namespaces](operations/rbac-and-namespaces.md) |

@@ -1,3 +1,9 @@
+---
+description: >-
+  Work on the GitLab Runner Operator: kind cluster, tests, live e2e, regenerating
+  the API reference, and how the docs get published.
+---
+
 # Contributing
 
 ## Local cluster

@@ -2,7 +2,10 @@ site_name: GitLab Runner Operator
 site_description: >-
   Kubernetes operator that manages GitLab CI runners using the kubernetes
   executor. Typed CRDs instead of config.toml.
-site_url: https://gitlab-runner-operator.alekc.dev/
+# Points at the default alias, not the domain root, so every versioned copy of
+# a page emits a canonical URL pointing at /latest/. Without that, /2.0/ and
+# /latest/ are near-duplicates competing with each other in search.
+site_url: https://gitlab-runner-operator.alekc.dev/latest/
 site_author: Alexander Chernov
 copyright: Apache License 2.0
 
@@ -76,6 +79,21 @@ nav:
   - Home: index.md
   - Install: install.md
   - Authentication: authentication.md
+  - Guides:
+      - guides/index.md
+      - Docker-in-Docker: guides/docker-in-docker.md
+      - Rootless builds: guides/rootless-builds.md
+      - Node placement: guides/node-placement.md
+      - Spot and preemptible nodes: guides/spot-nodes.md
+      - Mount secrets and configmaps: guides/mount-secrets.md
+      - Pull from a private registry: guides/private-registry.md
+      - Persistent and ephemeral storage: guides/storage.md
+      - Sizing jobs: guides/sizing-jobs.md
+      - Concurrency: guides/concurrency.md
+      - Jobs stuck in Pending: guides/stuck-pods.md
+      - Dedicated build namespace: guides/build-namespace.md
+      - Service containers: guides/service-containers.md
+      - Watching a runner: guides/monitoring.md
   - Operations:
       - RBAC and namespaces: operations/rbac-and-namespaces.md
       - Uninstalling: operations/uninstall.md

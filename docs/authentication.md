@@ -1,3 +1,9 @@
+---
+description: >-
+  Authenticate a GitLab runner with a glrt- token or let the operator create it
+  from an access token, plus token sources and a custom CA.
+---
+
 # Authentication
 
 GitLab deprecated the registration-token workflow in 16.0 and disabled it by

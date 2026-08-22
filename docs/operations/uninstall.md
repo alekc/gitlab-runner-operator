@@ -1,3 +1,9 @@
+---
+description: >-
+  Remove the operator cleanly: deletion order, the finalizer, and the executor
+  ClusterRoles and CRDs left behind.
+---
+
 # Uninstalling
 
 ## Order matters
