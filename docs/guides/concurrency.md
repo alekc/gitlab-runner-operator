@@ -33,7 +33,7 @@ set on this operator:
 | Setting | Scope | On this operator |
 | --- | --- | --- |
 | `concurrent` | The manager process | `spec.concurrent`, yours to set. |
-| `limit` | One runner entry | **Hardcoded to 10** by the config generator. Not exposed. |
+| `limit` | One runner entry | **Hardcoded to 10** by the config generator. Not exposed ([#85](https://github.com/alekc/gitlab-runner-operator/issues/85)). |
 | `request_concurrency` | One runner entry | **Never set**, so it takes gitlab-runner's default of 1. Not exposed. |
 
 `concurrent` and `limit` both apply, and the lower one wins. A `Runner` object
@@ -70,8 +70,9 @@ queue that is the reason a runner reports online, looks idle, and drains the
 backlog far more slowly than its `concurrent` suggests it should. Upstream
 guidance is to raise it into the 4 to 20 range for a busy fleet.
 
-That is not reachable through the CRD today. Running several entries is the
-available workaround, since each entry polls on its own.
+That is not reachable through the CRD today
+([#85](https://github.com/alekc/gitlab-runner-operator/issues/85)). Running
+several entries is the available workaround, since each entry polls on its own.
 
 ## Sizing it
 

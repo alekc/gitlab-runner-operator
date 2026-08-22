@@ -64,7 +64,9 @@ objects or `MultiRunner` entries, not replicas.
 
 ## Concurrency settings that are not exposed
 
-Three gitlab-runner settings are hardcoded or unset by the config generator:
+Three gitlab-runner settings are hardcoded or unset by the config generator.
+The first two are tracked in
+[#85](https://github.com/alekc/gitlab-runner-operator/issues/85):
 
 | Setting | State | Effect |
 | --- | --- | --- |

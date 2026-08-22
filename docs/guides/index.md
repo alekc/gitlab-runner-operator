@@ -75,6 +75,7 @@ Four things are known gaps rather than misconfiguration, and each has an issue:
 | No environment variables on the manager container, so no outbound proxy | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
 | No `nodeSelector` / `tolerations` / `affinity` for the manager pod | [#83](https://github.com/alekc/gitlab-runner-operator/issues/83) |
 | Manager does not drain gracefully on rollout or eviction | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
+| `concurrent` above 10 is accepted but capped by a hardcoded per-entry limit | [#85](https://github.com/alekc/gitlab-runner-operator/issues/85) |
 
 The full list, including fields that are accepted but inert, is in
 [limitations](../reference/limitations.md).
