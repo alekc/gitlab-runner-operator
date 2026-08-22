@@ -193,6 +193,18 @@ mk_config_pairs() {
   } > "${out}"
 }
 
+# A struct nothing under Kubernetes* references, so the executor closure cannot
+# reach it. This is the #61 shape: experimental.* grew while the executor delta
+# was empty and the issue reported no keys added.
+mk_config_with_other() {
+  local out=$1 kube=$2 k; shift 2
+  mk_config_at "${out}" nested_shared "${kube}"
+  { echo 'type GlobalSection struct {'
+    for k in "$@"; do printf '\tField string `toml:"%s,omitempty"`\n' "${k}"; done
+    echo '}'
+  } >> "${out}"
+}
+
 export GH_CALLS="${ROOT}/calls.log"
 export GH_BODY_CAPTURE="${ROOT}/body.md"
 export GITLAB_FIXTURE="${ROOT}/releases.json"
@@ -253,11 +265,11 @@ check "creates an issue" "issue create" "${GH_CALLS}"
 check "picks the numeric maximum" "v19.10.0" "${GH_BODY_CAPTURE}"
 absent "ignores rc tags" "19.11.0" "${GH_BODY_CAPTURE}"
 check "carries the marker" "<!-- runner-release: v19.10.0 -->" "${GH_BODY_CAPTURE}"
-check "has an added heading" "### Added upstream" "${GH_BODY_CAPTURE}"
-in_section "Added upstream" "KubernetesConfig.brand_new_key" "${GH_BODY_CAPTURE}"
-check "has a removed heading" "### Removed upstream" "${GH_BODY_CAPTURE}"
-in_section "Removed upstream" "KubernetesConfig.gone_upstream" "${GH_BODY_CAPTURE}"
-absent "no false 'nothing added'" "No keys added upstream" "${GH_BODY_CAPTURE}"
+check "has an added heading" "### Added to the Kubernetes executor config upstream" "${GH_BODY_CAPTURE}"
+in_section "Added to the Kubernetes executor config upstream" "KubernetesConfig.brand_new_key" "${GH_BODY_CAPTURE}"
+check "has a removed heading" "### Removed from the Kubernetes executor config upstream" "${GH_BODY_CAPTURE}"
+in_section "Removed from the Kubernetes executor config upstream" "KubernetesConfig.gone_upstream" "${GH_BODY_CAPTURE}"
+absent "no false 'nothing added'" "No keys added to the Kubernetes executor config" "${GH_BODY_CAPTURE}"
 check "reports helper flavours" "ubuntu" "${GH_BODY_CAPTURE}"
 absent "flavours exclude arch tokens" '- `x86_64`' "${GH_BODY_CAPTURE}"
 check "flags an undocumented flavour" "which omits" "${GH_BODY_CAPTURE}"
@@ -290,9 +302,13 @@ reset; mk_types 19.1.0
 mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 out=$("${SCRIPT}" 2>&1)
-in_section "In upstream v19.10.0 but not exposed by" "KubernetesCSI.shared_key" \
+in_section "In the upstream v19.10.0 Kubernetes executor config but not exposed by" "KubernetesCSI.shared_key" \
   "${GH_BODY_CAPTURE}"
 in_section "Exposed by" "KubernetesCSI.other_key" "${GH_BODY_CAPTURE}"
+# Pins the stale heading text: in_section above matches only its prefix, so
+# without this the scope wording could be reverted with the suite still green.
+check "stale heading names the scope" "but gone from the upstream v19.10.0 Kubernetes executor config" \
+  "${GH_BODY_CAPTURE}"
 # The exposed placement of the same name is reported nowhere, which is the
 # whole point: the pair is what is compared, not the name.
 absent "does not flag the exposed placement" "KubernetesConfig.shared_key" "${GH_BODY_CAPTURE}"
@@ -304,13 +320,12 @@ mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 printf '# why\nKubernetesCSI.shared_key\nKubernetesCSI.other_key\n' > "${ROOT}/suppress"
 out=$("${SCRIPT}" 2>&1)
-not_in_section "In upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
-check "reports full exposure instead" "Every upstream key is exposed" "${GH_BODY_CAPTURE}"
-absent "drops the stale section too" "but gone from upstream" "${GH_BODY_CAPTURE}"
+check "reports full exposure instead" "Every upstream Kubernetes executor key is exposed" "${GH_BODY_CAPTURE}"
+absent "drops the stale section too" "### Exposed by" "${GH_BODY_CAPTURE}"
 check "keeps the exclusion visible" "with 2 of them excluded by" "${GH_BODY_CAPTURE}"
 # Upstream-against-itself is not filtered: a key added to a skipped subtree is
 # still a real upstream change, and it is reported once, not every release.
-in_section "Added upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
+in_section "Added to the Kubernetes executor config upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
 
 echo "case 3d: an exclusion that matches nothing is reported"
 reset; mk_types 19.1.0
@@ -347,6 +362,42 @@ rc_is "exits non-zero" "$(nonzero "${rc}")" "nonzero"
 printf '%s\n' "${out}" > "${ROOT}/o3g"
 check "says it is not a file" "is not a readable file" "${ROOT}/o3g"
 absent "does not create" "issue create" "${GH_CALLS}"
+
+echo "case 3h: a key added outside the executor closure is reported, not dropped"
+reset; mk_types 19.1.0
+# Executor keys identical on both sides, so the executor delta is empty and the
+# old behaviour printed a clean bill. Only GlobalSection moves.
+mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${GH_CONFIG_NEW}" shared_key new_global
+mk_config_with_other "${ROOT}/ours.go" shared_key old_global
+printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
+out=$("${SCRIPT}" 2>&1); rc=$?
+rc_is "exits 0" "${rc}" 0
+check "reports the non-executor change" "### Changed elsewhere in the upstream config" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.new_global" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.old_global" "${GH_BODY_CAPTURE}"
+# The executor verdict is unchanged and still scoped, so the wider check adds a
+# section rather than moving keys into the CRD-relevant one.
+check "executor delta still reads empty" "No keys added to the Kubernetes executor config" "${GH_BODY_CAPTURE}"
+# The load-bearing one: if the exposure check had been widened too, ours.go not
+# carrying new_global would drag it into the unexposed section as noise.
+check "exposure check stays on the executor closure" "Every upstream Kubernetes executor key is exposed" "${GH_BODY_CAPTURE}"
+check "counts the outside delta in the prose" "Outside the Kubernetes executor subtree: 1 added, 1 removed" "${GH_BODY_CAPTURE}"
+
+echo "case 3i: an addition alone outside the closure still prints the section"
+reset; mk_types 19.1.0
+# Only one side moves. The section guard is an OR, and an AND would suppress
+# the whole section here, which is the common shape: releases add far more
+# often than they remove.
+mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${GH_CONFIG_NEW}" shared_key old_global extra_global
+mk_config_with_other "${ROOT}/ours.go" shared_key old_global
+printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
+out=$("${SCRIPT}" 2>&1)
+check "prints the section on an addition alone" "### Changed elsewhere in the upstream config" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.extra_global" "${GH_BODY_CAPTURE}"
+check "counts a one-sided delta" "Outside the Kubernetes executor subtree: 1 added, 0 removed" "${GH_BODY_CAPTURE}"
+absent "renders no empty Removed list" "Removed:" "${GH_BODY_CAPTURE}"
 
 echo "case 4: label-matched issue suppresses a duplicate"
 reset; mk_types 19.1.0
