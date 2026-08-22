@@ -22,14 +22,19 @@ make run
 
 ## Building and deploying an image
 
-kind will pull an image tagged `latest` even after `kind load`, so tag it with
-something else:
+Build from `Dockerfile.e2e`, which compiles from source. The root `Dockerfile`
+is the release image: goreleaser assembles it from a prebuilt `dist/` tarball,
+so a plain `docker build` against it fails on the tar step. This is also exactly
+what the e2e workflow does.
 
 ```bash
-make docker-build IMG=controller:dev
+docker build -f Dockerfile.e2e -t controller:dev .
 kind load docker-image controller:dev --name kind
 make deploy IMG=controller:dev
 ```
+
+Tag it something other than `latest`: kind re-pulls a `latest` tag even after
+`kind load`, and you get the published image instead of yours.
 
 ## Tests
 
