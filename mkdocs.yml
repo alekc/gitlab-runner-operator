@@ -1,0 +1,85 @@
+site_name: GitLab Runner Operator
+site_description: >-
+  Kubernetes operator that manages GitLab CI runners using the kubernetes
+  executor. Typed CRDs instead of config.toml.
+site_url: https://gitlab-runner-operator.alekc.dev/
+site_author: Alexander Chernov
+copyright: Apache License 2.0
+
+repo_url: https://github.com/alekc/gitlab-runner-operator
+repo_name: alekc/gitlab-runner-operator
+edit_uri: edit/main/docs/
+
+# Fail the build on a broken internal link or a nav entry pointing at a missing
+# file, rather than publishing a site with dead links in it.
+strict: true
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  features:
+    - content.action.edit
+    - content.code.copy
+    - navigation.instant
+    - navigation.sections
+    - navigation.top
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  # Lets a page include a manifest straight out of config/samples, so every
+  # example in the docs is a file CI already validates against the CRDs.
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+exclude_docs: |
+  requirements.txt
+
+plugins:
+  - search
+
+extra:
+  version:
+    provider: mike
+    default: latest
+
+nav:
+  - Home: index.md
+  - Install: install.md
+  - Authentication: authentication.md
+  - Operations:
+      - RBAC and namespaces: operations/rbac-and-namespaces.md
+      - Uninstalling: operations/uninstall.md
+  - Reference:
+      - CRD API: reference/api.md
+      - Limitations: reference/limitations.md
+  - Contributing: contributing.md

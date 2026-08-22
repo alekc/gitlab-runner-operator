@@ -2,28 +2,25 @@
 
 Kubernetes operator that manages GitLab CI runners using the kubernetes executor.
 
-## What is this operator for
-
 It lets you run one or many GitLab runners, each with its own configuration
 expressed in YAML (no more hand-written `config.toml`), following an
 infrastructure-as-code approach. Every option exposed by the
 [kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html)
 is configurable through the CRD.
 
+**Documentation: <https://gitlab-runner-operator.alekc.dev/>**
+
 ## Status
 
 Alpha. Breaking changes are possible and will be called out in the release
 notes. Please open an issue if you hit a bug.
 
-> **API version**: the current API group version is
-> `gitlab.k8s.alekc.dev/v1beta2`. It replaces the older `v1beta1` /
-> `v1alpha1` versions. The change is breaking: the authentication block was
-> reworked (see below) and existing objects are not converted automatically.
+The current API group version is `gitlab.k8s.alekc.dev/v1beta2`. It replaces
+the older `v1beta1` / `v1alpha1` versions. The change is breaking, and existing
+objects are not converted automatically: see
+[upgrading from v1beta1](https://gitlab-runner-operator.alekc.dev/install/#upgrading-from-v1beta1).
 
-## Installation with helm
-
-Once the CRDs are installed you can deploy the operator into your preferred
-namespace:
+## Install
 
 ```
 helm repo add alekc https://charts.alekc.dev/
@@ -31,81 +28,9 @@ helm repo update
 helm install gitlab-runner-operator alekc/gitlab-runner-operator
 ```
 
-## Authentication
+## Minimal runner
 
-GitLab deprecated the registration-token workflow (in 16.0) and disabled it by
-default from 18.0 onward, so this operator uses runner authentication tokens
-(the `glrt-` tokens). There are two ways to authenticate, set under
-`spec.authentication`:
-
-1. **Bring your own token.** Create the runner in GitLab yourself (UI or the
-   `POST /user/runners` API) and give the operator the resulting `glrt-` token.
-   The operator makes no GitLab API calls; it just writes the token into the
-   runner config.
-
-2. **Operator-managed.** Give the operator an access token (personal, group, or
-   project) that holds the `create_runner` scope plus a `create_options` block.
-   The operator creates the runner through `POST /user/runners`, stores the
-   returned token, and deletes the runner from GitLab when the object is
-   removed. Deletion first uses the runner's own authentication token
-   (`DELETE /runners` by token), which needs no access-token scope, so
-   `create_runner` alone is enough for the normal lifecycle. If that fails or
-   the token is unavailable, the operator falls back to deleting by runner id
-   with the access token (`DELETE /runners/:id`), which succeeds only when the
-   access token also holds the `api` scope; otherwise the runner is logged as
-   possibly orphaned.
-
-Exactly one of the two modes must be configured; the CRD schema (CEL) rejects
-objects that set both or neither.
-
-## Configuration
-
-Top-level `spec` fields (all optional unless noted):
-
-| Key | Description |
-| --- | --- |
-| `authentication` | Required. How the runner authenticates (see above). |
-| `concurrent` | Maximum number of jobs run concurrently across this runner. Minimum 1. |
-| `check_interval` | Seconds between checks for new jobs. Minimum 3. |
-| `log_level` | One of `panic`, `fatal`, `error`, `warning`, `info`, `debug`. |
-| `log_format` | One of `runner`, `text`, `json`. |
-| `gitlab_instance_url` | GitLab URL. Defaults to `https://gitlab.com/`. |
-| `caCertificate` | Optional PEM CA bundle to verify a private or self-signed GitLab endpoint, used for both the operator's API calls and the runner's own connection. Supply it inline (`value`) or from a `secretKeyRef` / `configMapKeyRef` (see below). |
-| `executor_config` | Kubernetes executor options, see the [keywords reference](https://docs.gitlab.com/runner/executors/kubernetes.html#configuration-settings). |
-| `environment` | Custom environment variables injected into the build environment. |
-| `runner_image` | Override the gitlab-runner image. Defaults to a recent `gitlab/gitlab-runner:alpine-vX.Y.Z`. |
-
-### `authentication` fields
-
-| Key | Description |
-| --- | --- |
-| `token` | Bring-your-own mode: the pre-created `glrt-` token, as a token source (see below). |
-| `access_token` | Managed mode: an access token with the `create_runner` scope, as a token source. |
-| `create_options` | Managed mode: `runner_type` (`instance_type`/`group_type`/`project_type`), `group_id`, `project_id`, `description`, `tag_list`, `run_untagged`, `locked`, `paused`, `access_level`, `maximum_timeout`. |
-
-Both `token` and `access_token` are **token sources** with two mutually
-exclusive ways to supply the value:
-
-| Key | Description |
-| --- | --- |
-| `value` | The literal token, inline. Convenient for testing. |
-| `secret_key_ref` | Read the token from a Secret in the runner namespace: `name` (required), `key` (optional, defaults to `token`), `optional` (when `true`, a missing secret or key resolves to an empty token instead of failing). |
-
-### `caCertificate` fields
-
-Set at most one of the following. A referenced object must live in the runner
-namespace and hold a PEM CA bundle. The operator copies the resolved bundle into
-the runner's config Secret and points `tls-ca-file` at it.
-
-| Key | Description |
-| --- | --- |
-| `value` | The PEM CA bundle inline, supplied directly in the manifest. |
-| `secretKeyRef` | Read the CA from a Secret: `name` (required), `key` (optional, defaults to `ca.crt`). |
-| `configMapKeyRef` | Read the CA from a ConfigMap: `name` (required), `key` (optional, defaults to `ca.crt`). |
-
-## Examples
-
-### Bring-your-own token
+Create the runner in GitLab, then hand its `glrt-` token to a `Runner` object:
 
 ```yaml
 apiVersion: gitlab.k8s.alekc.dev/v1beta2
@@ -118,206 +43,23 @@ spec:
       value: "glrt-XXXXXXXXXXXXXXXXXXXX"
 ```
 
-### Operator-managed runner
+Reading the token from a Secret, letting the operator create the runner for you
+with an access token, private CAs, build namespaces and the full field
+reference are all in the docs.
 
-```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta2
-kind: Runner
-metadata:
-  name: runner-managed
-spec:
-  authentication:
-    access_token:
-      value: "glpat-XXXXXXXXXXXXXXXXXXXX"
-    create_options:
-      runner_type: project_type
-      project_id: 1234567
-      run_untagged: true
-      tag_list:
-        - test-gitlab-runner
-```
+## Documentation
 
-### Token from a secret
+| Page | |
+| --- | --- |
+| [Install](https://gitlab-runner-operator.alekc.dev/install/) | Helm, kustomize, version matrix, upgrades |
+| [Authentication](https://gitlab-runner-operator.alekc.dev/authentication/) | Tokens, operator-managed runners, custom CA |
+| [RBAC and namespaces](https://gitlab-runner-operator.alekc.dev/operations/rbac-and-namespaces/) | What each runner is granted, and where jobs may run |
+| [Uninstalling](https://gitlab-runner-operator.alekc.dev/operations/uninstall/) | Deletion order, and what gets left behind |
+| [CRD API reference](https://gitlab-runner-operator.alekc.dev/reference/api/) | Every field, generated from the types |
+| [Limitations](https://gitlab-runner-operator.alekc.dev/reference/limitations/) | What it deliberately does not do |
+| [Contributing](https://gitlab-runner-operator.alekc.dev/contributing/) | Local cluster, tests, regenerating docs |
 
-`key` defaults to `token`; set `secret_key_ref.key` to read a different key.
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: gitlab-runner-token
-type: Opaque
-stringData:
-  token: "glrt-XXXXXXXXXXXXXXXXXXXX"
----
-apiVersion: gitlab.k8s.alekc.dev/v1beta2
-kind: Runner
-metadata:
-  name: runner-sample
-spec:
-  authentication:
-    token:
-      secret_key_ref:
-        name: gitlab-runner-token
-        # key omitted -> defaults to "token"
-```
-
-### Mounting secrets or config maps as volumes
-
-```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta2
-kind: Runner
-metadata:
-  name: runner-sample
-spec:
-  log_level: debug
-  executor_config:
-    image: "debian:slim"
-    memory_limit: "150Mi"
-    memory_request: "150Mi"
-    volumes:
-      config_map:
-        - mount_path: /cm/
-          name: test-config
-      secret:
-        - mount_path: /secrets/1/
-          name: test-secret
-  authentication:
-    token:
-      value: "glrt-XXXXXXXXXXXXXXXXXXXX"
-```
-
-### Multiple runners in one object
-
-See `config/samples/gitlab_v1beta2_multirunner.yaml` for a `MultiRunner`
-example that mixes both authentication modes across entries.
-
-### Custom CA for a self-signed GitLab
-
-Set `caCertificate` to a PEM bundle, inline or from a Secret / ConfigMap. The
-operator uses it for its own API calls (fixing `x509: certificate signed by
-unknown authority` during registration) and copies it into the runner's config
-Secret so the runner trusts the endpoint too.
-
-```yaml
-apiVersion: gitlab.k8s.alekc.dev/v1beta2
-kind: Runner
-metadata:
-  name: runner-private-ca
-spec:
-  gitlab_instance_url: https://gitlab.internal.example.com/
-  caCertificate:
-    # one of secretKeyRef or configMapKeyRef; key defaults to ca.crt
-    configMapKeyRef:
-      name: gitlab-ca
-  authentication:
-    access_token:
-      secret_key_ref:
-        name: gitlab-access-token
-    create_options:
-      runner_type: project_type
-      project_id: 1234567
-```
-
-Or supply the bundle inline with `value`:
-
-```yaml
-spec:
-  caCertificate:
-    value: |
-      -----BEGIN CERTIFICATE-----
-      ...your CA here...
-      -----END CERTIFICATE-----
-```
-
-## RBAC and namespaces
-
-The permissions every kubernetes executor needs (pods and pods/exec,
-pods/attach, pods/log, services, secrets, configmaps, serviceaccounts and
-events) live in one shared ClusterRole, `gitlab-runner-operator-executor`,
-reconciled by the operator. For each Runner or MultiRunner the operator then
-provisions its own ServiceAccount (a distinct identity for audit and
-revocation) and a RoleBinding that binds that ServiceAccount to the shared
-ClusterRole. A MultiRunner shares a single ServiceAccount across all its
-entries. Because the rules live in one ClusterRole, a permission change in a
-new operator version applies to every runner at once.
-
-Permissions only some runners need are not in that role. Each optional grant
-has its own ClusterRole and its own RoleBinding, created only where the spec
-asks for it, so enabling one does not hand out the others. Today there is one:
-`pod_disruption_budget` needs `policy/poddisruptionbudgets`, held in
-`gitlab-runner-operator-executor-pdb` and bound by a RoleBinding named
-`pdb-<child-name>`. The grant is per build namespace, so a MultiRunner that
-sets the flag on one entry does not widen it into the namespaces its other
-entries target. Turning the flag off deletes the binding on the next reconcile.
-
-Upgrading from an operator version that granted `poddisruptionbudgets`
-unconditionally revokes it fleet-wide as soon as the first runner reconciles,
-and each runner that still wants it regains it on its own next reconcile. A job
-starting in that gap fails with a `poddisruptionbudgets is forbidden` error.
-
-The operator can only grant a runner what the operator itself holds (it has no
-RBAC `escalate` verb), so the manager ClusterRole is the explicit ceiling for
-runner permissions. RoleBindings to the ClusterRole are namespaced, so the
-effective grant is confined to the build namespace; nothing cluster-scoped is
-granted to a runner.
-
-Job pods run in `executor_config.namespace` when set, otherwise in the runner's
-own namespace. By default a runner may only target its **own** namespace: a
-Runner author choosing an arbitrary namespace would otherwise have the operator
-bind their ServiceAccount (and run their jobs) in, say, `kube-system`, a
-privilege-escalation path. To permit specific build namespaces, start the
-operator with `--allowed-build-namespaces=ns-a,ns-b` (or `=*` to allow any). The
-reconciler refuses any other `executor_config.namespace`: the runner goes
-NotReady with an error, no RBAC is provisioned, and any binding previously
-created for a now-disallowed namespace is revoked. When an allowed build
-namespace differs from the runner's, the operator creates the RoleBinding there
-too (the ServiceAccount stays in the runner namespace) and removes it when the
-runner is deleted.
-
-Because the operator pre-provisions RBAC for a known namespace,
-`namespace_per_job` and `namespace_overwrite_allowed` are rejected at admission
-by the CRD schema (CEL): both make the build namespace dynamic, which would
-require cluster-scoped RBAC.
-
-> **Security note.** The namespace allow-list is enforced by the reconciler, the
-> component that actually provisions the RBAC, so it cannot be turned off by a
-> flag. The operator holds the executor permission set cluster-wide, so on a
-> shared cluster an unrestricted namespace would be a privilege-escalation path:
-> a Runner author could reach `kube-system` or another tenant's namespace. Keep
-> `--allowed-build-namespaces` tight, and additionally restrict who can create
-> Runner/MultiRunner objects by RBAC.
-
-## Uninstalling
-
-Delete your Runner and MultiRunner objects first, and wait for them to go, then
-remove the operator. They carry a finalizer that attempts to deregister them
-from GitLab and prunes the RoleBindings the operator created in other
-namespaces, and only a running operator can complete it: take the operator away
-first and they wedge in `Terminating`.
-
-The executor ClusterRoles need one more step. They are created by the operator
-at runtime rather than by the install manifest, so neither `helm uninstall` nor
-`kubectl delete -k config/default` removes them. They carry no ownerReferences
-either, since a cluster-scoped role cannot be owned by a namespaced runner and
-is shared between them regardless, so they outlive the last Runner or
-MultiRunner as well as the operator. Unbound they grant nothing, so this is
-clutter rather than a security problem:
-
-```
-kubectl get clusterrole -l app.kubernetes.io/managed-by=gitlab-runner-operator
-kubectl delete clusterrole -l app.kubernetes.io/managed-by=gitlab-runner-operator
-```
-
-Run the delete last: while a runner still exists, the next reconcile recreates
-them. Today the selector matches `gitlab-runner-operator-executor` and
-`gitlab-runner-operator-executor-pdb`, and each future optional grant adds one.
-It matches only what the operator created, as the chart's own ClusterRoles are
-labelled `app.kubernetes.io/managed-by: Helm` and the kustomize ones carry no
-labels at all.
-
-`helm uninstall` leaves the CRDs behind as well, since Helm never removes
-anything installed from a chart's `crds/` directory.
+The source lives in [`docs/`](docs/) if you would rather read it here.
 
 ## License
 
