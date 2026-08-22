@@ -1,0 +1,15 @@
+# Config for elastic/crd-ref-docs, which renders docs/reference/api.md from the
+# Go types in api/. Regenerate with `make docs`; CI fails if the committed file
+# drifts from the types.
+processor:
+  ignoreTypes:
+    # List types carry no user-facing fields.
+    - "(Runner|MultiRunner)List$"
+    # Internal carrier passed between the reconciler and the GitLab client. It
+    # is not part of any CRD schema, so documenting it only confuses readers.
+    - "GitlabRegInfo$"
+  ignoreFields:
+    - "TypeMeta$"
+
+render:
+  kubernetesVersion: 1.33

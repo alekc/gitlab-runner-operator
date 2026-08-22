@@ -161,6 +161,35 @@ kind-create: kind ## Create the local kind cluster (idempotent). Override KIND_C
 kind-destroy: kind ## Delete the local kind cluster.
 	$(KIND) delete cluster --name $(KIND_CLUSTER_NAME)
 
+##@ Documentation
+
+# Shared by docs and docs-verify so the two can never drift apart.
+CRD_REF_DOCS_ARGS = --source-path=./api --config=hack/crd-ref-docs.yaml --renderer=markdown --max-depth=14
+
+.PHONY: docs
+docs: crd-ref-docs ## Regenerate docs/reference/api.md from the API types.
+	$(CRD_REF_DOCS) $(CRD_REF_DOCS_ARGS) --output-path=docs/reference/api.md
+
+.PHONY: docs-verify
+docs-verify: crd-ref-docs ## Fail if docs/reference/api.md is stale. Run by CI.
+	@tmp=$$(mktemp) && \
+		$(CRD_REF_DOCS) $(CRD_REF_DOCS_ARGS) --output-path=$$tmp >/dev/null && \
+		if ! diff -u docs/reference/api.md $$tmp; then \
+			rm -f $$tmp; \
+			echo "ERROR: docs/reference/api.md is stale. Run 'make docs' and commit it." >&2; \
+			exit 1; \
+		fi; \
+		rm -f $$tmp
+
+.PHONY: docs-deps
+docs-deps: ## Install the mkdocs toolchain into the active python environment.
+	pip install -r docs/requirements.txt
+
+.PHONY: docs-serve
+docs-serve: ## Build and serve the docs site locally on :8000.
+	@command -v mkdocs >/dev/null || { echo "ERROR: mkdocs not found. Run 'make docs-deps' first." >&2; exit 1; }
+	mkdocs serve
+
 ##@ Build Dependencies
 
 ## Location to install dependencies to
@@ -174,12 +203,14 @@ CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
 ENVTEST ?= $(LOCALBIN)/setup-envtest
 KIND ?= $(LOCALBIN)/kind
 GOLANGCI_LINT ?= $(LOCALBIN)/golangci-lint
+CRD_REF_DOCS ?= $(LOCALBIN)/crd-ref-docs
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v5.8.1
 CONTROLLER_TOOLS_VERSION ?= v0.21.0
 KIND_VERSION ?= v0.32.0
 GOLANGCI_LINT_VERSION ?= v2.12.2
+CRD_REF_DOCS_VERSION ?= v0.3.0
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -205,3 +236,8 @@ $(KIND): $(LOCALBIN)
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
+
+.PHONY: crd-ref-docs
+crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
+$(CRD_REF_DOCS): $(LOCALBIN)
+	test -s $(LOCALBIN)/crd-ref-docs || GOBIN=$(LOCALBIN) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION)
