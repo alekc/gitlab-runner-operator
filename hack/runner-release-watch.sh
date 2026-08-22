@@ -140,13 +140,19 @@ t != "" {
   }
 }
 END {
-  for (x in seen) if (x ~ /^Kubernetes/) queue[++n] = x
-  for (i = 1; i <= n; i++) {
-    cur = queue[i]
-    if (cur in done) continue
-    done[cur] = 1
-    split(refs[cur], r, " ")
-    for (j in r) if (r[j] != "" && (r[j] in seen) && !(r[j] in done)) queue[++n] = r[j]
+  # all=1 drops the closure filter. Used for the release delta only: widening
+  # the exposure check the same way would report every global, docker and ssh
+  # key as unexposed, which the operator will never carry.
+  if (all) { for (x in seen) done[x] = 1 }
+  else {
+    for (x in seen) if (x ~ /^Kubernetes/) queue[++n] = x
+    for (i = 1; i <= n; i++) {
+      cur = queue[i]
+      if (cur in done) continue
+      done[cur] = 1
+      split(refs[cur], r, " ")
+      for (j in r) if (r[j] != "" && (r[j] in seen) && !(r[j] in done)) queue[++n] = r[j]
+    }
   }
   for (x in done) {
     split(keys[x], kk, " ")
@@ -154,6 +160,7 @@ END {
   }
 }'
 kube_keys() { awk "${KEYS_AWK}" "$1" | sort -u; }
+all_keys() { awk -v all=1 "${KEYS_AWK}" "$1" | sort -u; }
 
 fetch_upstream_config() {
   gh api "repos/${MIRROR}/contents/common/config.go?ref=v$1" \
@@ -200,6 +207,15 @@ config_section() {
   # reported once rather than on every release.
   comm -13 "${tmp}/old.keys" "${tmp}/new.keys" >"${tmp}/added"
   comm -23 "${tmp}/old.keys" "${tmp}/new.keys" >"${tmp}/removed"
+  # The same delta over every struct, less the rows the executor sections
+  # already print. No CRD field follows from these, but #61 reported none
+  # added while experimental.boot_verify grew unseen; that key became #75.
+  all_keys "${old}" >"${tmp}/old.wide"
+  all_keys "${new}" >"${tmp}/new.wide"
+  comm -13 "${tmp}/old.wide" "${tmp}/new.wide" >"${tmp}/added.wide"
+  comm -23 "${tmp}/old.wide" "${tmp}/new.wide" >"${tmp}/removed.wide"
+  comm -23 "${tmp}/added.wide" "${tmp}/added" >"${tmp}/added.other"
+  comm -23 "${tmp}/removed.wide" "${tmp}/removed" >"${tmp}/removed.other"
   # Exposure gap, both directions, so a key we carry that upstream deleted shows
   # up too. Only these are filtered, because they recompute the whole backlog on
   # every release and would otherwise repeat the same omissions forever.
@@ -223,7 +239,11 @@ config_section() {
   # not: it reported zero while four placements were genuinely missing (#63).
   printf 'Upstream Kubernetes executor toml keys, v%s to v%s. Compared as (struct, key) pairs rather than bare key names: %s upstream, %s here. ' \
     "${pinned}" "${latest}" "$(count_lines "${tmp}/new.keys")" "$(count_lines "${tmp}/ours.keys")"
-  printf 'The exposure check runs in both directions, %s.\n\n' "${excluded}"
+  printf 'The exposure check runs in both directions, %s. ' "${excluded}"
+  # Stated even when both are zero: "no keys added" is worth nothing without
+  # saying how wide the comparison was, which is the defect this reports on.
+  printf 'Outside the Kubernetes executor subtree: %s added, %s removed.\n\n' \
+    "$(count_lines "${tmp}/added.other")" "$(count_lines "${tmp}/removed.other")"
 
   if [ -s "${tmp}/added" ]; then
     printf '### Added to the Kubernetes executor config upstream, so likely new CRD fields\n\n%s\n\n' "$(bullets "${tmp}/added")"
@@ -232,6 +252,15 @@ config_section() {
   fi
   if [ -s "${tmp}/removed" ]; then
     printf '### Removed from the Kubernetes executor config upstream, so possibly dead here\n\n%s\n\n' "$(bullets "${tmp}/removed")"
+  fi
+  if [ -s "${tmp}/added.other" ] || [ -s "${tmp}/removed.other" ]; then
+    printf '### Changed elsewhere in the upstream config\n\nOutside the Kubernetes executor subtree, so no CRD field follows, but a behaviour change might.\n\n'
+    if [ -s "${tmp}/added.other" ]; then
+      printf 'Added:\n\n%s\n\n' "$(bullets "${tmp}/added.other")"
+    fi
+    if [ -s "${tmp}/removed.other" ]; then
+      printf 'Removed:\n\n%s\n\n' "$(bullets "${tmp}/removed.other")"
+    fi
   fi
   if [ -s "${tmp}/missing" ]; then
     printf '### In the upstream v%s Kubernetes executor config but not exposed by `%s`\n\n%s\n\n' \

@@ -193,6 +193,18 @@ mk_config_pairs() {
   } > "${out}"
 }
 
+# A struct nothing under Kubernetes* references, so the executor closure cannot
+# reach it. This is the #61 shape: experimental.* grew while the executor delta
+# was empty and the issue reported no keys added.
+mk_config_with_other() {
+  local out=$1 kube=$2 k; shift 2
+  mk_config_at "${out}" nested_shared "${kube}"
+  { echo 'type GlobalSection struct {'
+    for k in "$@"; do printf '\tField string `toml:"%s,omitempty"`\n' "${k}"; done
+    echo '}'
+  } >> "${out}"
+}
+
 export GH_CALLS="${ROOT}/calls.log"
 export GH_BODY_CAPTURE="${ROOT}/body.md"
 export GITLAB_FIXTURE="${ROOT}/releases.json"
@@ -350,6 +362,42 @@ rc_is "exits non-zero" "$(nonzero "${rc}")" "nonzero"
 printf '%s\n' "${out}" > "${ROOT}/o3g"
 check "says it is not a file" "is not a readable file" "${ROOT}/o3g"
 absent "does not create" "issue create" "${GH_CALLS}"
+
+echo "case 3h: a key added outside the executor closure is reported, not dropped"
+reset; mk_types 19.1.0
+# Executor keys identical on both sides, so the executor delta is empty and the
+# old behaviour printed a clean bill. Only GlobalSection moves.
+mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${GH_CONFIG_NEW}" shared_key new_global
+mk_config_with_other "${ROOT}/ours.go" shared_key old_global
+printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
+out=$("${SCRIPT}" 2>&1); rc=$?
+rc_is "exits 0" "${rc}" 0
+check "reports the non-executor change" "### Changed elsewhere in the upstream config" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.new_global" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.old_global" "${GH_BODY_CAPTURE}"
+# The executor verdict is unchanged and still scoped, so the wider check adds a
+# section rather than moving keys into the CRD-relevant one.
+check "executor delta still reads empty" "No keys added to the Kubernetes executor config" "${GH_BODY_CAPTURE}"
+# The load-bearing one: if the exposure check had been widened too, ours.go not
+# carrying new_global would drag it into the unexposed section as noise.
+check "exposure check stays on the executor closure" "Every upstream Kubernetes executor key is exposed" "${GH_BODY_CAPTURE}"
+check "counts the outside delta in the prose" "Outside the Kubernetes executor subtree: 1 added, 1 removed" "${GH_BODY_CAPTURE}"
+
+echo "case 3i: an addition alone outside the closure still prints the section"
+reset; mk_types 19.1.0
+# Only one side moves. The section guard is an OR, and an AND would suppress
+# the whole section here, which is the common shape: releases add far more
+# often than they remove.
+mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${GH_CONFIG_NEW}" shared_key old_global extra_global
+mk_config_with_other "${ROOT}/ours.go" shared_key old_global
+printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
+out=$("${SCRIPT}" 2>&1)
+check "prints the section on an addition alone" "### Changed elsewhere in the upstream config" "${GH_BODY_CAPTURE}"
+in_section "Changed elsewhere in the upstream config" "GlobalSection.extra_global" "${GH_BODY_CAPTURE}"
+check "counts a one-sided delta" "Outside the Kubernetes executor subtree: 1 added, 0 removed" "${GH_BODY_CAPTURE}"
+absent "renders no empty Removed list" "Removed:" "${GH_BODY_CAPTURE}"
 
 echo "case 4: label-matched issue suppresses a duplicate"
 reset; mk_types 19.1.0
