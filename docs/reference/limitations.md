@@ -1,3 +1,9 @@
+---
+description: >-
+  What the GitLab Runner Operator deliberately does not do: no distributed
+  cache, static build namespace, inert fields, and the manager pod's fixed knobs.
+---
+
 # Limitations
 
 What the operator deliberately does not do, and what it accepts but cannot make
@@ -39,6 +45,34 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 | --- | --- |
 | `executor_config.terminationGracePeriodSeconds` | Accepted, rendered into `config.toml`, then silently dropped by the runner. gitlab-runner removed the key in v17.0.0. Use `pod_termination_grace_period_seconds` and `cleanup_grace_period_seconds` instead. |
 | `executor_config.pod_spec` | Rendered, but the runner ignores it unless the job also sets the `FF_USE_ADVANCED_POD_SPEC_CONFIGURATION` [feature flag](https://docs.gitlab.com/runner/configuration/feature-flags.html). |
+
+## The runner manager pod is not configurable
+
+`executor_config` shapes **job** pods. The manager pod that runs gitlab-runner
+itself takes almost nothing from the spec, and four things are missing that
+production clusters ask for:
+
+| Missing | Consequence | Issue |
+| --- | --- | --- |
+| Environment variables on the container | No `HTTP_PROXY` / `NO_PROXY`, so a runner behind an outbound proxy cannot register. `spec.environment` is the *build* environment and does not help. | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
+| `nodeSelector`, `tolerations`, `affinity` | The manager cannot be pinned: not to a tainted CI pool, not off spot capacity, not onto a matching architecture. | [#83](https://github.com/alekc/gitlab-runner-operator/issues/83) |
+| `terminationGracePeriodSeconds` and a drain hook | Stuck at Kubernetes' 30s default with no `preStop`, so a rollout or eviction kills in-flight jobs instead of draining. | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
+
+The Deployment is also fixed at one replica, which is correct (two managers would
+double the effective concurrency) but means throughput scales by adding runner
+objects or `MultiRunner` entries, not replicas.
+
+## Concurrency settings that are not exposed
+
+Three gitlab-runner settings are hardcoded or unset by the config generator:
+
+| Setting | State | Effect |
+| --- | --- | --- |
+| `limit` | Hardcoded to **10** per runner entry | A single `Runner` runs at most ten jobs at once, whatever `spec.concurrent` says. Going higher needs several entries or objects. |
+| `request_concurrency` | Never set, so gitlab-runner's default of **1** | One open job request against GitLab's queue at a time. On a deep queue the runner drains it far more slowly than `concurrent` implies. |
+| `output_limit` | Never set, so the upstream default | Job log size cap is not tunable per runner. |
+
+See [concurrency](../guides/concurrency.md) for what to do about it today.
 
 ## No API version conversion
 
