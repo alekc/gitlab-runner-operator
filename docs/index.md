@@ -10,9 +10,10 @@ A Kubernetes operator that manages GitLab CI runners using the
 [kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html).
 
 It lets you run one or many runners, each configured in YAML instead of a
-hand-written `config.toml`. Every option the kubernetes executor understands is
+hand-written `config.toml`. The supported kubernetes executor options are
 reachable through the CRD, and the operator handles registration, config
-rendering, per-runner RBAC, and deregistration from GitLab on delete.
+rendering, per-runner RBAC, and deregistration from GitLab on delete. What is
+not covered is listed in [limitations](reference/limitations.md).
 
 !!! warning "Alpha"
 

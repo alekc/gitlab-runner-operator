@@ -64,11 +64,12 @@ ServiceAccount, and run their jobs, in somewhere like `kube-system`.
 
 To permit specific build namespaces, start the operator with:
 
-```
+```text
 --allowed-build-namespaces=ns-a,ns-b
 ```
 
-or `=*` to allow any. With the Helm chart, set `allowedBuildNamespaces`.
+or `--allowed-build-namespaces=*` to allow any. With the Helm chart, set
+`allowedBuildNamespaces`.
 
 The reconciler refuses any other `executor_config.namespace`: the runner goes
 NotReady with an error, no RBAC is provisioned, and any binding previously

@@ -59,9 +59,15 @@ jobs:
           UPDATE_LATEST: ${{ inputs.update_latest }}
         run: |
           if [[ "${UPDATE_LATEST}" == "true" ]]; then
+            # version defaults to dev, and dev must never become latest.
+            if [[ ! "${VERSION}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+              echo "ERROR: refusing to alias latest to '${VERSION}': expected MAJOR.MINOR" >&2
+              exit 1
+            fi
             mike deploy --push --update-aliases "${VERSION}" latest
-            # Idempotent. Also the first-run bootstrap: without a default the
-            # site root has nothing to redirect to.
+            # Idempotent, and the one-off bootstrap: the automatic push-to-main
+            # path only deploys dev, so the site root gets its redirect from a
+            # release or from this dispatch.
             mike set-default --push latest
           else
             mike deploy --push "${VERSION}"

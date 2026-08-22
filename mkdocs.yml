@@ -58,8 +58,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tabbed:
       alternate_style: true
-  # Lets a page include a manifest straight out of config/samples, so every
-  # example in the docs is a file CI already validates against the CRDs.
+  # Lets a page include a manifest straight out of config/samples rather than
+  # retyping it. Configured ahead of the guides being migrated onto it.
   - pymdownx.snippets:
       base_path: ["."]
       check_paths: true

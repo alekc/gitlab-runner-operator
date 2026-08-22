@@ -14,6 +14,15 @@ make install                # CRDs into the current context
 make kind-destroy
 ```
 
+`make kind-create` gives you a single node. For anything that depends on
+scheduling across nodes, such as the node selectors and tolerations in the
+[node placement guide](guides/node-placement.md), use the checked-in config
+instead, which brings up one control plane and two workers:
+
+```bash
+kind create cluster --config hack/kind-config.yaml
+```
+
 To run the controller against that cluster without building an image:
 
 ```bash
@@ -94,16 +103,19 @@ make docs-serve             # http://localhost:8000
 `mkdocs.yml` is in strict mode, so a broken internal link or a nav entry
 pointing at a missing file fails the build locally exactly as it does in CI.
 
-Every code fence that shows a full manifest should come from a real file under
-`config/samples` via a snippet include, rather than being retyped into the page.
-That way the examples are covered by whatever validates the samples.
+Guide examples are currently written inline, and nothing validates them against
+the CRDs. `pymdownx.snippets` is configured so a page can include a manifest
+straight from `config/samples` instead, which is the direction to move in: an
+example that is a real file can be checked by CI, and a retyped one cannot.
 
 ### How docs get published
 
 `docs.yml` deploys the `dev` alias on every push to main that touches
-`docs/**` or `mkdocs.yml`. The release workflow deploys a numbered version and
-moves the `latest` alias, once the image is published. Both push to the
-`gh-pages` branch, which is what GitHub Pages serves.
+`docs/**` or `mkdocs.yml`. The release workflow deploys a numbered version once
+the image is published, and moves the `latest` alias unless the tag is a
+backport onto an older minor, in which case that version is published without
+disturbing `latest`. Both push to the `gh-pages` branch, which is what GitHub
+Pages serves.
 
 To publish a docs-only fix for the current release without cutting a new
 version, run the docs workflow manually and give it the version to overwrite.

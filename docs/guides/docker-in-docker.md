@@ -39,7 +39,11 @@ In `.gitlab-ci.yml`:
 build:
   image: docker:28
   services:
-    - docker:28-dind
+    - name: docker:28-dind
+      variables:
+        # Without this the executor does not wait for the daemon at all: it
+        # skips the readiness check for any service that does not set it.
+        HEALTHCHECK_TCP_PORT: "2376"
   variables:
     DOCKER_HOST: tcp://docker:2376
     DOCKER_TLS_VERIFY: 1
@@ -76,9 +80,9 @@ client the certs as above and point it at 2376, or turn TLS off entirely with
 `DOCKER_TLS_CERTDIR=""` and `DOCKER_HOST=tcp://docker:2375`. Do not mix them.
 
 **The daemon is not up yet.** The build container can start before the service
-finishes booting, which looks identical to a misconfiguration. Set
-`HEALTHCHECK_TCP_PORT` so the runner waits for the port before running the
-script.
+finishes booting, which looks identical to a misconfiguration. That is what
+`HEALTHCHECK_TCP_PORT` in the example above is for: the executor skips the
+readiness check entirely for a service that does not set it.
 
 **Never use `docker:latest`.** Pin the tag on both the image and the service, and
 keep them the same version. A new Docker major changing its TLS defaults

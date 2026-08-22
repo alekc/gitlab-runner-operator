@@ -156,6 +156,10 @@ object. `status` carries the non-secret parts of the registration:
 | `token_expires_at` | GitLab's expiry for a managed runner token, when it sets one. |
 | `registration_hash` | Digest of the create options that produced the current runner. |
 
+On a `MultiRunner` these are per entry, so the keys are plural and map-valued:
+`runner_ids`, `registration_hashes` and `token_expires_at`, each keyed by entry
+name.
+
 ## Custom CA for a self-signed GitLab
 
 If your GitLab presents a certificate from a private CA, registration fails

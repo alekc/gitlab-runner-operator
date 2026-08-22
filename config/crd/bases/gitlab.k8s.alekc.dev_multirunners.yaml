@@ -749,7 +749,9 @@ spec:
                           pattern: ^\+?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$
                           type: string
                         container_lifecycle:
-                          description: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.21/#lifecycle-v1-core
+                          description: |-
+                            KubernetesContainerLifecyle mirrors the core Lifecycle type: hooks run
+                            after a container starts and before it is terminated.
                           properties:
                             post_start:
                               properties:

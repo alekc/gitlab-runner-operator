@@ -45,10 +45,11 @@ spec:
 ## Why ephemeral storage requests matter
 
 Job pods write a lot: the clone, dependencies, build output, artifacts before
-upload, and the log itself. None of that is accounted for unless you request it.
-The kubelet's eviction manager reclaims `ephemeral-storage` by killing pods, and
-the pod it kills is the one with no request. In practice this shows up as jobs
-dying part way through an artifact upload, on a node that looks healthy.
+upload, and the log itself. The kubelet measures that usage whether or not you
+requested any, and evicts pods when the node runs short. What a request changes
+is the ranking: a pod over its request is evicted before one within it, so the
+job with no request is the first to go. In practice this shows up as jobs dying
+part way through an artifact upload, on a node that looks healthy.
 
 Setting a request also stops the scheduler over-packing the node in the first
 place, which is the actual fix rather than the mitigation.
@@ -81,9 +82,10 @@ volumes are created as ephemeral rather than persistent volumes. If you are
 relying on data surviving the job, verify it does before building a workflow on
 it.
 
-**Artifacts and logs are separate budgets.** `output_limit` on the runner caps
-the log size in kilobytes. A job that produces an enormous log can fail on that
-rather than on disk.
+**Artifacts and logs are separate budgets.** A job producing an enormous log can
+fail on the log size cap rather than on disk. That cap (`output_limit`) is not
+exposed by this operator, so it stays at gitlab-runner's default: see
+[limitations](../reference/limitations.md).
 
 ## Related
 

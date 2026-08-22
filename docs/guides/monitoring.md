@@ -31,6 +31,13 @@ kubectl get runner runner-sample -o jsonpath='{.status}' | jq
 | `token_expires_at` | When GitLab will expire a managed token. The operator recreates the runner within 24h of this. |
 | `config_map_version` | Hash of the rendered config. A change here is what rolls the Deployment. |
 
+!!! note "MultiRunner keys are different"
+
+    A `MultiRunner` tracks each entry separately, so the three registration
+    fields are plural and map-valued, keyed by entry name: `runner_ids`,
+    `registration_hashes` and `token_expires_at`. A `jsonpath` written for a
+    `Runner` returns nothing against a `MultiRunner`, with no error to say why.
+
 A runner that is `ready` but takes no jobs is a different problem: see
 [concurrency](concurrency.md).
 

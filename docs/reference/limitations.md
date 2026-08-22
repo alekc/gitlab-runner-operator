@@ -49,7 +49,7 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 ## The runner manager pod is not configurable
 
 `executor_config` shapes **job** pods. The manager pod that runs gitlab-runner
-itself takes almost nothing from the spec, and four things are missing that
+itself takes almost nothing from the spec, and three things are missing that
 production clusters ask for:
 
 | Missing | Consequence | Issue |

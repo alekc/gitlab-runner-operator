@@ -58,7 +58,8 @@ The Secret itself, in the build namespace:
 
 ```bash
 kubectl create secret docker-registry kaniko-docker-config \
-  --docker-server="$CI_REGISTRY" \
+  --namespace <build-namespace> \
+  --docker-server=registry.example.com \
   --docker-username=<user> \
   --docker-password=<token>
 ```

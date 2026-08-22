@@ -163,23 +163,23 @@ kind-destroy: kind ## Delete the local kind cluster.
 
 ##@ Documentation
 
-# Shared by docs and docs-verify so the two can never drift apart.
-CRD_REF_DOCS_ARGS = --source-path=./api --config=hack/crd-ref-docs.yaml --renderer=markdown --max-depth=14
-
 .PHONY: docs
 docs: crd-ref-docs ## Regenerate docs/reference/api.md from the API types.
-	$(CRD_REF_DOCS) $(CRD_REF_DOCS_ARGS) --output-path=docs/reference/api.md
+	CRD_REF_DOCS=$(CRD_REF_DOCS) ./hack/gen-api-docs.sh docs/reference/api.md
 
 .PHONY: docs-verify
 docs-verify: crd-ref-docs ## Fail if docs/reference/api.md is stale. Run by CI.
-	@tmp=$$(mktemp) && \
-		$(CRD_REF_DOCS) $(CRD_REF_DOCS_ARGS) --output-path=$$tmp >/dev/null && \
-		if ! diff -u docs/reference/api.md $$tmp; then \
-			rm -f $$tmp; \
+# Sequential commands under -e, not an && chain: a chain short-circuits on a
+# generator failure and then exits on the trailing rm, so the gate passed
+# whenever crd-ref-docs itself broke.
+	@set -e; \
+		tmp=$$(mktemp); \
+		trap 'rm -f "$$tmp"' EXIT; \
+		CRD_REF_DOCS=$(CRD_REF_DOCS) ./hack/gen-api-docs.sh "$$tmp" >/dev/null; \
+		if ! diff -u docs/reference/api.md "$$tmp"; then \
 			echo "ERROR: docs/reference/api.md is stale. Run 'make docs' and commit it." >&2; \
 			exit 1; \
-		fi; \
-		rm -f $$tmp
+		fi
 
 .PHONY: docs-deps
 docs-deps: ## Install the mkdocs toolchain into the active python environment.
@@ -240,4 +240,9 @@ $(GOLANGCI_LINT): $(LOCALBIN)
 .PHONY: crd-ref-docs
 crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
 $(CRD_REF_DOCS): $(LOCALBIN)
-	test -s $(LOCALBIN)/crd-ref-docs || GOBIN=$(LOCALBIN) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION)
+# Version-checked, unlike the other tools: docs-verify diffs this one's output
+# byte for byte, so a stale local binary produces a diff that `make docs` cannot
+# resolve.
+	@if ! $(LOCALBIN)/crd-ref-docs --version 2>/dev/null | grep -q '$(CRD_REF_DOCS_VERSION)'; then \
+		GOBIN=$(LOCALBIN) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION); \
+	fi

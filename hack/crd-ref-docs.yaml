@@ -12,4 +12,6 @@ processor:
     - "TypeMeta$"
 
 render:
-  kubernetesVersion: 1.33
+  # Core-type links point at this version of the Kubernetes API docs.
+  # Keep it in step with k8s.io/api in go.mod (v0.36.x is Kubernetes 1.36).
+  kubernetesVersion: 1.36

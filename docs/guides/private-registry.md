@@ -34,6 +34,7 @@ The Secret, in the namespace the job pods run in:
 
 ```bash
 kubectl create secret docker-registry registry-example-com \
+  --namespace <build-namespace> \
   --docker-server=registry.example.com \
   --docker-username=<user> \
   --docker-password=<token>

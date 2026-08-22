@@ -20,8 +20,14 @@ integration-tests:
   services:
     - name: postgres:17
       alias: db
+      variables:
+        # The executor waits for a TCP connection on this port before running
+        # the script. A service without it is not waited for at all.
+        HEALTHCHECK_TCP_PORT: "5432"
     - name: redis:8
       alias: cache
+      variables:
+        HEALTHCHECK_TCP_PORT: "6379"
   variables:
     POSTGRES_PASSWORD: ci
     POSTGRES_DB: app_test
@@ -87,10 +93,12 @@ different executor, and it makes the dependency legible.
 **Two instances of the same image need distinct aliases.** Without them the second
 one is unreachable, or worse, the first one is.
 
-**Nothing waits for the service to be ready.** The build script starts as soon as
-the containers are up, which is not the same as postgres accepting connections.
-Either use `HEALTHCHECK_TCP_PORT`, or loop on `pg_isready` in `before_script`. A
-test suite failing only in CI, only sometimes, is usually this.
+**A TCP check is not readiness.** `HEALTHCHECK_TCP_PORT` waits for the port to
+accept a connection, which postgres does before it will accept an authenticated
+query, and before initialisation has finished. Keep it, because without it the
+executor does not wait at all, and still loop on `pg_isready` or an
+application-level check in `before_script`. A test suite that fails only in CI,
+only sometimes, is usually this.
 
 **An OOM-killed service looks like a network error.** The build container gets
 connection refused, with nothing in the job log about memory, because the kill

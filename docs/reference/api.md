@@ -1,3 +1,14 @@
+---
+description: >-
+  Every field of the Runner and MultiRunner CRDs, generated from the Go
+  types: authentication, executor config, volumes, resources and status.
+---
+
+!!! info "Generated page"
+
+    Rendered from the Go types in `api/` by `make docs`. Edits here are
+    reverted by the next run; change the types instead.
+
 # API Reference
 
 ## Packages
@@ -308,15 +319,16 @@ _Appears in:_
 
 | Field | Description | Default | Validation |
 | --- | --- | --- | --- |
-| `add` _[Capability](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#capability-v1-core) array_ |  |  |  |
-| `drop` _[Capability](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#capability-v1-core) array_ |  |  |  |
+| `add` _[Capability](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#capability-v1-core) array_ |  |  |  |
+| `drop` _[Capability](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#capability-v1-core) array_ |  |  |  |
 
 
 #### KubernetesContainerLifecyle
 
 
 
-https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.21/#lifecycle-v1-core
+KubernetesContainerLifecyle mirrors the core Lifecycle type: hooks run
+after a container starts and before it is terminated.
 
 
 
@@ -767,7 +779,7 @@ MultiRunner is the Schema for the multirunners API
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `gitlab.k8s.alekc.dev/v1beta2` | | |
 | `kind` _string_ | `MultiRunner` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[MultiRunnerSpec](#multirunnerspec)_ |  |  |  |
 | `status` _[MultiRunnerStatus](#multirunnerstatus)_ |  |  |  |
 
@@ -811,9 +823,9 @@ _Appears in:_
 | `sentry_dsn` _string_ | SentryDsn Enables tracking of all system level errors to Sentry. |  |  |
 | `gitlab_instance_url` _string_ |  | https://gitlab.com/ |  |
 | `runner_image` _string_ | RunnerImage overrides the gitlab-runner container image. Defaults to<br />DefaultRunnerImage when empty. |  | Optional: \{\} <br /> |
-| `runner_resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#resourcerequirements-v1-core)_ | RunnerResources overrides the resource requests/limits of the runner<br />manager container. |  | Optional: \{\} <br /> |
-| `runner_image_pull_policy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#pullpolicy-v1-core)_ | RunnerImagePullPolicy overrides the runner container image pull policy. |  | Enum: [Always Never IfNotPresent] <br />Optional: \{\} <br /> |
-| `runner_security_context` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#securitycontext-v1-core)_ | RunnerSecurityContext overrides the runner manager container security<br />context. |  | Optional: \{\} <br /> |
+| `runner_resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core)_ | RunnerResources overrides the resource requests/limits of the runner<br />manager container. |  | Optional: \{\} <br /> |
+| `runner_image_pull_policy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core)_ | RunnerImagePullPolicy overrides the runner container image pull policy. |  | Enum: [Always Never IfNotPresent] <br />Optional: \{\} <br /> |
+| `runner_security_context` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#securitycontext-v1-core)_ | RunnerSecurityContext overrides the runner manager container security<br />context. |  | Optional: \{\} <br /> |
 | `caCertificate` _[CASource](#casource)_ | CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and every runner<br />entry's own connection. Supply it inline (value) or from a Secret or<br />ConfigMap key. |  | Optional: \{\} <br /> |
 | `entries` _[MultiRunnerEntry](#multirunnerentry) array_ |  |  | MaxItems: 100 <br />MinItems: 1 <br /> |
 
@@ -835,9 +847,9 @@ _Appears in:_
 | `error` _string_ |  |  |  |
 | `runner_ids` _object (keys:string, values:integer)_ | RunnerIDs holds the GitLab numeric id per entry name for managed runners. |  |  |
 | `registration_hashes` _object (keys:string, values:string)_ | RegistrationHashes holds the create-options hash per entry name. |  |  |
-| `token_expires_at` _object (keys:string, values:[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#time-v1-meta))_ | TokenExpiresAt holds the managed runner token expiry per entry name. |  |  |
+| `token_expires_at` _object (keys:string, values:[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta))_ | TokenExpiresAt holds the managed runner token expiry per entry name. |  |  |
 | `observed_generation` _integer_ | ObservedGeneration is the spec generation the controller last acted on. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#condition-v1-meta) array_ | Conditions holds the latest observations of the runner state. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ | Conditions holds the latest observations of the runner state. |  | Optional: \{\} <br /> |
 | `ready` _boolean_ |  |  |  |
 | `config_map_version` _string_ |  |  |  |
 
@@ -949,7 +961,7 @@ Runner is the Schema for the runners API
 | --- | --- | --- | --- |
 | `apiVersion` _string_ | `gitlab.k8s.alekc.dev/v1beta2` | | |
 | `kind` _string_ | `Runner` | | |
-| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
+| `metadata` _[ObjectMeta](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta)_ | Refer to Kubernetes API documentation for fields of `metadata`. |  |  |
 | `spec` _[RunnerSpec](#runnerspec)_ |  |  |  |
 | `status` _[RunnerStatus](#runnerstatus)_ |  |  |  |
 
@@ -1003,9 +1015,9 @@ _Appears in:_
 | `executor_config` _[KubernetesConfig](#kubernetesconfig)_ |  |  |  |
 | `environment` _string array_ | Environment contains custom environment variables injected to build environment |  | Optional: \{\} <br /> |
 | `runner_image` _string_ | RunnerImage overrides the gitlab-runner container image. Defaults to<br />DefaultRunnerImage when empty. |  | Optional: \{\} <br /> |
-| `runner_resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#resourcerequirements-v1-core)_ | RunnerResources overrides the resource requests/limits of the runner<br />manager container. |  | Optional: \{\} <br /> |
-| `runner_image_pull_policy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#pullpolicy-v1-core)_ | RunnerImagePullPolicy overrides the runner container image pull policy. |  | Enum: [Always Never IfNotPresent] <br />Optional: \{\} <br /> |
-| `runner_security_context` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#securitycontext-v1-core)_ | RunnerSecurityContext overrides the runner manager container security<br />context. |  | Optional: \{\} <br /> |
+| `runner_resources` _[ResourceRequirements](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core)_ | RunnerResources overrides the resource requests/limits of the runner<br />manager container. |  | Optional: \{\} <br /> |
+| `runner_image_pull_policy` _[PullPolicy](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core)_ | RunnerImagePullPolicy overrides the runner container image pull policy. |  | Enum: [Always Never IfNotPresent] <br />Optional: \{\} <br /> |
+| `runner_security_context` _[SecurityContext](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#securitycontext-v1-core)_ | RunnerSecurityContext overrides the runner manager container security<br />context. |  | Optional: \{\} <br /> |
 | `caCertificate` _[CASource](#casource)_ | CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and the runner's own<br />connection. Supply it inline (value) or from a Secret/ConfigMap key. |  | Optional: \{\} <br /> |
 
 
@@ -1024,11 +1036,11 @@ _Appears in:_
 | --- | --- | --- | --- |
 | `error` _string_ |  |  |  |
 | `runner_id` _integer_ | RunnerID is the numeric id GitLab assigned to a managed runner created<br />through the access-token path. Zero for bring-your-own-token runners. |  |  |
-| `token_expires_at` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#time-v1-meta)_ | TokenExpiresAt is GitLab's expiry for a managed runner token, if any. |  | Optional: \{\} <br /> |
+| `token_expires_at` _[Time](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta)_ | TokenExpiresAt is GitLab's expiry for a managed runner token, if any. |  | Optional: \{\} <br /> |
 | `registration_hash` _string_ | RegistrationHash captures the create options that produced the current<br />managed runner; a change forces a recreate. |  |  |
 | `config_map_version` _string_ |  |  |  |
 | `observed_generation` _integer_ | ObservedGeneration is the spec generation the controller last acted on. |  | Optional: \{\} <br /> |
-| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.33/#condition-v1-meta) array_ | Conditions holds the latest observations of the runner state. |  | Optional: \{\} <br /> |
+| `conditions` _[Condition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta) array_ | Conditions holds the latest observations of the runner state. |  | Optional: \{\} <br /> |
 | `ready` _boolean_ | Ready indicates that all runner operations have completed and the object<br />is ready to serve. |  |  |
 
 

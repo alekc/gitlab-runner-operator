@@ -74,8 +74,14 @@ which is the right default on a shared cluster.
 
 ## Gotchas
 
-**Exit code 137 is an OOM kill.** Not a script bug. The container hit its memory
-limit and was killed. Raise `memory_limit`, or find out what allocated.
+**Exit code 137 means SIGKILL, usually an OOM kill.** Not a script bug, but not
+proof of memory pressure either: a node-pressure eviction or a failed probe
+kills the same way. Check the container's termination reason and the pod events
+before raising `memory_limit`:
+
+```bash
+kubectl get pod <pod> -o jsonpath='{.status.containerStatuses[*].lastState}'
+```
 
 **A JVM or Node process can be OOM-killed while apparently under the limit.**
 There is a known pattern where a process allocating a large block at once is
@@ -88,9 +94,11 @@ container limit further.
 not always notice, and the job sits until its timeout. If you see jobs burning
 their full timeout with no output, check whether the pod was OOM-killed.
 
-**Requests are what the scheduler sees.** A limit with no request means the pod
-is scheduled as if it needs nothing, and the node gets over-packed. Always set
-both.
+**Requests are what the scheduler sees.** Set a limit with no request and
+Kubernetes copies the limit into the request, unless a LimitRange or another
+admission default gets there first, so the pod reserves the whole limit. Omit
+both and it reserves nothing and the node gets over-packed. Set both explicitly
+rather than relying on either behaviour.
 
 **CPU limits throttle, they do not kill.** A build that got mysteriously slower
 after you added `cpu_limit` is being throttled. Requests guarantee, limits cap.

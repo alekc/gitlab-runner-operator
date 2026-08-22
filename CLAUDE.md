@@ -40,7 +40,7 @@ Two invariants matter when changing any of this:
 | `internal/controller/` | Reconcilers. `shared.go` holds the managed-runner decision tree (create, recreate, verify). |
 | `internal/crud/` | Creates and prunes the child objects, including cross-namespace RoleBindings. |
 | `internal/validate/` | Builds the runner **Deployment** and reconciles it. The manager pod template lives here, which is not where you would look for it first. |
-| `hack/*.sh` | CI helpers, each with a `_test.sh` beside it. See below. |
+| `hack/*.sh` | CI helpers. The three CI-logic ones have a `_test.sh` beside them. See below. |
 | `test/e2e/` | Live suite against a real GitLab project, plus an OpenTofu fixture that provisions one. |
 | `docs/` | The published site. `docs/reference/api.md` is generated. |
 
@@ -102,9 +102,11 @@ make docs-serve    # local docs at :8000, strict
 - **The `source/gitlab-runner` submodule is not checked out** and does not need
   to be for normal work. `hack/runner-release-watch.sh` uses upstream to detect
   new kubernetes executor keys we have not modelled yet.
-- **`hack/*.sh` scripts each have a `_test.sh`**, run by the PR workflow, because
-  a silent bug in one of them either hides live CVEs or lets an untested commit
-  merge. Change a script, update its test.
+- **The CI-logic `hack/*.sh` scripts have a `_test.sh`** beside them, run by the
+  PR workflow, because a silent bug in one of them either hides live CVEs or
+  lets an untested commit merge. Change one, update its test.
+  `gen-api-docs.sh` is the exception: `make docs-verify` already fails if it
+  renders anything unexpected.
 
 ## CI gates worth knowing before you push
 
@@ -113,8 +115,9 @@ make docs-serve    # local docs at :8000, strict
   `mkdocs build --strict`.
 - **`e2e-gate` is the required status check**, deliberately named for its
   stability rather than the per-version e2e legs, whose matrix is computed at
-  run time. It treats a skipped suite as a failure, so a broken upstream job
-  cannot wave a PR through.
+  run time. A skipped suite passes on purpose, covering a PR that touches no Go
+  and a fork PR with no secrets yet. What it refuses is a failed or cancelled
+  upstream job, which would otherwise read as nothing to gate on.
 - **A release tag must point at a commit e2e has already passed on.** The
   release workflow looks up a successful `e2e.yaml` run for that exact SHA and
   refuses to publish otherwise. Renaming that workflow file breaks the lookup

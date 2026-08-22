@@ -52,11 +52,20 @@ spec:
   concurrent: 24
   entries:
     - name: shard-a
-      authentication: { ... }
+      authentication:
+        token:
+          secret_key_ref:
+            name: gitlab-runner-token-a
     - name: shard-b
-      authentication: { ... }
+      authentication:
+        token:
+          secret_key_ref:
+            name: gitlab-runner-token-b
     - name: shard-c
-      authentication: { ... }
+      authentication:
+        token:
+          secret_key_ref:
+            name: gitlab-runner-token-c
 ```
 
 Each entry is a separate runner in GitLab, so give them the same `tag_list` if

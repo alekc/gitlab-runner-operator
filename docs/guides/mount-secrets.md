@@ -62,11 +62,15 @@ spec:
             "id_ed25519": "id_ed25519"
 ```
 
-A key mounted from a Secret arrives with permissive mode bits, and OpenSSH
-refuses to use a private key that is group or world readable. Either set
-`fs_group` in `pod_security_context` so the mount is owned correctly, or copy the
-key to `~/.ssh` and `chmod 600` it in a `before_script`. The copy is uglier and
-always works.
+A key mounted from a Secret arrives mode `0644`, and OpenSSH refuses a private
+key that is group or world readable. The secret volume type exposes no file-mode
+setting, and `fs_group` sets group ownership rather than the mode, so it does not
+help here. Copy the key and fix the mode in a `before_script`:
+
+```yaml
+before_script:
+  - install -m 600 -D /etc/ci/ssh/id_ed25519 ~/.ssh/id_ed25519
+```
 
 ## Gotchas
 

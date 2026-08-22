@@ -67,7 +67,7 @@ something up, start with the task.
 
 ## Before you file a bug
 
-Four things are known gaps rather than misconfiguration, and each has an issue:
+Five things are known gaps rather than misconfiguration, and each has an issue:
 
 | Gap | Issue |
 | --- | --- |
