@@ -253,11 +253,11 @@ check "creates an issue" "issue create" "${GH_CALLS}"
 check "picks the numeric maximum" "v19.10.0" "${GH_BODY_CAPTURE}"
 absent "ignores rc tags" "19.11.0" "${GH_BODY_CAPTURE}"
 check "carries the marker" "<!-- runner-release: v19.10.0 -->" "${GH_BODY_CAPTURE}"
-check "has an added heading" "### Added upstream" "${GH_BODY_CAPTURE}"
-in_section "Added upstream" "KubernetesConfig.brand_new_key" "${GH_BODY_CAPTURE}"
-check "has a removed heading" "### Removed upstream" "${GH_BODY_CAPTURE}"
-in_section "Removed upstream" "KubernetesConfig.gone_upstream" "${GH_BODY_CAPTURE}"
-absent "no false 'nothing added'" "No keys added upstream" "${GH_BODY_CAPTURE}"
+check "has an added heading" "### Added to the Kubernetes executor config upstream" "${GH_BODY_CAPTURE}"
+in_section "Added to the Kubernetes executor config upstream" "KubernetesConfig.brand_new_key" "${GH_BODY_CAPTURE}"
+check "has a removed heading" "### Removed from the Kubernetes executor config upstream" "${GH_BODY_CAPTURE}"
+in_section "Removed from the Kubernetes executor config upstream" "KubernetesConfig.gone_upstream" "${GH_BODY_CAPTURE}"
+absent "no false 'nothing added'" "No keys added to the Kubernetes executor config" "${GH_BODY_CAPTURE}"
 check "reports helper flavours" "ubuntu" "${GH_BODY_CAPTURE}"
 absent "flavours exclude arch tokens" '- `x86_64`' "${GH_BODY_CAPTURE}"
 check "flags an undocumented flavour" "which omits" "${GH_BODY_CAPTURE}"
@@ -290,9 +290,13 @@ reset; mk_types 19.1.0
 mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 out=$("${SCRIPT}" 2>&1)
-in_section "In upstream v19.10.0 but not exposed by" "KubernetesCSI.shared_key" \
+in_section "In the upstream v19.10.0 Kubernetes executor config but not exposed by" "KubernetesCSI.shared_key" \
   "${GH_BODY_CAPTURE}"
 in_section "Exposed by" "KubernetesCSI.other_key" "${GH_BODY_CAPTURE}"
+# Pins the stale heading text: in_section above matches only its prefix, so
+# without this the scope wording could be reverted with the suite still green.
+check "stale heading names the scope" "but gone from the upstream v19.10.0 Kubernetes executor config" \
+  "${GH_BODY_CAPTURE}"
 # The exposed placement of the same name is reported nowhere, which is the
 # whole point: the pair is what is compared, not the name.
 absent "does not flag the exposed placement" "KubernetesConfig.shared_key" "${GH_BODY_CAPTURE}"
@@ -304,13 +308,12 @@ mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 printf '# why\nKubernetesCSI.shared_key\nKubernetesCSI.other_key\n' > "${ROOT}/suppress"
 out=$("${SCRIPT}" 2>&1)
-not_in_section "In upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
-check "reports full exposure instead" "Every upstream key is exposed" "${GH_BODY_CAPTURE}"
-absent "drops the stale section too" "but gone from upstream" "${GH_BODY_CAPTURE}"
+check "reports full exposure instead" "Every upstream Kubernetes executor key is exposed" "${GH_BODY_CAPTURE}"
+absent "drops the stale section too" "### Exposed by" "${GH_BODY_CAPTURE}"
 check "keeps the exclusion visible" "with 2 of them excluded by" "${GH_BODY_CAPTURE}"
 # Upstream-against-itself is not filtered: a key added to a skipped subtree is
 # still a real upstream change, and it is reported once, not every release.
-in_section "Added upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
+in_section "Added to the Kubernetes executor config upstream" "KubernetesCSI.shared_key" "${GH_BODY_CAPTURE}"
 
 echo "case 3d: an exclusion that matches nothing is reported"
 reset; mk_types 19.1.0

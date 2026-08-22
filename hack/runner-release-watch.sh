@@ -221,27 +221,27 @@ config_section() {
   # State the comparison performed. "Nothing unexposed" is worth very little
   # without it, and the flat-name version of this check read as a proof it was
   # not: it reported zero while four placements were genuinely missing (#63).
-  printf 'Upstream executor toml keys, v%s to v%s. Compared as (struct, key) pairs rather than bare key names: %s upstream, %s here. ' \
+  printf 'Upstream Kubernetes executor toml keys, v%s to v%s. Compared as (struct, key) pairs rather than bare key names: %s upstream, %s here. ' \
     "${pinned}" "${latest}" "$(count_lines "${tmp}/new.keys")" "$(count_lines "${tmp}/ours.keys")"
   printf 'The exposure check runs in both directions, %s.\n\n' "${excluded}"
 
   if [ -s "${tmp}/added" ]; then
-    printf '### Added upstream, so likely new CRD fields\n\n%s\n\n' "$(bullets "${tmp}/added")"
+    printf '### Added to the Kubernetes executor config upstream, so likely new CRD fields\n\n%s\n\n' "$(bullets "${tmp}/added")"
   else
-    printf '### No keys added upstream\n\nNo new CRD fields needed for the executor config.\n\n'
+    printf '### No keys added to the Kubernetes executor config\n\nNo new CRD fields needed for the executor config.\n\n'
   fi
   if [ -s "${tmp}/removed" ]; then
-    printf '### Removed upstream, so possibly dead here\n\n%s\n\n' "$(bullets "${tmp}/removed")"
+    printf '### Removed from the Kubernetes executor config upstream, so possibly dead here\n\n%s\n\n' "$(bullets "${tmp}/removed")"
   fi
   if [ -s "${tmp}/missing" ]; then
-    printf '### In upstream v%s but not exposed by `%s`\n\n%s\n\n' \
+    printf '### In the upstream v%s Kubernetes executor config but not exposed by `%s`\n\n%s\n\n' \
       "${latest}" "${CONFIG_FILE}" "$(bullets "${tmp}/missing")"
   else
-    printf '### Every upstream key is exposed\n\nNo (struct, key) pair in v%s is missing from `%s`.\n\n' \
+    printf '### Every upstream Kubernetes executor key is exposed\n\nNo (struct, key) pair in the v%s Kubernetes executor config is missing from `%s`.\n\n' \
       "${latest}" "${CONFIG_FILE}"
   fi
   if [ -s "${tmp}/stale" ]; then
-    printf '### Exposed by `%s` but gone from upstream v%s\n\n%s\n\n' \
+    printf '### Exposed by `%s` but gone from the upstream v%s Kubernetes executor config\n\n%s\n\n' \
       "${CONFIG_FILE}" "${latest}" "$(bullets "${tmp}/stale")"
   fi
   if [ -s "${tmp}/sup.unused" ]; then
