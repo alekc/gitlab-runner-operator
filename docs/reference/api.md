@@ -327,8 +327,9 @@ _Appears in:_
 
 
 
-KubernetesContainerLifecyle mirrors the core Lifecycle type: hooks run
-after a container starts and before it is terminated.
+KubernetesContainerLifecyle exposes PostStart and PreStop only. PostStart is
+not ordered against the image ENTRYPOINT, and PreStop does not run when the
+container crashes or exits on its own.
 
 
 

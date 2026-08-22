@@ -237,12 +237,12 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	test -s $(LOCALBIN)/golangci-lint || GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
 
+# Phony, not a file target: a file target is skipped once the binary exists,
+# which is the stale-binary case this check exists for. docs-verify diffs this
+# tool's output byte for byte, so the version has to match the pin every run.
 .PHONY: crd-ref-docs
-crd-ref-docs: $(CRD_REF_DOCS) ## Download crd-ref-docs locally if necessary.
-$(CRD_REF_DOCS): $(LOCALBIN)
-# Version-checked, unlike the other tools: docs-verify diffs this one's output
-# byte for byte, so a stale local binary produces a diff that `make docs` cannot
-# resolve.
-	@if ! $(LOCALBIN)/crd-ref-docs --version 2>/dev/null | grep -q '$(CRD_REF_DOCS_VERSION)'; then \
+crd-ref-docs: $(LOCALBIN) ## Install crd-ref-docs locally if missing or stale.
+	@if ! $(CRD_REF_DOCS) --version 2>/dev/null | grep -q '$(CRD_REF_DOCS_VERSION)'; then \
+		rm -f $(CRD_REF_DOCS); \
 		GOBIN=$(LOCALBIN) go install github.com/elastic/crd-ref-docs@$(CRD_REF_DOCS_VERSION); \
 	fi

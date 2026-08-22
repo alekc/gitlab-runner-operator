@@ -51,7 +51,7 @@ Every container in the job pod gets the mount, so the build script can read
 ```yaml
 spec:
   environment:
-    - "GIT_SSH_COMMAND=ssh -i /etc/ci/ssh/id_ed25519 -o StrictHostKeyChecking=accept-new"
+    - "GIT_SSH_COMMAND=ssh -i /root/.ssh/id_ed25519 -o StrictHostKeyChecking=accept-new"
   executor_config:
     volumes:
       secret:
@@ -69,8 +69,17 @@ help here. Copy the key and fix the mode in a `before_script`:
 
 ```yaml
 before_script:
-  - install -m 600 -D /etc/ci/ssh/id_ed25519 ~/.ssh/id_ed25519
+  - install -m 600 -D /etc/ci/ssh/id_ed25519 /root/.ssh/id_ed25519
 ```
+
+`GIT_SSH_COMMAND` above points at the copy, not at the mount. Pointing it at the
+mounted path defeats the exercise, since that file is still `0644`.
+
+This covers git operations in your own script. The runner clones the repository
+and fetches submodules **before** `before_script` runs, and the CRD exposes no
+pre-clone hook, so a submodule over SSH cannot use this key during checkout. Set
+`GIT_SUBMODULE_STRATEGY: none` and fetch them yourself in the script, or rewrite
+the submodule URL to use `CI_JOB_TOKEN` over HTTPS.
 
 ## Gotchas
 

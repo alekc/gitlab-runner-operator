@@ -105,8 +105,10 @@ pointing at a missing file fails the build locally exactly as it does in CI.
 
 Guide examples are currently written inline, and nothing validates them against
 the CRDs. `pymdownx.snippets` is configured so a page can include a manifest
-straight from `config/samples` instead, which is the direction to move in: an
-example that is a real file can be checked by CI, and a retyped one cannot.
+straight from `config/samples` instead, which removes the retyping and so the
+drift, but note that it only inserts the file and checks the path exists.
+Validating those manifests against the CRDs would be a separate CI step, and
+there is not one yet.
 
 ### How docs get published
 
