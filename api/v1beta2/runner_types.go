@@ -45,6 +45,9 @@ type RunnerSpec struct {
 	// +kubebuilder:validation:Minimum=1
 	Concurrent int `json:"concurrent,omitempty"`
 
+	// ConcurrencyLimits are this runner's per-entry job and polling budgets.
+	ConcurrencyLimits `json:",inline"`
+
 	// +kubebuilder:validation:Minimum=3
 	// +kubebuilder:default:3
 	CheckInterval int `json:"check_interval,omitempty"`

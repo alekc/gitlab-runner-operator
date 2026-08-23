@@ -88,6 +88,10 @@ type MultiRunnerEntry struct {
 	Authentication GitlabAuth       `json:"authentication"`
 	ExecutorConfig KubernetesConfig `json:"executor_config,omitempty"`
 	Environment    []string         `json:"environment,omitempty"`
+
+	// ConcurrencyLimits are this entry's budgets, out of the Concurrent budget
+	// every entry shares. Without a Limit one entry can take the lot.
+	ConcurrencyLimits `json:",inline"`
 }
 
 // MultiRunnerStatus defines the observed state of MultiRunner. The maps are

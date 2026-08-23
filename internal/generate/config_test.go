@@ -215,3 +215,80 @@ func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
 		}
 	}
 }
+
+// The CRD defaults these, and the generator floors them again because helm does
+// not update CRDs on upgrade. Both halves are asserted: explicit values render,
+// and a zero renders the default rather than dropping the key.
+func TestSingleRunnerConfig_ConcurrencyKeys(t *testing.T) {
+	base := &v1beta2.Runner{
+		ObjectMeta: metav1.ObjectMeta{Name: "r1", Namespace: "ns"},
+		Spec: v1beta2.RunnerSpec{
+			GitlabInstanceURL: "https://gitlab.example.com",
+			Concurrent:        50,
+			ConcurrencyLimits: v1beta2.ConcurrencyLimits{Limit: 50, RequestConcurrency: 7},
+		},
+	}
+	tokens := map[string]string{"r1": "glrt-token"}
+
+	cfg, _, err := SingleRunnerConfig(base, tokens, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Anchored on the two-space indent inside [[runners]]: "limit = 5" is a
+	// prefix of "limit = 50", and the executor block has a dozen keys ending
+	// in "limit" at a deeper indent.
+	for _, want := range []string{"\n  limit = 50", "\n  request_concurrency = 7", "\nconcurrent = 50"} {
+		if !strings.Contains(cfg, want) {
+			t.Errorf("expected %q in config, got:\n%s", want, cfg)
+		}
+	}
+
+	// An object the apiserver never defaulted, which is what a helm upgrade
+	// leaves behind when the CRDs are not re-applied. Without the code-side
+	// floor the keys vanish and gitlab-runner treats limit as unlimited.
+	bare := base.DeepCopy()
+	bare.Spec.Limit = 0
+	bare.Spec.RequestConcurrency = 0
+	cfg, _, err = SingleRunnerConfig(bare, tokens, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, want := range []string{"\n  limit = 10", "\n  request_concurrency = 3"} {
+		if !strings.Contains(cfg, want) {
+			t.Errorf("expected the floored %q, got:\n%s", want, cfg)
+		}
+	}
+}
+
+func TestMultiRunnerConfig_PerEntryConcurrency(t *testing.T) {
+	mr := &v1beta2.MultiRunner{
+		ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "ns"},
+		Spec: v1beta2.MultiRunnerSpec{
+			GitlabInstanceURL: "https://gitlab.example.com",
+			Concurrent:        30,
+			Entries: []v1beta2.MultiRunnerEntry{
+				{Name: "small", ConcurrencyLimits: v1beta2.ConcurrencyLimits{Limit: 2, RequestConcurrency: 1}},
+				{Name: "big", ConcurrencyLimits: v1beta2.ConcurrencyLimits{Limit: 20, RequestConcurrency: 5}},
+			},
+		},
+	}
+	tokens := map[string]string{"small": "glrt-a", "big": "glrt-b"}
+
+	cfg, _, err := MultiRunnerConfig(mr, tokens, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Tie each value to its entry: asserting on the values alone passes when
+	// both entries render the same one, and "limit = 2" matches "limit = 20".
+	for _, want := range []string{
+		"name = \"small\"", "\n  limit = 2\n", "\n  request_concurrency = 1\n",
+		"name = \"big\"", "\n  limit = 20\n", "\n  request_concurrency = 5\n",
+	} {
+		if !strings.Contains(cfg, want) {
+			t.Errorf("expected %q in config, got:\n%s", want, cfg)
+		}
+	}
+	if got := strings.Count(cfg, "\n  limit = "); got != 2 {
+		t.Errorf("expected one limit per entry, got %d:\n%s", got, cfg)
+	}
+}

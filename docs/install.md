@@ -52,6 +52,16 @@ helm show crds alekc/gitlab-runner-operator | kubectl apply --server-side -f -
 Use `--server-side`: these CRDs are large, and a client-side apply stores the
 whole schema in a `last-applied-configuration` annotation.
 
+!!! warning "Upgrading to the release that added request_concurrency rolls every runner once"
+
+    That key is new in the rendered `config.toml`, so the config hash changes
+    for every existing `Runner` and `MultiRunner` even though their specs did
+    not. The first reconcile after the upgrade restarts each runner manager,
+    and the manager does not drain
+    ([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)), so jobs
+    in flight at that moment are lost. It happens once. Upgrade when the
+    pipeline queue is quiet.
+
 ## Kustomize
 
 From a checkout of the repo:

@@ -26,7 +26,7 @@ something up, start with the task.
 | Mounted secret is missing inside the job | wrong namespace, or a key that needs `items` | [Mount secrets and configmaps](mount-secrets.md) |
 | `ImagePullBackOff` on the job's own image | pull secret missing, or Docker Hub rate limit | [Pull from a private registry](private-registry.md) |
 | Connection refused reaching postgres or redis | service not ready yet, or OOM-killed | [Service containers](service-containers.md) |
-| Runner is online but picks up almost nothing | the per-entry limit of 10, and `request_concurrency` | [Concurrency](concurrency.md) |
+| Runner is online but picks up almost nothing | `limit` and `request_concurrency`, which default low | [Concurrency](concurrency.md) |
 | Jobs fail as `script_failure` after a node disappeared | spot eviction is not classified as a system failure | [Spot and preemptible nodes](spot-nodes.md) |
 | `cache:` declared but never restores | no distributed cache support yet | [Limitations](../reference/limitations.md) |
 | `x509: certificate signed by unknown authority` | GitLab behind a private CA | [Authentication](../authentication.md#custom-ca-for-a-self-signed-gitlab) |
@@ -67,7 +67,7 @@ something up, start with the task.
 
 ## Before you file a bug
 
-Five things are known gaps rather than misconfiguration, and each has an issue:
+Four things are known gaps rather than misconfiguration, and each has an issue:
 
 | Gap | Issue |
 | --- | --- |
@@ -75,7 +75,6 @@ Five things are known gaps rather than misconfiguration, and each has an issue:
 | No environment variables on the manager container, so no outbound proxy | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
 | No `nodeSelector` / `tolerations` / `affinity` for the manager pod | [#83](https://github.com/alekc/gitlab-runner-operator/issues/83) |
 | Manager does not drain gracefully on rollout or eviction | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
-| `concurrent` above 10 is accepted but capped by a hardcoded per-entry limit | [#85](https://github.com/alekc/gitlab-runner-operator/issues/85) |
 
 The full list, including fields that are accepted but inert, is in
 [limitations](../reference/limitations.md).

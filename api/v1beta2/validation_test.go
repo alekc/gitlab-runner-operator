@@ -54,6 +54,36 @@ var _ = Describe("CRD validation", func() {
 		Expect(r.Spec.GitlabInstanceURL).To(Equal("https://gitlab.com/"))
 	})
 
+	It("defaults the concurrency limits on create, and keeps the CRD in step with the constants", func() {
+		r := &Runner{ObjectMeta: valMeta("val-conc-default"), Spec: RunnerSpec{Authentication: valByoAuth()}}
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+		// Markers carry literals, so this is what stops them drifting from the
+		// constants the generator floors on.
+		Expect(r.Spec.Limit).To(Equal(DefaultRunnerLimit))
+		Expect(r.Spec.RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+	})
+
+	It("defaults the concurrency limits on a MultiRunner entry", func() {
+		m := &MultiRunner{ObjectMeta: valMeta("val-conc-entry"), Spec: MultiRunnerSpec{
+			Entries: []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
+		}}
+		Expect(k8sClient.Create(ctx, m)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
+		Expect(m.Spec.Entries[0].Limit).To(Equal(DefaultRunnerLimit))
+		Expect(m.Spec.Entries[0].RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+	})
+
+	It("rejects a zero limit", func() {
+		r := &Runner{ObjectMeta: valMeta("val-conc-zero"), Spec: RunnerSpec{
+			Authentication:    valByoAuth(),
+			ConcurrencyLimits: ConcurrencyLimits{Limit: -1},
+		}}
+		err := k8sClient.Create(ctx, r)
+		Expect(err).To(HaveOccurred())
+		Expect(err.Error()).To(ContainSubstring("limit"))
+	})
+
 	It("accepts a valid managed Runner", func() {
 		r := &Runner{ObjectMeta: valMeta("val-managed"), Spec: RunnerSpec{Authentication: GitlabAuth{
 			AccessToken:   &TokenSource{Value: "glpat-x"},
