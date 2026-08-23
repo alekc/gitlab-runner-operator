@@ -1296,7 +1296,7 @@ something up, start with the task.</p>
 </tr>
 <tr>
 <td>Runner is online but picks up almost nothing</td>
-<td>the per-entry limit of 10, and <code>request_concurrency</code></td>
+<td><code>limit</code> and <code>request_concurrency</code>, which default low</td>
 <td><a href="concurrency/">Concurrency</a></td>
 </tr>
 <tr>
@@ -1354,7 +1354,7 @@ something up, start with the task.</p>
 <li><a href="monitoring/">Watching a runner</a>: status fields, runner metrics on 9090, operator metrics</li>
 </ul>
 <h2 id="before-you-file-a-bug">Before you file a bug<a class="headerlink" href="#before-you-file-a-bug" title="Permanent link">&para;</a></h2>
-<p>Five things are known gaps rather than misconfiguration, and each has an issue:</p>
+<p>Four things are known gaps rather than misconfiguration, and each has an issue:</p>
 <table>
 <thead>
 <tr>
@@ -1378,10 +1378,6 @@ something up, start with the task.</p>
 <tr>
 <td>Manager does not drain gracefully on rollout or eviction</td>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a></td>
-</tr>
-<tr>
-<td><code>concurrent</code> above 10 is accepted but capped by a hardcoded per-entry limit</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/85">#85</a></td>
 </tr>
 </tbody>
 </table>

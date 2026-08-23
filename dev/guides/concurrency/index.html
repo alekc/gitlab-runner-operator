@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="How concurrent, the hardcoded per-entry limit of 10, and request_concurrency interact on this operator, and why a runner tops out at ten jobs.">
+        <meta name="description" content="How concurrent, limit and request_concurrency interact on this operator, what they default to, and why raising one without the other does little.">
       
       
         <meta name="author" content="Alexander Chernov">
@@ -726,10 +726,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-single-runner-tops-out-at-10-jobs" class="md-nav__link">
+  <a href="#the-three-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A single Runner tops out at 10 jobs
+        The three settings
       
     </span>
   </a>
@@ -737,10 +737,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-queue-polling-default" class="md-nav__link">
+  <a href="#per-entry-on-a-multirunner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The queue-polling default
+        Per entry on a MultiRunner
       
     </span>
   </a>
@@ -1203,10 +1203,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#a-single-runner-tops-out-at-10-jobs" class="md-nav__link">
+  <a href="#the-three-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        A single Runner tops out at 10 jobs
+        The three settings
       
     </span>
   </a>
@@ -1214,10 +1214,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-queue-polling-default" class="md-nav__link">
+  <a href="#per-entry-on-a-multirunner" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The queue-polling default
+        Per entry on a MultiRunner
       
     </span>
   </a>
@@ -1289,9 +1289,13 @@
 <span class="nt">metadata</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-sample</span>
 <span class="nt">spec</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># Ceiling on job pods this manager will have in flight. Anything above 10</span>
-<span class="w">  </span><span class="c1"># has no effect: see below.</span>
-<span class="w">  </span><span class="nt">concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<span class="w">  </span><span class="c1"># Ceiling on job pods this manager will have in flight.</span>
+<span class="w">  </span><span class="nt">concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="c1"># Ceiling for this runner entry. The lower of the two wins, so leaving this</span>
+<span class="w">  </span><span class="c1"># at its default of 10 caps you at 10 whatever concurrent says.</span>
+<span class="w">  </span><span class="nt">limit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">50</span>
+<span class="w">  </span><span class="c1"># Job requests in flight to GitLab. Not a job limit: a polling limit.</span>
+<span class="w">  </span><span class="nt">request_concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">  </span><span class="c1"># How often it asks GitLab for work, in seconds. Minimum 3.</span>
 <span class="w">  </span><span class="nt">check_interval</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
 <span class="w">  </span><span class="nt">authentication</span><span class="p">:</span>
@@ -1299,74 +1303,82 @@
 <span class="w">      </span><span class="nt">secret_key_ref</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token</span>
 </code></pre></div>
-<h2 id="a-single-runner-tops-out-at-10-jobs">A single Runner tops out at 10 jobs<a class="headerlink" href="#a-single-runner-tops-out-at-10-jobs" title="Permanent link">&para;</a></h2>
-<p>Three settings govern this in gitlab-runner, and only one of them is yours to
-set on this operator:</p>
+<h2 id="the-three-settings">The three settings<a class="headerlink" href="#the-three-settings" title="Permanent link">&para;</a></h2>
 <table>
 <thead>
 <tr>
 <th>Setting</th>
 <th>Scope</th>
-<th>On this operator</th>
+<th>Bounds</th>
+<th>Default here</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td><code>concurrent</code></td>
 <td>The manager process</td>
-<td><code>spec.concurrent</code>, yours to set.</td>
+<td>Jobs running across every entry</td>
+<td><strong>1</strong> (floored by the operator)</td>
 </tr>
 <tr>
 <td><code>limit</code></td>
 <td>One runner entry</td>
-<td><strong>Hardcoded to 10</strong> by the config generator. Not exposed (<a href="https://github.com/alekc/gitlab-runner-operator/issues/85">#85</a>).</td>
+<td>Jobs running for that entry</td>
+<td><strong>10</strong></td>
 </tr>
 <tr>
 <td><code>request_concurrency</code></td>
 <td>One runner entry</td>
-<td><strong>Never set</strong>, so it takes gitlab-runner's default of 1. Not exposed.</td>
+<td>Job requests in flight, not jobs</td>
+<td><strong>3</strong></td>
 </tr>
 </tbody>
 </table>
-<p><code>concurrent</code> and <code>limit</code> both apply, and the lower one wins. A <code>Runner</code> object
-renders exactly one entry, so its <code>limit</code> of 10 is the real ceiling.
-<code>concurrent: 50</code> on a single <code>Runner</code> still runs at most ten jobs at a time.</p>
-<p>To go past ten, add entries or objects:</p>
+<p><code>concurrent</code> and <code>limit</code> both apply and the lower one wins. A <code>Runner</code> renders
+exactly one entry, so <strong><code>concurrent: 50</code> with the default <code>limit</code> still runs ten
+jobs</strong>. Raise both, or accept ten.</p>
+<div class="admonition warning">
+<p class="admonition-title">Raising one without the other is half a change</p>
+<p><code>limit</code> caps jobs running; <code>request_concurrency</code> caps how many jobs the
+manager can be asking for at once. At <code>request_concurrency: 1</code> an entry
+acquires work one round trip at a time, so <code>limit: 50</code> fills fifty slots
+over fifty sequential requests, paced by <code>check_interval</code>. On a queue other
+runners are also draining it may never catch up, which is the "online but
+takes almost nothing" symptom. The default of 3 is a starting point, not a
+target: upstream guidance for a busy fleet is 4 to 20.</p>
+</div>
+<h2 id="per-entry-on-a-multirunner">Per entry on a MultiRunner<a class="headerlink" href="#per-entry-on-a-multirunner" title="Permanent link">&para;</a></h2>
+<p>Both settings live on the <strong>entry</strong>, because that is the only way to stop one
+entry consuming the whole shared <code>concurrent</code> budget:</p>
 <div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab.k8s.alekc.dev/v1beta2</span>
 <span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">MultiRunner</span>
 <span class="nt">metadata</span><span class="p">:</span>
 <span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">builders</span>
 <span class="nt">spec</span><span class="p">:</span>
-<span class="w">  </span><span class="c1"># Now meaningful: 3 entries x limit 10 = 30 possible, capped here at 24.</span>
-<span class="w">  </span><span class="nt">concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+<span class="w">  </span><span class="nt">concurrent</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
 <span class="w">  </span><span class="nt">entries</span><span class="p">:</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shard-a</span>
+<span class="w">    </span><span class="c1"># A long-running integration suite that must not starve the others.</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">integration</span>
+<span class="w">      </span><span class="nt">limit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">4</span>
+<span class="w">      </span><span class="nt">request_concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
 <span class="w">      </span><span class="nt">authentication</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">token</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">secret_key_ref</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token-a</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shard-b</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token-integration</span>
+<span class="w">    </span><span class="c1"># Short unit jobs, given the bulk of the budget.</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">unit</span>
+<span class="w">      </span><span class="nt">limit</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">24</span>
+<span class="w">      </span><span class="nt">request_concurrency</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">8</span>
 <span class="w">      </span><span class="nt">authentication</span><span class="p">:</span>
 <span class="w">        </span><span class="nt">token</span><span class="p">:</span>
 <span class="w">          </span><span class="nt">secret_key_ref</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token-b</span>
-<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">shard-c</span>
-<span class="w">      </span><span class="nt">authentication</span><span class="p">:</span>
-<span class="w">        </span><span class="nt">token</span><span class="p">:</span>
-<span class="w">          </span><span class="nt">secret_key_ref</span><span class="p">:</span>
-<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token-c</span>
+<span class="w">            </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token-unit</span>
 </code></pre></div>
-<p>Each entry is a separate runner in GitLab, so give them the same <code>tag_list</code> if
-you want GitLab to spread work across them.</p>
-<h2 id="the-queue-polling-default">The queue-polling default<a class="headerlink" href="#the-queue-polling-default" title="Permanent link">&para;</a></h2>
-<p><code>request_concurrency</code> controls how many job requests the manager holds open
-against GitLab's queue at once, and gitlab-runner defaults it to 1. On a busy
-queue that is the reason a runner reports online, looks idle, and drains the
-backlog far more slowly than its <code>concurrent</code> suggests it should. Upstream
-guidance is to raise it into the 4 to 20 range for a busy fleet.</p>
-<p>That is not reachable through the CRD today
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/85">#85</a>). Running
-several entries is the available workaround, since each entry polls on its own.</p>
+<p>Each entry is a separate runner in GitLab. The example splits the budget, not
+the work: to route jobs deliberately you also need distinct tags, and <code>tag_list</code>
+only exists under <code>authentication.access_token.create_options</code>, so entries using
+a pre-created token cannot set it. See
+<a href="../../authentication/#create_options">authentication</a>.</p>
 <h2 id="sizing-it">Sizing it<a class="headerlink" href="#sizing-it" title="Permanent link">&para;</a></h2>
 <p><code>concurrent</code> is bounded by the cluster, not by the runner. Ten concurrent jobs at
 <code>memory_request: 1Gi</code> need 10Gi of schedulable memory, plus helper and service
@@ -1381,7 +1393,12 @@ is rarely the bottleneck anyway.</p>
 consume <code>concurrent</code> while doing nothing, so a slow cluster can make a runner
 look stalled. See <a href="../stuck-pods/">jobs stuck in Pending</a>.</p>
 <p><strong>More replicas is not more throughput.</strong> The manager Deployment is fixed at one
-replica. Scale with more entries or more <code>Runner</code> objects.</p>
+replica. Scale with <code>limit</code>, more entries, or more <code>Runner</code> objects.</p>
+<p><strong><code>output_limit</code> is still not exposed.</strong> The job log size cap stays at
+gitlab-runner's default; see <a href="../../reference/limitations/">limitations</a>.</p>
+<p><strong>There is no unlimited.</strong> gitlab-runner treats <code>limit = 0</code> as no limit, but the
+schema requires at least 1, so an entry always carries a cap. Bound it by
+<code>concurrent</code> instead by setting <code>limit</code> to the same value.</p>
 <p><strong>One MultiRunner shares the budget.</strong> <code>spec.concurrent</code> is spread across all
 entries in whatever mix GitLab hands out, not applied per entry. If one workload
 must be guaranteed capacity, give it its own object.</p>

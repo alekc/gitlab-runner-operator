@@ -1353,16 +1353,30 @@ worth setting at install time:</p>
 <p>The full values reference lives in the
 <a href="https://gitlab.com/alexander-chernov/helm/gitlab-runner-operator">chart README</a>.</p>
 <h3 id="upgrading">Upgrading<a class="headerlink" href="#upgrading" title="Permanent link">&para;</a></h3>
+<p>Helm never updates anything installed from a chart's <code>crds/</code> directory, so a
+chart upgrade that ships new CRD fields does not apply them. Apply the CRDs
+<strong>first</strong>, then upgrade:</p>
 <div class="highlight"><pre><span></span><code>helm<span class="w"> </span>repo<span class="w"> </span>update
+helm<span class="w"> </span>show<span class="w"> </span>crds<span class="w"> </span>alekc/gitlab-runner-operator<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--server-side<span class="w"> </span>-f<span class="w"> </span>-
 helm<span class="w"> </span>upgrade<span class="w"> </span>gitlab-runner-operator<span class="w"> </span>alekc/gitlab-runner-operator
 </code></pre></div>
-<p>Helm never updates anything installed from a chart's <code>crds/</code> directory, so a
-chart upgrade that ships new CRD fields does not apply them. Apply them
-yourself:</p>
-<div class="highlight"><pre><span></span><code>helm<span class="w"> </span>show<span class="w"> </span>crds<span class="w"> </span>alekc/gitlab-runner-operator<span class="w"> </span><span class="p">|</span><span class="w"> </span>kubectl<span class="w"> </span>apply<span class="w"> </span>--server-side<span class="w"> </span>-f<span class="w"> </span>-
-</code></pre></div>
+<p>Order matters if you create runners from the chart's <code>runners:</code> or
+<code>multiRunners:</code> values. Those specs pass through unchanged, so a field the
+installed CRD does not know is pruned by the API server, silently and with no
+error. Applying the CRDs afterwards does not bring the pruned value back: you
+would have to run the upgrade again.</p>
 <p>Use <code>--server-side</code>: these CRDs are large, and a client-side apply stores the
 whole schema in a <code>last-applied-configuration</code> annotation.</p>
+<div class="admonition warning">
+<p class="admonition-title">Upgrading to the release that added request_concurrency rolls every runner once</p>
+<p>That key is new in the rendered <code>config.toml</code>, so the config hash changes
+for every existing <code>Runner</code> and <code>MultiRunner</code> even though their specs did
+not. The first reconcile after the upgrade restarts each runner manager,
+and the manager does not drain
+(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>), so jobs
+in flight at that moment may be lost. It happens once. Upgrade when the
+pipeline queue is quiet.</p>
+</div>
 <h2 id="kustomize">Kustomize<a class="headerlink" href="#kustomize" title="Permanent link">&para;</a></h2>
 <p>From a checkout of the repo:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>install<span class="w">                      </span><span class="c1"># CRDs only</span>

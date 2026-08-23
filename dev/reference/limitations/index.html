@@ -1112,10 +1112,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#concurrency-settings-that-are-not-exposed" class="md-nav__link">
+  <a href="#concurrency-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Concurrency settings that are not exposed
+        Concurrency settings
       
     </span>
   </a>
@@ -1291,10 +1291,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#concurrency-settings-that-are-not-exposed" class="md-nav__link">
+  <a href="#concurrency-settings" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Concurrency settings that are not exposed
+        Concurrency settings
       
     </span>
   </a>
@@ -1446,10 +1446,12 @@ production clusters ask for:</p>
 <p>The Deployment is also fixed at one replica, which is correct (two managers would
 double the effective concurrency) but means throughput scales by adding runner
 objects or <code>MultiRunner</code> entries, not replicas.</p>
-<h2 id="concurrency-settings-that-are-not-exposed">Concurrency settings that are not exposed<a class="headerlink" href="#concurrency-settings-that-are-not-exposed" title="Permanent link">&para;</a></h2>
-<p>Three gitlab-runner settings are hardcoded or unset by the config generator.
-The first two are tracked in
-<a href="https://github.com/alekc/gitlab-runner-operator/issues/85">#85</a>:</p>
+<h2 id="concurrency-settings">Concurrency settings<a class="headerlink" href="#concurrency-settings" title="Permanent link">&para;</a></h2>
+<p><code>limit</code> and <code>request_concurrency</code> are settable per runner and per <code>MultiRunner</code>
+entry, defaulting to 10 and 3. The default <code>limit</code> is still a ceiling: a
+<code>Runner</code> with <code>concurrent: 50</code> and no <code>limit</code> runs ten jobs, because the lower
+of the two wins. See <a href="../../guides/concurrency/">concurrency</a>.</p>
+<p>One related setting is not exposed:</p>
 <table>
 <thead>
 <tr>
@@ -1460,31 +1462,20 @@ The first two are tracked in
 </thead>
 <tbody>
 <tr>
-<td><code>limit</code></td>
-<td>Hardcoded to <strong>10</strong> per runner entry</td>
-<td>A single <code>Runner</code> runs at most ten jobs at once, whatever <code>spec.concurrent</code> says. Going higher needs several entries or objects.</td>
-</tr>
-<tr>
-<td><code>request_concurrency</code></td>
-<td>Never set, so gitlab-runner's default of <strong>1</strong></td>
-<td>One open job request against GitLab's queue at a time. On a deep queue the runner drains it far more slowly than <code>concurrent</code> implies.</td>
-</tr>
-<tr>
 <td><code>output_limit</code></td>
 <td>Never set, so the upstream default</td>
 <td>Job log size cap is not tunable per runner.</td>
 </tr>
 </tbody>
 </table>
-<p>See <a href="../../guides/concurrency/">concurrency</a> for what to do about it today.</p>
 <h2 id="no-api-version-conversion">No API version conversion<a class="headerlink" href="#no-api-version-conversion" title="Permanent link">&para;</a></h2>
 <p>There is no conversion webhook. <code>v1alpha1</code> and <code>v1beta1</code> objects cannot be read
 by this operator, and the authentication block changed shape, so moving from
 v1 to v2 is a manual export and reapply. See
 <a href="../../install/#upgrading-from-v1beta1">upgrading from v1beta1</a>.</p>
 <h2 id="multirunner-entries-share-more-than-you-might-expect">MultiRunner entries share more than you might expect<a class="headerlink" href="#multirunner-entries-share-more-than-you-might-expect" title="Permanent link">&para;</a></h2>
-<p>A <code>MultiRunner</code> entry can only vary three things: <code>authentication</code>,
-<code>executor_config</code> and <code>environment</code>. Everything else is set once on the spec
+<p>A <code>MultiRunner</code> entry can only vary five things: <code>authentication</code>,
+<code>executor_config</code>, <code>environment</code>, <code>limit</code> and <code>request_concurrency</code>. Everything else is set once on the spec
 and shared by every entry, including <code>gitlab_instance_url</code>, <code>caCertificate</code>,
 <code>concurrent</code>, <code>check_interval</code>, <code>log_level</code>, <code>log_format</code>, <code>runner_image</code>,
 <code>runner_resources</code>, <code>runner_image_pull_policy</code> and
