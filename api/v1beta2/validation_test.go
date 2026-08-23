@@ -15,6 +15,22 @@ func valMeta(name string) metav1.ObjectMeta {
 	return metav1.ObjectMeta{Name: name, Namespace: "default"}
 }
 
+// unstructuredRunner builds a minimal valid Runner with one spec field forced,
+// so a value omitempty would drop can still be submitted.
+func unstructuredRunner(name, field string, value any) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": GroupVersion.String(),
+		"kind":       "Runner",
+		"metadata":   map[string]any{"name": name, "namespace": "default"},
+		"spec": map[string]any{
+			"authentication": map[string]any{
+				"token": map[string]any{"value": "glrt-x"},
+			},
+			field: value,
+		},
+	}}
+}
+
 func valByoAuth() GitlabAuth {
 	return GitlabAuth{Token: &TokenSource{Value: "glrt-x"}}
 }
@@ -74,14 +90,16 @@ var _ = Describe("CRD validation", func() {
 		Expect(m.Spec.Entries[0].RequestConcurrency).To(Equal(DefaultRequestConcurrency))
 	})
 
-	It("rejects a zero limit", func() {
-		r := &Runner{ObjectMeta: valMeta("val-conc-zero"), Spec: RunnerSpec{
-			Authentication:    valByoAuth(),
-			ConcurrencyLimits: ConcurrencyLimits{Limit: -1},
-		}}
-		err := k8sClient.Create(ctx, r)
-		Expect(err).To(HaveOccurred())
-		Expect(err.Error()).To(ContainSubstring("limit"))
+	// omitempty drops a typed zero before it reaches the apiserver, so the
+	// boundary itself can only be submitted unstructured.
+	It("rejects an explicit zero limit", func() {
+		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-limit", "limit", int64(0))),
+			"should be greater than or equal to 1")
+	})
+
+	It("rejects an explicit zero request_concurrency", func() {
+		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-rc", "request_concurrency", int64(0))),
+			"should be greater than or equal to 1")
 	})
 
 	It("accepts a valid managed Runner", func() {

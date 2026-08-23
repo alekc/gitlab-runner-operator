@@ -260,6 +260,19 @@ func TestSingleRunnerConfig_ConcurrencyKeys(t *testing.T) {
 	}
 }
 
+// runnerBlock returns the [[runners]] block for the named runner, so a value
+// assertion belongs to one entry rather than to the whole file.
+func runnerBlock(t *testing.T, cfg, name string) string {
+	t.Helper()
+	for _, block := range strings.Split(cfg, "[[runners]]") {
+		if strings.Contains(block, `name = "`+name+`"`) {
+			return block
+		}
+	}
+	t.Fatalf("no [[runners]] block named %q in:\n%s", name, cfg)
+	return ""
+}
+
 func TestMultiRunnerConfig_PerEntryConcurrency(t *testing.T) {
 	mr := &v1beta2.MultiRunner{
 		ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "ns"},
@@ -278,17 +291,20 @@ func TestMultiRunnerConfig_PerEntryConcurrency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	// Tie each value to its entry: asserting on the values alone passes when
-	// both entries render the same one, and "limit = 2" matches "limit = 20".
-	for _, want := range []string{
-		"name = \"small\"", "\n  limit = 2\n", "\n  request_concurrency = 1\n",
-		"name = \"big\"", "\n  limit = 20\n", "\n  request_concurrency = 5\n",
+	// Assert inside each entry's own block: matching values against the whole
+	// file passes even when the two entries have swapped them.
+	for _, tc := range []struct {
+		name  string
+		wants []string
+	}{
+		{"small", []string{"\n  limit = 2\n", "\n  request_concurrency = 1\n"}},
+		{"big", []string{"\n  limit = 20\n", "\n  request_concurrency = 5\n"}},
 	} {
-		if !strings.Contains(cfg, want) {
-			t.Errorf("expected %q in config, got:\n%s", want, cfg)
+		block := runnerBlock(t, cfg, tc.name)
+		for _, want := range tc.wants {
+			if !strings.Contains(block, want) {
+				t.Errorf("entry %q: expected %q, got block:\n%s", tc.name, want, block)
+			}
 		}
-	}
-	if got := strings.Count(cfg, "\n  limit = "); got != 2 {
-		t.Errorf("expected one limit per entry, got %d:\n%s", got, cfg)
 	}
 }
