@@ -1448,9 +1448,13 @@ double the effective concurrency) but means throughput scales by adding runner
 objects or <code>MultiRunner</code> entries, not replicas.</p>
 <h2 id="concurrency-settings">Concurrency settings<a class="headerlink" href="#concurrency-settings" title="Permanent link">&para;</a></h2>
 <p><code>limit</code> and <code>request_concurrency</code> are settable per runner and per <code>MultiRunner</code>
-entry, defaulting to 10 and 3. The default <code>limit</code> is still a ceiling: a
-<code>Runner</code> with <code>concurrent: 50</code> and no <code>limit</code> runs ten jobs, because the lower
-of the two wins. See <a href="../../guides/concurrency/">concurrency</a>.</p>
+entry. Neither is defaulted by the operator: unset, the key is omitted and
+gitlab-runner applies its own default, so <code>concurrent: 50</code> runs fifty jobs. A
+<code>limit</code> above <code>concurrent</code> is accepted and inert, since the lower of the two
+wins. Nothing reports the effective ceiling back: upstream's startup warnings do
+not cover a single-entry runner, and its <code>gitlab_runner_limit</code> gauge reports the
+configured value rather than the cap in force. See
+<a href="../../guides/concurrency/">concurrency</a>.</p>
 <p>One related setting is not exposed:</p>
 <table>
 <thead>

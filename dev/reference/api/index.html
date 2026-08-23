@@ -2424,7 +2424,9 @@ most one of Value, SecretKeyRef, or ConfigMapKeyRef.</p>
 </table>
 <h4 id="concurrencylimits">ConcurrencyLimits<a class="headerlink" href="#concurrencylimits" title="Permanent link">&para;</a></h4>
 <p>ConcurrencyLimits are the per-entry budgets, embedded inline in both kinds so
-the two cannot drift apart.</p>
+the two cannot drift apart. Neither field is defaulted: left unset the key is
+omitted from config.toml and gitlab-runner applies its own default, so the
+operator never invents a ceiling the spec does not state.</p>
 <p><em>Appears in:</em>
 - <a href="#multirunnerentry">MultiRunnerEntry</a>
 - <a href="#runnerspec">RunnerSpec</a></p>
@@ -2440,15 +2442,15 @@ the two cannot drift apart.</p>
 <tbody>
 <tr>
 <td><code>limit</code> <em>integer</em></td>
-<td>Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value.</td>
-<td>10</td>
-<td>Minimum: 1 <br /></td>
+<td>Limit caps the jobs this entry runs at once. Zero omits the key, and<br />upstream acquireBuild only enforces a limit when it is above zero, so the<br />entry is bounded by Concurrent alone. Both apply, lower wins.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 <tr>
 <td><code>request_concurrency</code> <em>integer</em></td>
-<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly.</td>
-<td>3</td>
-<td>Minimum: 1 <br /></td>
+<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. Zero omits the key, and upstream GetRequestConcurrency returns<br />max(1, x), so absent means 1 and a raised Limit then fills slowly.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 </tbody>
 </table>
@@ -4363,15 +4365,15 @@ validated at admission instead.</p>
 </tr>
 <tr>
 <td><code>limit</code> <em>integer</em></td>
-<td>Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value.</td>
-<td>10</td>
-<td>Minimum: 1 <br /></td>
+<td>Limit caps the jobs this entry runs at once. Zero omits the key, and<br />upstream acquireBuild only enforces a limit when it is above zero, so the<br />entry is bounded by Concurrent alone. Both apply, lower wins.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 <tr>
 <td><code>request_concurrency</code> <em>integer</em></td>
-<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly.</td>
-<td>3</td>
-<td>Minimum: 1 <br /></td>
+<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. Zero omits the key, and upstream GetRequestConcurrency returns<br />max(1, x), so absent means 1 and a raised Limit then fills slowly.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 </tbody>
 </table>
@@ -4858,15 +4860,15 @@ used in managed mode.</p>
 </tr>
 <tr>
 <td><code>limit</code> <em>integer</em></td>
-<td>Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value.</td>
-<td>10</td>
-<td>Minimum: 1 <br /></td>
+<td>Limit caps the jobs this entry runs at once. Zero omits the key, and<br />upstream acquireBuild only enforces a limit when it is above zero, so the<br />entry is bounded by Concurrent alone. Both apply, lower wins.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 <tr>
 <td><code>request_concurrency</code> <em>integer</em></td>
-<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly.</td>
-<td>3</td>
-<td>Minimum: 1 <br /></td>
+<td>RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. Zero omits the key, and upstream GetRequestConcurrency returns<br />max(1, x), so absent means 1 and a raised Limit then fills slowly.</td>
+<td></td>
+<td>Minimum: 0 <br /></td>
 </tr>
 <tr>
 <td><code>check_interval</code> <em>integer</em></td>

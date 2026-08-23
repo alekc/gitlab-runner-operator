@@ -1368,11 +1368,29 @@ would have to run the upgrade again.</p>
 <p>Use <code>--server-side</code>: these CRDs are large, and a client-side apply stores the
 whole schema in a <code>last-applied-configuration</code> annotation.</p>
 <div class="admonition warning">
-<p class="admonition-title">Upgrading to the release that added request_concurrency rolls every runner once</p>
-<p>That key is new in the rendered <code>config.toml</code>, so the config hash changes
+<p class="admonition-title">Upgrading past the hardcoded limit changes parallelism and rolls every runner once</p>
+<p>Every rendered entry used to carry a hardcoded <code>limit = 10</code>, so <code>concurrent</code>
+above 10 was silently capped at ten jobs. <code>limit</code> is now a field the operator
+never defaults, and unset means bounded by <code>concurrent</code> alone, so those
+runners are free to run the full budget they always asked for. Check the
+cluster can schedule it first.</p>
+<p>Reaching that budget also needs <code>request_concurrency</code>, which the operator no
+longer renders either, so it sits at gitlab-runner's default of 1. At 1 an
+entry acquires work one round trip at a time, so fifty slots fill over fifty
+sequential requests and on a contended queue may never fill. Raise both, or
+the extra capacity sits idle. See
+<a href="../guides/concurrency/">concurrency</a>.</p>
+<p>To keep the old behaviour instead, set <code>limit: 10</code> explicitly. That also
+avoids the restart below, since the rendered config is then byte-identical to
+what the previous release produced. Order matters: apply the new CRDs first,
+then set <code>limit</code> on every object, then upgrade. A <code>limit</code> set before the CRD
+knows the field is pruned by the API server with no error, and for
+chart-managed <code>runners:</code> values that leaves you with exactly the parallelism
+jump you were trying to prevent.</p>
+<p>Otherwise, because <code>limit = 10</code> stops being rendered, the config hash changes
 for every existing <code>Runner</code> and <code>MultiRunner</code> even though their specs did
-not. The first reconcile after the upgrade restarts each runner manager,
-and the manager does not drain
+not. The first reconcile after the upgrade restarts each runner manager, and
+the manager does not drain
 (<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>), so jobs
 in flight at that moment may be lost. It happens once. Upgrade when the
 pipeline queue is quiet.</p>
