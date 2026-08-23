@@ -216,9 +216,9 @@ func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
 	}
 }
 
-// The CRD defaults these, and the generator floors them again because helm does
-// not update CRDs on upgrade. Both halves are asserted: explicit values render,
-// and a zero renders the default rather than dropping the key.
+// Both halves are asserted: explicit values render, and a zero on either field
+// drops its key so gitlab-runner applies its own default rather than one the
+// operator invented.
 func TestSingleRunnerConfig_ConcurrencyKeys(t *testing.T) {
 	base := &v1beta2.Runner{
 		ObjectMeta: metav1.ObjectMeta{Name: "r1", Namespace: "ns"},
@@ -243,9 +243,8 @@ func TestSingleRunnerConfig_ConcurrencyKeys(t *testing.T) {
 		}
 	}
 
-	// An object the apiserver never defaulted, which is what a helm upgrade
-	// leaves behind when the CRDs are not re-applied. Without the code-side
-	// floor the keys vanish and gitlab-runner treats limit as unlimited.
+	// An object that sets neither, which is both the default state and what a
+	// helm upgrade leaves behind when the CRDs are not re-applied.
 	bare := base.DeepCopy()
 	bare.Spec.Limit = 0
 	bare.Spec.RequestConcurrency = 0
@@ -253,10 +252,28 @@ func TestSingleRunnerConfig_ConcurrencyKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, want := range []string{"\n  limit = 10", "\n  request_concurrency = 3"} {
-		if !strings.Contains(cfg, want) {
-			t.Errorf("expected the floored %q, got:\n%s", want, cfg)
+	for _, unwanted := range []string{"\n  limit = ", "\n  request_concurrency = "} {
+		if strings.Contains(cfg, unwanted) {
+			t.Errorf("expected no %q key, got:\n%s", unwanted, cfg)
 		}
+	}
+	// concurrent still renders, so the entry is never genuinely unlimited even
+	// with both entry keys absent.
+	if !strings.Contains(cfg, "\nconcurrent = 50") {
+		t.Errorf("expected concurrent to render, got:\n%s", cfg)
+	}
+
+	// With both entry keys gone this floor is the only thing left guarding the
+	// config: upstream Fatalln's on concurrent below 1, so losing it is a
+	// crash loop on every manager, not a slow runner.
+	floored := base.DeepCopy()
+	floored.Spec.Concurrent = 0
+	cfg, _, err = SingleRunnerConfig(floored, tokens, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(cfg, "\nconcurrent = 1") {
+		t.Errorf("expected concurrent floored to 1, got:\n%s", cfg)
 	}
 }
 
@@ -282,10 +299,14 @@ func TestMultiRunnerConfig_PerEntryConcurrency(t *testing.T) {
 			Entries: []v1beta2.MultiRunnerEntry{
 				{Name: "small", ConcurrencyLimits: v1beta2.ConcurrencyLimits{Limit: 2, RequestConcurrency: 1}},
 				{Name: "big", ConcurrencyLimits: v1beta2.ConcurrencyLimits{Limit: 20, RequestConcurrency: 5}},
+				// Sets neither, which is what an entry looks like when the API
+				// server never defaulted it. Pins that the key is dropped
+				// rather than floored: a floor here caps the entry silently.
+				{Name: "bare"},
 			},
 		},
 	}
-	tokens := map[string]string{"small": "glrt-a", "big": "glrt-b"}
+	tokens := map[string]string{"small": "glrt-a", "big": "glrt-b", "bare": "glrt-c"}
 
 	cfg, _, err := MultiRunnerConfig(mr, tokens, nil)
 	if err != nil {
@@ -306,5 +327,23 @@ func TestMultiRunnerConfig_PerEntryConcurrency(t *testing.T) {
 				t.Errorf("entry %q: expected %q, got block:\n%s", tc.name, want, block)
 			}
 		}
+	}
+
+	bare := runnerBlock(t, cfg, "bare")
+	for _, unwanted := range []string{"\n  limit = ", "\n  request_concurrency = "} {
+		if strings.Contains(bare, unwanted) {
+			t.Errorf("entry \"bare\": expected no %q key, got block:\n%s", unwanted, bare)
+		}
+	}
+
+	// MultiRunnerConfig carries its own copy of the floor, so it needs its own
+	// case; see the Runner test for why losing it is a crash loop.
+	mr.Spec.Concurrent = 0
+	cfg, _, err = MultiRunnerConfig(mr, tokens, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(cfg, "\nconcurrent = 1") {
+		t.Errorf("expected concurrent floored to 1, got:\n%s", cfg)
 	}
 }

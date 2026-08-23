@@ -65,9 +65,13 @@ objects or `MultiRunner` entries, not replicas.
 ## Concurrency settings
 
 `limit` and `request_concurrency` are settable per runner and per `MultiRunner`
-entry, defaulting to 10 and 3. The default `limit` is still a ceiling: a
-`Runner` with `concurrent: 50` and no `limit` runs ten jobs, because the lower
-of the two wins. See [concurrency](../guides/concurrency.md).
+entry. Neither is defaulted by the operator: unset, the key is omitted and
+gitlab-runner applies its own default, so `concurrent: 50` runs fifty jobs. A
+`limit` above `concurrent` is accepted and inert, since the lower of the two
+wins. Nothing reports the effective ceiling back: upstream's startup warnings do
+not cover a single-entry runner, and its `gitlab_runner_limit` gauge reports the
+configured value rather than the cap in force. See
+[concurrency](../guides/concurrency.md).
 
 One related setting is not exposed:
 

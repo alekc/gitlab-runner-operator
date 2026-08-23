@@ -27,48 +27,22 @@ import (
 // ConditionReady is the condition type reported on the runner status.
 const ConditionReady = "Ready"
 
-// Defaults for ConcurrencyLimits. The CRD markers below carry the same values
-// as literals, and the generator floors on these constants: helm does not
-// update CRDs on upgrade, so a new binary can meet an object the API server
-// never defaulted.
-const (
-	DefaultRunnerLimit        = 10
-	DefaultRequestConcurrency = 3
-)
-
 // ConcurrencyLimits are the per-entry budgets, embedded inline in both kinds so
-// the two cannot drift apart.
+// the two cannot drift apart. Neither field is defaulted: left unset the key is
+// omitted from config.toml and gitlab-runner applies its own default, so the
+// operator never invents a ceiling the spec does not state.
 type ConcurrencyLimits struct {
-	// Limit caps the jobs this entry executes at once. The effective ceiling is
-	// the lower of Limit and Concurrent, so raising Concurrent alone does
-	// nothing past this value.
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:default=10
+	// Limit caps the jobs this entry runs at once. Zero omits the key, and
+	// upstream acquireBuild only enforces a limit when it is above zero, so the
+	// entry is bounded by Concurrent alone. Both apply, lower wins.
+	// +kubebuilder:validation:Minimum=0
 	Limit int `json:"limit,omitempty"`
 
 	// RequestConcurrency caps job requests in flight to GitLab, not jobs
-	// running. At 1 an entry acquires work one round trip at a time, so a
-	// raised Limit fills slowly.
-	// +kubebuilder:validation:Minimum=1
-	// +kubebuilder:default=3
+	// running. Zero omits the key, and upstream GetRequestConcurrency returns
+	// max(1, x), so absent means 1 and a raised Limit then fills slowly.
+	// +kubebuilder:validation:Minimum=0
 	RequestConcurrency int `json:"request_concurrency,omitempty"`
-}
-
-// EffectiveLimit returns the job cap, falling back to the default when the API
-// server did not apply one. Mirrors EffectiveNamespace: one rule, both paths.
-func (c ConcurrencyLimits) EffectiveLimit() int {
-	if c.Limit <= 0 {
-		return DefaultRunnerLimit
-	}
-	return c.Limit
-}
-
-// EffectiveRequestConcurrency returns the polling cap, with the same fallback.
-func (c ConcurrencyLimits) EffectiveRequestConcurrency() int {
-	if c.RequestConcurrency <= 0 {
-		return DefaultRequestConcurrency
-	}
-	return c.RequestConcurrency
 }
 
 // defaultRunnerResources are the resource requests/limits applied to the runner

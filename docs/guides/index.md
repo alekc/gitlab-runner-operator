@@ -26,7 +26,7 @@ something up, start with the task.
 | Mounted secret is missing inside the job | wrong namespace, or a key that needs `items` | [Mount secrets and configmaps](mount-secrets.md) |
 | `ImagePullBackOff` on the job's own image | pull secret missing, or Docker Hub rate limit | [Pull from a private registry](private-registry.md) |
 | Connection refused reaching postgres or redis | service not ready yet, or OOM-killed | [Service containers](service-containers.md) |
-| Runner is online but picks up almost nothing | `limit` and `request_concurrency`, which default low | [Concurrency](concurrency.md) |
+| Runner is online but picks up almost nothing | `concurrent` and `request_concurrency` are both 1 when unset | [Concurrency](concurrency.md) |
 | Jobs fail as `script_failure` after a node disappeared | spot eviction is not classified as a system failure | [Spot and preemptible nodes](spot-nodes.md) |
 | `cache:` declared but never restores | no distributed cache support yet | [Limitations](../reference/limitations.md) |
 | `x509: certificate signed by unknown authority` | GitLab behind a private CA | [Authentication](../authentication.md#custom-ca-for-a-self-signed-gitlab) |
