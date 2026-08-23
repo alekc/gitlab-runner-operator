@@ -749,7 +749,10 @@ spec:
                           pattern: ^\+?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$
                           type: string
                         container_lifecycle:
-                          description: https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.21/#lifecycle-v1-core
+                          description: |-
+                            KubernetesContainerLifecyle exposes PostStart and PreStop only. PostStart is
+                            not ordered against the image ENTRYPOINT, and PreStop does not run when the
+                            container crashes or exits on its own.
                           properties:
                             post_start:
                               properties:
