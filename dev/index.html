@@ -27,7 +27,7 @@
     
     
       
-        <title>GitLab Runner Operator</title>
+        <title>Runner Operator for GitLab CI</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#gitlab-runner-operator" class="md-skip">
+        <a href="#runner-operator-for-gitlab-ci" class="md-skip">
           Skip to content
         </a>
       
@@ -98,7 +98,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="GitLab Runner Operator" class="md-header__button md-logo" aria-label="GitLab Runner Operator" data-md-component="logo">
+    <a href="." title="Runner Operator for GitLab CI" class="md-header__button md-logo" aria-label="Runner Operator for GitLab CI" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -112,7 +112,7 @@
       <div class="md-header__ellipsis">
         <div class="md-header__topic">
           <span class="md-ellipsis">
-            GitLab Runner Operator
+            Runner Operator for GitLab CI
           </span>
         </div>
         <div class="md-header__topic" data-md-component="header-topic">
@@ -236,13 +236,13 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="GitLab Runner Operator" class="md-nav__button md-logo" aria-label="GitLab Runner Operator" data-md-component="logo">
+    <a href="." title="Runner Operator for GitLab CI" class="md-nav__button md-logo" aria-label="Runner Operator for GitLab CI" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
 
     </a>
-    GitLab Runner Operator
+    Runner Operator for GitLab CI
   </label>
   
     <div class="md-nav__source">
@@ -1190,7 +1190,7 @@
   
 
 
-<h1 id="gitlab-runner-operator">GitLab Runner Operator<a class="headerlink" href="#gitlab-runner-operator" title="Permanent link">&para;</a></h1>
+<h1 id="runner-operator-for-gitlab-ci">Runner Operator for GitLab CI<a class="headerlink" href="#runner-operator-for-gitlab-ci" title="Permanent link">&para;</a></h1>
 <p>A Kubernetes operator that manages GitLab CI runners using the
 <a href="https://docs.gitlab.com/runner/executors/kubernetes.html">kubernetes executor</a>.</p>
 <p>It lets you run one or many runners, each configured in YAML instead of a
@@ -1198,6 +1198,13 @@ hand-written <code>config.toml</code>. The supported kubernetes executor options
 reachable through the CRD, and the operator handles registration, config
 rendering, per-runner RBAC, and deregistration from GitLab on delete. What is
 not covered is listed in <a href="reference/limitations/">limitations</a>.</p>
+<div class="admonition info">
+<p class="admonition-title">An independent project</p>
+<p>Not affiliated with, nor endorsed by, GitLab. GitLab maintains its own
+<a href="https://docs.gitlab.com/runner/install/operator/">GitLab Runner Operator</a>
+for OpenShift and OLM. That is a different operator with a different CRD
+API, and manifests are not interchangeable between the two.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Alpha</p>
 <p>Breaking changes are possible and are called out in the release notes. The
