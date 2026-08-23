@@ -1,0 +1,5124 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Every field of the Runner and MultiRunner CRDs, generated from the Go types: authentication, executor config, volumes, resources and status.">
+      
+      
+        <meta name="author" content="Alexander Chernov">
+      
+      
+        <link rel="canonical" href="https://gitlab-runner-operator.alekc.dev/latest/2.0/reference/api/">
+      
+      
+        <link rel="prev" href="../../operations/uninstall/">
+      
+      
+        <link rel="next" href="../limitations/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>CRD API - Runner Operator for GitLab CI</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-orange" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+      <div data-md-color-scheme="default" data-md-component="outdated" hidden>
+        
+      </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="Runner Operator for GitLab CI" class="md-header__button md-logo" aria-label="Runner Operator for GitLab CI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Runner Operator for GitLab CI
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              CRD API
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="deep-orange" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="deep-orange" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/alekc/gitlab-runner-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    alekc/gitlab-runner-operator
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="Runner Operator for GitLab CI" class="md-nav__button md-logo" aria-label="Runner Operator for GitLab CI" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Runner Operator for GitLab CI
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/alekc/gitlab-runner-operator" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    alekc/gitlab-runner-operator
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../install/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Install
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../authentication/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Authentication
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Guides
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/docker-in-docker/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Docker-in-Docker
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/rootless-builds/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Rootless builds
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/node-placement/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Node placement
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/spot-nodes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spot and preemptible nodes
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/mount-secrets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mount secrets and configmaps
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/private-registry/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Pull from a private registry
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/storage/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Persistent and ephemeral storage
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/sizing-jobs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Sizing jobs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/concurrency/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Concurrency
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/stuck-pods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jobs stuck in Pending
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/build-namespace/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dedicated build namespace
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/service-containers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Service containers
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/monitoring/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Watching a runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Operations
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Operations
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/rbac-and-namespaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    RBAC and namespaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../operations/uninstall/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Uninstalling
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_6" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CRD API
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CRD API
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gitlabk8salekcdevv1beta2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gitlab.k8s.alekc.dev/v1beta2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="gitlab.k8s.alekc.dev/v1beta2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resource Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cakeyref" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CAKeyRef
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#casource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CASource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gitlabauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitlabAuth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesapparmorprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesAppArmorProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescsi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesCSI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesConfig
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesconfigmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesConfigMap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainercapabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerCapabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainerlifecyle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerLifecyle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainersecuritycontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerSecurityContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesdnsconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesDNSConfig
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesdnsconfigoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesDNSConfigOption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesemptydir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesEmptyDir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteshostaliases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesHostAliases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteshostpath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesHostPath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecycleexecaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleExecAction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehttpget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHTTPGet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehttpgetheader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHTTPGetHeader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehandler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHandler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecycletcpsocket" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleTCPSocket
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesnfs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesNFS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesnodeaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesNodeAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPVC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodantiaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodAntiAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodsecuritycontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodSecurityContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesseccompprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesSeccompProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetessecret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesSecret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesvolumes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesVolumes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labelselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabelSelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerEntry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselectorrequirement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelectorRequirement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselectorterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelectorTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podaffinityterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodAffinityTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preferredschedulingterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreferredSchedulingTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnercreateoptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerCreateOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secretkeyselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecretKeySelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokensource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TokenSource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weightedpodaffinityterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WeightedPodAffinityTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../limitations/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Limitations
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#packages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Packages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gitlabk8salekcdevv1beta2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        gitlab.k8s.alekc.dev/v1beta2
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="gitlab.k8s.alekc.dev/v1beta2">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#resource-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resource Types
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Resource Types">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#cakeyref" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CAKeyRef
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#casource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CASource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#gitlabauth" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GitlabAuth
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesapparmorprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesAppArmorProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescsi" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesCSI
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesConfig
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesconfigmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesConfigMap
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainercapabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerCapabilities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainerlifecyle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerLifecyle
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetescontainersecuritycontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesContainerSecurityContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesdnsconfig" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesDNSConfig
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesdnsconfigoption" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesDNSConfigOption
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesemptydir" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesEmptyDir
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteshostaliases" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesHostAliases
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteshostpath" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesHostPath
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecycleexecaction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleExecAction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehttpget" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHTTPGet
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehttpgetheader" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHTTPGetHeader
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecyclehandler" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleHandler
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kuberneteslifecycletcpsocket" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesLifecycleTCPSocket
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesnfs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesNFS
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesnodeaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesNodeAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespvc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPVC
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodantiaffinity" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodAntiAffinity
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodsecuritycontext" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodSecurityContext
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetespodspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesPodSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesseccompprofile" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesSeccompProfile
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetessecret" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesSecret
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#kubernetesvolumes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KubernetesVolumes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#labelselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        LabelSelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerentry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerEntry
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#multirunnerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MultiRunnerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselectorrequirement" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelectorRequirement
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nodeselectorterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NodeSelectorTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#podaffinityterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PodAffinityTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#preferredschedulingterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        PreferredSchedulingTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runner" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Runner
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnercreateoptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerCreateOptions
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnerspec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerSpec
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#runnerstatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        RunnerStatus
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#secretkeyselector" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SecretKeySelector
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#service" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Service
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokensource" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        TokenSource
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#weightedpodaffinityterm" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        WeightedPodAffinityTerm
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/alekc/gitlab-runner-operator/edit/main/docs/reference/api.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<div class="admonition info">
+<p class="admonition-title">Generated page</p>
+<p>Rendered from the Go types in <code>api/</code> by <code>make docs</code>. Edits here are
+reverted by the next run; change the types instead.</p>
+</div>
+<h1 id="api-reference">API Reference<a class="headerlink" href="#api-reference" title="Permanent link">&para;</a></h1>
+<h2 id="packages">Packages<a class="headerlink" href="#packages" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#gitlabk8salekcdevv1beta2">gitlab.k8s.alekc.dev/v1beta2</a></li>
+</ul>
+<h2 id="gitlabk8salekcdevv1beta2">gitlab.k8s.alekc.dev/v1beta2<a class="headerlink" href="#gitlabk8salekcdevv1beta2" title="Permanent link">&para;</a></h2>
+<p>Package v1beta2 contains API Schema definitions for the gitlab v1beta2 API group</p>
+<h3 id="resource-types">Resource Types<a class="headerlink" href="#resource-types" title="Permanent link">&para;</a></h3>
+<ul>
+<li><a href="#multirunner">MultiRunner</a></li>
+<li><a href="#runner">Runner</a></li>
+</ul>
+<h4 id="cakeyref">CAKeyRef<a class="headerlink" href="#cakeyref" title="Permanent link">&para;</a></h4>
+<p>CAKeyRef points at a single key inside a Secret or ConfigMap.</p>
+<p><em>Appears in:</em>
+- <a href="#casource">CASource</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td>Name of the Secret or ConfigMap.</td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>key</code> <em>string</em></td>
+<td>Key holding the PEM CA bundle. Defaults to "ca.crt" when empty.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="casource">CASource<a class="headerlink" href="#casource" title="Permanent link">&para;</a></h4>
+<p>CASource provides a PEM-encoded CA bundle used to verify the GitLab endpoint,
+both for the operator's own API calls and for the runner's connection. Set at
+most one of Value, SecretKeyRef, or ConfigMapKeyRef.</p>
+<p><em>Appears in:</em>
+- <a href="#multirunnerspec">MultiRunnerSpec</a>
+- <a href="#runnerspec">RunnerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>value</code> <em>string</em></td>
+<td>Value is an inline PEM CA bundle, supplied directly in the manifest.<br />Convenient for small bundles; prefer a Secret or ConfigMap ref when the<br />bundle is large or rotated independently of the runner spec.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>secretKeyRef</code> <em><a href="#cakeyref">CAKeyRef</a></em></td>
+<td>SecretKeyRef selects a key in a Secret holding the PEM CA bundle.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>configMapKeyRef</code> <em><a href="#cakeyref">CAKeyRef</a></em></td>
+<td>ConfigMapKeyRef selects a key in a ConfigMap holding the PEM CA bundle.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="gitlabauth">GitlabAuth<a class="headerlink" href="#gitlabauth" title="Permanent link">&para;</a></h4>
+<p>GitlabAuth configures how a runner authenticates to GitLab. GitLab removed
+the legacy registration-token workflow (deprecated in 16.0, disabled by
+default from 18.0); runners now authenticate with a runner authentication
+token (the "glrt-" token). Exactly one of two modes must be provided:</p>
+<ul>
+<li>
+<p>Bring-your-own token: set Token to a runner authentication token created
+    in the GitLab UI or via the API. The operator performs no GitLab API
+    calls and writes the token straight into the runner config.</p>
+</li>
+<li>
+<p>Managed: set AccessToken to a personal, group, or project access token
+    holding the "create_runner" scope, together with a CreateOptions block.
+    The operator creates the runner through POST /user/runners, stores the
+    returned token, and deletes the runner from GitLab when the object is
+    removed.</p>
+</li>
+</ul>
+<p>Each credential is a TokenSource, so it may be supplied inline (value) or
+from a Secret key (secret_key_ref, with a configurable key defaulting to
+"token").</p>
+<p><em>Appears in:</em>
+- <a href="#multirunnerentry">MultiRunnerEntry</a>
+- <a href="#runnerspec">RunnerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>token</code> <em><a href="#tokensource">TokenSource</a></em></td>
+<td>Token is the pre-created runner authentication token ("glrt-...") used in<br />bring-your-own mode. Mutually exclusive with the managed CreateOptions.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>access_token</code> <em><a href="#tokensource">TokenSource</a></em></td>
+<td>AccessToken is a personal, group, or project access token with the<br />"create_runner" scope. Required for the managed mode.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>create_options</code> <em><a href="#runnercreateoptions">RunnerCreateOptions</a></em></td>
+<td>CreateOptions describes the runner to create. When set, the operator runs<br />in managed mode and owns the runner's lifecycle on GitLab.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesaffinity">KubernetesAffinity<a class="headerlink" href="#kubernetesaffinity" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>node_affinity</code> <em><a href="#kubernetesnodeaffinity">KubernetesNodeAffinity</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_affinity</code> <em><a href="#kubernetespodaffinity">KubernetesPodAffinity</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_anti_affinity</code> <em><a href="#kubernetespodantiaffinity">KubernetesPodAntiAffinity</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesapparmorprofile">KubernetesAppArmorProfile<a class="headerlink" href="#kubernetesapparmorprofile" title="Permanent link">&para;</a></h4>
+<p>KubernetesAppArmorProfile selects the AppArmor profile for pod containers.
+Requires Kubernetes 1.30 or newer. The runner silently drops a profile it
+cannot use, so the constraints here are validated at admission instead.</p>
+<p><em>Appears in:</em>
+- <a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a>
+- <a href="#kubernetespodsecuritycontext">KubernetesPodSecurityContext</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [RuntimeDefault Localhost Unconfined] <br /></td>
+</tr>
+<tr>
+<td><code>localhost_profile</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetescsi">KubernetesCSI<a class="headerlink" href="#kubernetescsi" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>driver</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>fs_type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>volume_attributes</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesconfig">KubernetesConfig<a class="headerlink" href="#kubernetesconfig" title="Permanent link">&para;</a></h4>
+<p>KubernetesConfig is the kubernetes executor configuration for a runner unit.</p>
+<p><em>Appears in:</em>
+- <a href="#multirunnerentry">MultiRunnerEntry</a>
+- <a href="#runnerspec">RunnerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cert_file</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>key_file</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ca_file</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>bearer_token_overwrite_allowed</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>bearer_token</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>namespace</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>namespace_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>privileged</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>runtime_class_name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allow_privilege_escalation</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cpu_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cpu_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cpu_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cpu_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>memory_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>memory_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>memory_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>memory_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ephemeral_storage_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ephemeral_storage_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ephemeral_storage_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>ephemeral_storage_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_cpu_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_cpu_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_cpu_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_cpu_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_memory_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_memory_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_memory_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_memory_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_ephemeral_storage_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_ephemeral_storage_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_ephemeral_storage_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_ephemeral_storage_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_cpu_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_cpu_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_cpu_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_cpu_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_memory_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_memory_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_memory_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_memory_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_ephemeral_storage_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_ephemeral_storage_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_ephemeral_storage_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_ephemeral_storage_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allowed_images</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allowed_pull_policies</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allowed_services</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pull_policy</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>node_selector</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>node_selector_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>node_tolerations</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>affinity</code> <em><a href="#kubernetesaffinity">KubernetesAffinity</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>image_pull_secrets</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_image</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_image_flavor</code> <em>string</em></td>
+<td>HelperImageFlavor selects the OS base for the helper image. Upstream<br />interpolates it into the image tag rather than validating it, so an<br />unrecognised value fails as an ImagePullBackOff on the build pod rather<br />than at admission. Empty means alpine, or concrete under FF_CONCRETE.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>terminationGracePeriodSeconds</code> <em>integer</em></td>
+<td>Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.<br />A value set here is accepted, rendered into config.toml, then silently<br />dropped by the runner. Set pod_termination_grace_period_seconds and<br />cleanup_grace_period_seconds instead.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_termination_grace_period_seconds</code> <em>integer</em></td>
+<td>PodTerminationGracePeriodSeconds is the build pod's grace period. Unset<br />means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an<br />unset grace period meant 0s, so a runner upgraded across that boundary<br />waits 30s where it used to terminate at once.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cleanup_grace_period_seconds</code> <em>integer</em></td>
+<td>CleanupGracePeriodSeconds is the DeleteOptions grace period used when<br />tearing down the build pod and its credentials secret after a job. Unset<br />defers to each object's own grace period, which for the pod is<br />pod_termination_grace_period_seconds.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>poll_interval</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>poll_timeout</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>resource_availability_check_max_attempts</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_labels</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_labels_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scheduler_name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_account</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_account_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_annotations</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_annotations_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_security_context</code> <em><a href="#kubernetespodsecuritycontext">KubernetesPodSecurityContext</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>init_permissions_container_security_context</code> <em><a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>build_container_security_context</code> <em><a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_container_security_context</code> <em><a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>service_container_security_context</code> <em><a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>volumes</code> <em><a href="#kubernetesvolumes">KubernetesVolumes</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>host_aliases</code> <em><a href="#kuberneteshostaliases">KubernetesHostAliases</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>services</code> <em><a href="#service">Service</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cap_add</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cap_drop</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>dns_policy</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>dns_config</code> <em><a href="#kubernetesdnsconfig">KubernetesDNSConfig</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>container_lifecycle</code> <em><a href="#kubernetescontainerlifecyle">KubernetesContainerLifecyle</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>priority_class_name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>context</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>namespace_per_job</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_cpu_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_cpu_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_cpu_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_cpu_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_memory_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_memory_limit_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_memory_request</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_memory_request_overwrite_max_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>node_tolerations_overwrite_allowed</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>helper_image_autoset_arch_and_os</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>logs_base_dir</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scripts_base_dir</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_spec</code> <em><a href="#kubernetespodspec">KubernetesPodSpec</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allowed_users</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allowed_groups</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>automount_service_account_token</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_disruption_budget</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>print_pod_warning_events</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>use_service_account_image_pull_secrets</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>cleanup_resources_timeout</code> <em>string</em></td>
+<td>A Go duration string such as 5m. The runner's toml decoder parses it into<br />time.Duration, so no bespoke CRD type is needed.</td>
+<td></td>
+<td>MaxLength: 32 <br />Pattern: <code>^\+?(0\|(([0-9]+(\.[0-9]*)?\|\.[0-9]+)(ns\|us\|µs\|μs\|ms\|s\|m\|h))+)$</code> <br /></td>
+</tr>
+<tr>
+<td><code>retry_limit</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>retry_limits</code> <em>object (keys:string, values:integer)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>retry_backoff_max</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesconfigmap">KubernetesConfigMap<a class="headerlink" href="#kubernetesconfigmap" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>items</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetescontainercapabilities">KubernetesContainerCapabilities<a class="headerlink" href="#kubernetescontainercapabilities" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#capability-v1-core">Capability</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>drop</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#capability-v1-core">Capability</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetescontainerlifecyle">KubernetesContainerLifecyle<a class="headerlink" href="#kubernetescontainerlifecyle" title="Permanent link">&para;</a></h4>
+<p>KubernetesContainerLifecyle exposes PostStart and PreStop only. PostStart is
+not ordered against the image ENTRYPOINT, and PreStop does not run when the
+container crashes or exits on its own.</p>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>post_start</code> <em><a href="#kuberneteslifecyclehandler">KubernetesLifecycleHandler</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pre_stop</code> <em><a href="#kuberneteslifecyclehandler">KubernetesLifecycleHandler</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetescontainersecuritycontext">KubernetesContainerSecurityContext<a class="headerlink" href="#kubernetescontainersecuritycontext" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>capabilities</code> <em><a href="#kubernetescontainercapabilities">KubernetesContainerCapabilities</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>privileged</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_user</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_group</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_non_root</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only_root_filesystem</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>allow_privilege_escalation</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>proc_mount</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>selinux_type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>seccomp_profile</code> <em><a href="#kubernetesseccompprofile">KubernetesSeccompProfile</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>app_armor_profile</code> <em><a href="#kubernetesapparmorprofile">KubernetesAppArmorProfile</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesdnsconfig">KubernetesDNSConfig<a class="headerlink" href="#kubernetesdnsconfig" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nameservers</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>options</code> <em><a href="#kubernetesdnsconfigoption">KubernetesDNSConfigOption</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>searches</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesdnsconfigoption">KubernetesDNSConfigOption<a class="headerlink" href="#kubernetesdnsconfigoption" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesdnsconfig">KubernetesDNSConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>value</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesemptydir">KubernetesEmptyDir<a class="headerlink" href="#kubernetesemptydir" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>medium</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>size_limit</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_propagation</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteshostaliases">KubernetesHostAliases<a class="headerlink" href="#kuberneteshostaliases" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ip</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>hostnames</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteshostpath">KubernetesHostPath<a class="headerlink" href="#kuberneteshostpath" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>host_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_propagation</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteslifecycleexecaction">KubernetesLifecycleExecAction<a class="headerlink" href="#kuberneteslifecycleexecaction" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kuberneteslifecyclehandler">KubernetesLifecycleHandler</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>command</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteslifecyclehttpget">KubernetesLifecycleHTTPGet<a class="headerlink" href="#kuberneteslifecyclehttpget" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kuberneteslifecyclehandler">KubernetesLifecycleHandler</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>http_headers</code> <em><a href="#kuberneteslifecyclehttpgetheader">KubernetesLifecycleHTTPGetHeader</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>port</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>scheme</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteslifecyclehttpgetheader">KubernetesLifecycleHTTPGetHeader<a class="headerlink" href="#kuberneteslifecyclehttpgetheader" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kuberneteslifecyclehttpget">KubernetesLifecycleHTTPGet</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>value</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteslifecyclehandler">KubernetesLifecycleHandler<a class="headerlink" href="#kuberneteslifecyclehandler" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetescontainerlifecyle">KubernetesContainerLifecyle</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>exec</code> <em><a href="#kuberneteslifecycleexecaction">KubernetesLifecycleExecAction</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>http_get</code> <em><a href="#kuberneteslifecyclehttpget">KubernetesLifecycleHTTPGet</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>tcp_socket</code> <em><a href="#kuberneteslifecycletcpsocket">KubernetesLifecycleTCPSocket</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kuberneteslifecycletcpsocket">KubernetesLifecycleTCPSocket<a class="headerlink" href="#kuberneteslifecycletcpsocket" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kuberneteslifecyclehandler">KubernetesLifecycleHandler</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>port</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesnfs">KubernetesNFS<a class="headerlink" href="#kubernetesnfs" title="Permanent link">&para;</a></h4>
+<p>KubernetesNFS is an NFS share mounted into the build pod. Upstream's
+UnmarshalTOML rejects the volume unless name, mount_path, server and path are
+all set, so those four are required here rather than optional.</p>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>server</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesnodeaffinity">KubernetesNodeAffinity<a class="headerlink" href="#kubernetesnodeaffinity" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesaffinity">KubernetesAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>required_during_scheduling_ignored_during_execution</code> <em><a href="#nodeselector">NodeSelector</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>preferred_during_scheduling_ignored_during_execution</code> <em><a href="#preferredschedulingterm">PreferredSchedulingTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetespvc">KubernetesPVC<a class="headerlink" href="#kubernetespvc" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_propagation</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetespodaffinity">KubernetesPodAffinity<a class="headerlink" href="#kubernetespodaffinity" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesaffinity">KubernetesAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>required_during_scheduling_ignored_during_execution</code> <em><a href="#podaffinityterm">PodAffinityTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>preferred_during_scheduling_ignored_during_execution</code> <em><a href="#weightedpodaffinityterm">WeightedPodAffinityTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetespodantiaffinity">KubernetesPodAntiAffinity<a class="headerlink" href="#kubernetespodantiaffinity" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesaffinity">KubernetesAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>required_during_scheduling_ignored_during_execution</code> <em><a href="#podaffinityterm">PodAffinityTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>preferred_during_scheduling_ignored_during_execution</code> <em><a href="#weightedpodaffinityterm">WeightedPodAffinityTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetespodsecuritycontext">KubernetesPodSecurityContext<a class="headerlink" href="#kubernetespodsecuritycontext" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fs_group</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_group</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_non_root</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>run_as_user</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>supplemental_groups</code> <em>integer array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>selinux_type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>app_armor_profile</code> <em><a href="#kubernetesapparmorprofile">KubernetesAppArmorProfile</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>seccomp_profile</code> <em><a href="#kubernetesseccompprofile">KubernetesSeccompProfile</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetespodspec">KubernetesPodSpec<a class="headerlink" href="#kubernetespodspec" title="Permanent link">&para;</a></h4>
+<p>KubernetesPodSpec is an experimental gitlab-runner option that patches the
+generated build pod spec. PatchType is one of merge, json, or strategic.</p>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>patch_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>patch</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>patch_type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesseccompprofile">KubernetesSeccompProfile<a class="headerlink" href="#kubernetesseccompprofile" title="Permanent link">&para;</a></h4>
+<p>KubernetesSeccompProfile selects the seccomp profile for pod containers. The
+runner silently drops a profile it cannot use, so the constraints here are
+validated at admission instead.</p>
+<p><em>Appears in:</em>
+- <a href="#kubernetescontainersecuritycontext">KubernetesContainerSecurityContext</a>
+- <a href="#kubernetespodsecuritycontext">KubernetesPodSecurityContext</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [RuntimeDefault Localhost Unconfined] <br /></td>
+</tr>
+<tr>
+<td><code>localhost_profile</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetessecret">KubernetesSecret<a class="headerlink" href="#kubernetessecret" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesvolumes">KubernetesVolumes</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mount_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>sub_path</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>read_only</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>items</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="kubernetesvolumes">KubernetesVolumes<a class="headerlink" href="#kubernetesvolumes" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>host_path</code> <em><a href="#kuberneteshostpath">KubernetesHostPath</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pvc</code> <em><a href="#kubernetespvc">KubernetesPVC</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>config_map</code> <em><a href="#kubernetesconfigmap">KubernetesConfigMap</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>secret</code> <em><a href="#kubernetessecret">KubernetesSecret</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>empty_dir</code> <em><a href="#kubernetesemptydir">KubernetesEmptyDir</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>csi</code> <em><a href="#kubernetescsi">KubernetesCSI</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>nfs</code> <em><a href="#kubernetesnfs">KubernetesNFS</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="labelselector">LabelSelector<a class="headerlink" href="#labelselector" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#podaffinityterm">PodAffinityTerm</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>match_labels</code> <em>object (keys:string, values:string)</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>match_expressions</code> <em><a href="#nodeselectorrequirement">NodeSelectorRequirement</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="multirunner">MultiRunner<a class="headerlink" href="#multirunner" title="Permanent link">&para;</a></h4>
+<p>MultiRunner is the Schema for the multirunners API</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>gitlab.k8s.alekc.dev/v1beta2</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>MultiRunner</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#multirunnerspec">MultiRunnerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#multirunnerstatus">MultiRunnerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="multirunnerentry">MultiRunnerEntry<a class="headerlink" href="#multirunnerentry" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#multirunnerspec">MultiRunnerSpec</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>authentication</code> <em><a href="#gitlabauth">GitlabAuth</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>executor_config</code> <em><a href="#kubernetesconfig">KubernetesConfig</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>environment</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="multirunnerspec">MultiRunnerSpec<a class="headerlink" href="#multirunnerspec" title="Permanent link">&para;</a></h4>
+<p>MultiRunnerSpec defines the desired state of MultiRunner</p>
+<p><em>Appears in:</em>
+- <a href="#multirunner">MultiRunner</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>concurrent</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Minimum: 1 <br /></td>
+</tr>
+<tr>
+<td><code>log_level</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [panic fatal error warning info debug] <br /></td>
+</tr>
+<tr>
+<td><code>log_format</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [runner text json] <br /></td>
+</tr>
+<tr>
+<td><code>check_interval</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Minimum: 3 <br /></td>
+</tr>
+<tr>
+<td><code>sentry_dsn</code> <em>string</em></td>
+<td>SentryDsn Enables tracking of all system level errors to Sentry.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gitlab_instance_url</code> <em>string</em></td>
+<td></td>
+<td>https://gitlab.com/</td>
+<td></td>
+</tr>
+<tr>
+<td><code>runner_image</code> <em>string</em></td>
+<td>RunnerImage overrides the gitlab-runner container image. Defaults to<br />DefaultRunnerImage when empty.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_resources</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core">ResourceRequirements</a></em></td>
+<td>RunnerResources overrides the resource requests/limits of the runner<br />manager container.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_image_pull_policy</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core">PullPolicy</a></em></td>
+<td>RunnerImagePullPolicy overrides the runner container image pull policy.</td>
+<td></td>
+<td>Enum: [Always Never IfNotPresent] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_security_context</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#securitycontext-v1-core">SecurityContext</a></em></td>
+<td>RunnerSecurityContext overrides the runner manager container security<br />context.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>
+<td>CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and every runner<br />entry's own connection. Supply it inline (value) or from a Secret or<br />ConfigMap key.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>entries</code> <em><a href="#multirunnerentry">MultiRunnerEntry</a> array</em></td>
+<td></td>
+<td></td>
+<td>MaxItems: 100 <br />MinItems: 1 <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="multirunnerstatus">MultiRunnerStatus<a class="headerlink" href="#multirunnerstatus" title="Permanent link">&para;</a></h4>
+<p>MultiRunnerStatus defines the observed state of MultiRunner. The maps are
+keyed by entry name.</p>
+<p><em>Appears in:</em>
+- <a href="#multirunner">MultiRunner</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>error</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>runner_ids</code> <em>object (keys:string, values:integer)</em></td>
+<td>RunnerIDs holds the GitLab numeric id per entry name for managed runners.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>registration_hashes</code> <em>object (keys:string, values:string)</em></td>
+<td>RegistrationHashes holds the create-options hash per entry name.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>token_expires_at</code> <em>object (keys:string, values:<a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta">Time</a>)</em></td>
+<td>TokenExpiresAt holds the managed runner token expiry per entry name.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>observed_generation</code> <em>integer</em></td>
+<td>ObservedGeneration is the spec generation the controller last acted on.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta">Condition</a> array</em></td>
+<td>Conditions holds the latest observations of the runner state.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>ready</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>config_map_version</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="nodeselector">NodeSelector<a class="headerlink" href="#nodeselector" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesnodeaffinity">KubernetesNodeAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>node_selector_terms</code> <em><a href="#nodeselectorterm">NodeSelectorTerm</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="nodeselectorrequirement">NodeSelectorRequirement<a class="headerlink" href="#nodeselectorrequirement" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#labelselector">LabelSelector</a>
+- <a href="#nodeselectorterm">NodeSelectorTerm</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>operator</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>values</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="nodeselectorterm">NodeSelectorTerm<a class="headerlink" href="#nodeselectorterm" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#nodeselector">NodeSelector</a>
+- <a href="#preferredschedulingterm">PreferredSchedulingTerm</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>match_expressions</code> <em><a href="#nodeselectorrequirement">NodeSelectorRequirement</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>match_fields</code> <em><a href="#nodeselectorrequirement">NodeSelectorRequirement</a> array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="podaffinityterm">PodAffinityTerm<a class="headerlink" href="#podaffinityterm" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetespodaffinity">KubernetesPodAffinity</a>
+- <a href="#kubernetespodantiaffinity">KubernetesPodAntiAffinity</a>
+- <a href="#weightedpodaffinityterm">WeightedPodAffinityTerm</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>label_selector</code> <em><a href="#labelselector">LabelSelector</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>namespaces</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>topology_key</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>namespace_selector</code> <em><a href="#labelselector">LabelSelector</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>match_label_keys</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>mismatch_label_keys</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="preferredschedulingterm">PreferredSchedulingTerm<a class="headerlink" href="#preferredschedulingterm" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesnodeaffinity">KubernetesNodeAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>weight</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>preference</code> <em><a href="#nodeselectorterm">NodeSelectorTerm</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="runner">Runner<a class="headerlink" href="#runner" title="Permanent link">&para;</a></h4>
+<p>Runner is the Schema for the runners API</p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>apiVersion</code> <em>string</em></td>
+<td><code>gitlab.k8s.alekc.dev/v1beta2</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>kind</code> <em>string</em></td>
+<td><code>Runner</code></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>metadata</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#objectmeta-v1-meta">ObjectMeta</a></em></td>
+<td>Refer to Kubernetes API documentation for fields of <code>metadata</code>.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>spec</code> <em><a href="#runnerspec">RunnerSpec</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>status</code> <em><a href="#runnerstatus">RunnerStatus</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="runnercreateoptions">RunnerCreateOptions<a class="headerlink" href="#runnercreateoptions" title="Permanent link">&para;</a></h4>
+<p>RunnerCreateOptions mirrors the POST /user/runners request body. It is only
+used in managed mode.</p>
+<p><em>Appears in:</em>
+- <a href="#gitlabauth">GitlabAuth</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>runner_type</code> <em>string</em></td>
+<td>RunnerType selects the scope of the runner to create.</td>
+<td></td>
+<td>Enum: [instance_type group_type project_type] <br /></td>
+</tr>
+<tr>
+<td><code>group_id</code> <em>integer</em></td>
+<td>GroupID is required when RunnerType is group_type.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>project_id</code> <em>integer</em></td>
+<td>ProjectID is required when RunnerType is project_type.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>description</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>paused</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>locked</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>run_untagged</code> <em>boolean</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>tag_list</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>access_level</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maximum_timeout</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>maintenance_note</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="runnerspec">RunnerSpec<a class="headerlink" href="#runnerspec" title="Permanent link">&para;</a></h4>
+<p>RunnerSpec defines the desired state of Runner</p>
+<p><em>Appears in:</em>
+- <a href="#runner">Runner</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authentication</code> <em><a href="#gitlabauth">GitlabAuth</a></em></td>
+<td>Authentication configures how the runner authenticates to GitLab.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>gitlab_instance_url</code> <em>string</em></td>
+<td></td>
+<td>https://gitlab.com/</td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>log_level</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [panic fatal error warning info debug] <br /></td>
+</tr>
+<tr>
+<td><code>concurrent</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Minimum: 1 <br /></td>
+</tr>
+<tr>
+<td><code>check_interval</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td>Minimum: 3 <br /></td>
+</tr>
+<tr>
+<td><code>log_format</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td>Enum: [runner text json] <br /></td>
+</tr>
+<tr>
+<td><code>executor_config</code> <em><a href="#kubernetesconfig">KubernetesConfig</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>environment</code> <em>string array</em></td>
+<td>Environment contains custom environment variables injected to build environment</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_image</code> <em>string</em></td>
+<td>RunnerImage overrides the gitlab-runner container image. Defaults to<br />DefaultRunnerImage when empty.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_resources</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#resourcerequirements-v1-core">ResourceRequirements</a></em></td>
+<td>RunnerResources overrides the resource requests/limits of the runner<br />manager container.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_image_pull_policy</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#pullpolicy-v1-core">PullPolicy</a></em></td>
+<td>RunnerImagePullPolicy overrides the runner container image pull policy.</td>
+<td></td>
+<td>Enum: [Always Never IfNotPresent] <br />Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_security_context</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#securitycontext-v1-core">SecurityContext</a></em></td>
+<td>RunnerSecurityContext overrides the runner manager container security<br />context.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>
+<td>CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and the runner's own<br />connection. Supply it inline (value) or from a Secret/ConfigMap key.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="runnerstatus">RunnerStatus<a class="headerlink" href="#runnerstatus" title="Permanent link">&para;</a></h4>
+<p>RunnerStatus defines the observed state of Runner</p>
+<p><em>Appears in:</em>
+- <a href="#runner">Runner</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>error</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>runner_id</code> <em>integer</em></td>
+<td>RunnerID is the numeric id GitLab assigned to a managed runner created<br />through the access-token path. Zero for bring-your-own-token runners.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>token_expires_at</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#time-v1-meta">Time</a></em></td>
+<td>TokenExpiresAt is GitLab's expiry for a managed runner token, if any.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>registration_hash</code> <em>string</em></td>
+<td>RegistrationHash captures the create options that produced the current<br />managed runner; a change forces a recreate.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>config_map_version</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>observed_generation</code> <em>integer</em></td>
+<td>ObservedGeneration is the spec generation the controller last acted on.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>conditions</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#condition-v1-meta">Condition</a> array</em></td>
+<td>Conditions holds the latest observations of the runner state.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>ready</code> <em>boolean</em></td>
+<td>Ready indicates that all runner operations have completed and the object<br />is ready to serve.</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="secretkeyselector">SecretKeySelector<a class="headerlink" href="#secretkeyselector" title="Permanent link">&para;</a></h4>
+<p>SecretKeySelector points at a single key inside a Secret in the runner's
+namespace. It mirrors corev1.SecretKeySelector but makes Key optional so it
+can default to "token"; the upstream type marks Key required, which would
+force every reference to spell it out.</p>
+<p><em>Appears in:</em>
+- <a href="#tokensource">TokenSource</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td>Name of the Secret in the runner's namespace.</td>
+<td></td>
+<td>MinLength: 1 <br /></td>
+</tr>
+<tr>
+<td><code>key</code> <em>string</em></td>
+<td>Key holding the token. Defaults to "token" when omitted.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>optional</code> <em>boolean</em></td>
+<td>Optional, when true, lets a missing secret or key resolve to an empty<br />token instead of failing.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="service">Service<a class="headerlink" href="#service" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetesconfig">KubernetesConfig</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>name</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>alias</code> <em>string</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>command</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>entrypoint</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>environment</code> <em>string array</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h4 id="tokensource">TokenSource<a class="headerlink" href="#tokensource" title="Permanent link">&para;</a></h4>
+<p>TokenSource supplies a credential in one of two mutually exclusive ways: an
+inline literal value, or a reference to a key inside a Kubernetes Secret in
+the runner's namespace. Exactly one of Value / SecretKeyRef may be set.</p>
+<p><em>Appears in:</em>
+- <a href="#gitlabauth">GitlabAuth</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>value</code> <em>string</em></td>
+<td>Value is the literal token. Convenient for testing; prefer SecretKeyRef<br />in production so the token is not stored in the object spec.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>secret_key_ref</code> <em><a href="#secretkeyselector">SecretKeySelector</a></em></td>
+<td>SecretKeyRef reads the token from a Secret in the runner's namespace. The<br />referenced key defaults to "token" when Key is omitted. Optional is<br />honoured: when true, a missing secret or key resolves to an empty token<br />instead of failing.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+</tbody>
+</table>
+<h4 id="weightedpodaffinityterm">WeightedPodAffinityTerm<a class="headerlink" href="#weightedpodaffinityterm" title="Permanent link">&para;</a></h4>
+<p><em>Appears in:</em>
+- <a href="#kubernetespodaffinity">KubernetesPodAffinity</a>
+- <a href="#kubernetespodantiaffinity">KubernetesPodAntiAffinity</a></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Description</th>
+<th>Default</th>
+<th>Validation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>weight</code> <em>integer</em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>pod_affinity_term</code> <em><a href="#podaffinityterm">PodAffinityTerm</a></em></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Apache License 2.0
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.copy", "navigation.instant", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
