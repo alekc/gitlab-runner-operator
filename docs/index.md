@@ -4,7 +4,7 @@ description: >-
   with registration, config, RBAC and cleanup handled for you.
 ---
 
-# GitLab Runner Operator
+# Runner Operator for GitLab CI
 
 A Kubernetes operator that manages GitLab CI runners using the
 [kubernetes executor](https://docs.gitlab.com/runner/executors/kubernetes.html).
@@ -14,6 +14,13 @@ hand-written `config.toml`. The supported kubernetes executor options are
 reachable through the CRD, and the operator handles registration, config
 rendering, per-runner RBAC, and deregistration from GitLab on delete. What is
 not covered is listed in [limitations](reference/limitations.md).
+
+!!! info "An independent project"
+
+    Not affiliated with, nor endorsed by, GitLab. GitLab maintains its own
+    [GitLab Runner Operator](https://docs.gitlab.com/runner/install/operator/)
+    for OpenShift and OLM. That is a different operator with a different CRD
+    API, and manifests are not interchangeable between the two.
 
 !!! warning "Alpha"
 

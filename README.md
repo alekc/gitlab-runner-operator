@@ -1,6 +1,12 @@
-# Gitlab Runner Operator
+# Runner Operator for GitLab CI
 
 Kubernetes operator that manages GitLab CI runners using the kubernetes executor.
+
+> **An independent project.** Not affiliated with, nor endorsed by, GitLab.
+> GitLab maintains its own
+> [GitLab Runner Operator](https://docs.gitlab.com/runner/install/operator/)
+> for OpenShift and OLM. That is a different operator with a different CRD API;
+> manifests are not interchangeable between the two.
 
 It lets you run one or many GitLab runners, each with its own configuration
 expressed in YAML (no more hand-written `config.toml`), following an

@@ -1,4 +1,4 @@
-site_name: GitLab Runner Operator
+site_name: Runner Operator for GitLab CI
 site_description: >-
   Kubernetes operator that manages GitLab CI runners using the kubernetes
   executor. Typed CRDs instead of config.toml.
