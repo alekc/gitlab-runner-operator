@@ -63,6 +63,25 @@ _Appears in:_
 | `configMapKeyRef` _[CAKeyRef](#cakeyref)_ | ConfigMapKeyRef selects a key in a ConfigMap holding the PEM CA bundle. |  | Optional: \{\} <br /> |
 
 
+#### ConcurrencyLimits
+
+
+
+ConcurrencyLimits are the per-entry budgets, embedded inline in both kinds so
+the two cannot drift apart.
+
+
+
+_Appears in:_
+- [MultiRunnerEntry](#multirunnerentry)
+- [RunnerSpec](#runnerspec)
+
+| Field | Description | Default | Validation |
+| --- | --- | --- | --- |
+| `limit` _integer_ | Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value. | 10 | Minimum: 1 <br /> |
+| `request_concurrency` _integer_ | RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly. | 3 | Minimum: 1 <br /> |
+
+
 #### GitlabAuth
 
 
@@ -802,6 +821,8 @@ _Appears in:_
 | `authentication` _[GitlabAuth](#gitlabauth)_ |  |  |  |
 | `executor_config` _[KubernetesConfig](#kubernetesconfig)_ |  |  |  |
 | `environment` _string array_ |  |  |  |
+| `limit` _integer_ | Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value. | 10 | Minimum: 1 <br /> |
+| `request_concurrency` _integer_ | RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly. | 3 | Minimum: 1 <br /> |
 
 
 #### MultiRunnerSpec
@@ -1011,6 +1032,8 @@ _Appears in:_
 | `gitlab_instance_url` _string_ |  | https://gitlab.com/ | Optional: \{\} <br /> |
 | `log_level` _string_ |  |  | Enum: [panic fatal error warning info debug] <br /> |
 | `concurrent` _integer_ |  |  | Minimum: 1 <br /> |
+| `limit` _integer_ | Limit caps the jobs this entry executes at once. The effective ceiling is<br />the lower of Limit and Concurrent, so raising Concurrent alone does<br />nothing past this value. | 10 | Minimum: 1 <br /> |
+| `request_concurrency` _integer_ | RequestConcurrency caps job requests in flight to GitLab, not jobs<br />running. At 1 an entry acquires work one round trip at a time, so a<br />raised Limit fills slowly. | 3 | Minimum: 1 <br /> |
 | `check_interval` _integer_ |  |  | Minimum: 3 <br /> |
 | `log_format` _string_ |  |  | Enum: [runner text json] <br /> |
 | `executor_config` _[KubernetesConfig](#kubernetesconfig)_ |  |  |  |

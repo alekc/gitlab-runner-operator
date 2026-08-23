@@ -1,7 +1,7 @@
 ---
 description: >-
-  How concurrent, the hardcoded per-entry limit of 10, and request_concurrency
-  interact on this operator, and why a runner tops out at ten jobs.
+  How concurrent, limit and request_concurrency interact on this operator, what
+  they default to, and why raising one without the other does little.
 ---
 
 # Concurrency
@@ -14,9 +14,13 @@ kind: Runner
 metadata:
   name: runner-sample
 spec:
-  # Ceiling on job pods this manager will have in flight. Anything above 10
-  # has no effect: see below.
-  concurrent: 10
+  # Ceiling on job pods this manager will have in flight.
+  concurrent: 50
+  # Ceiling for this runner entry. The lower of the two wins, so leaving this
+  # at its default of 10 caps you at 10 whatever concurrent says.
+  limit: 50
+  # Job requests in flight to GitLab. Not a job limit: a polling limit.
+  request_concurrency: 8
   # How often it asks GitLab for work, in seconds. Minimum 3.
   check_interval: 3
   authentication:
@@ -25,22 +29,32 @@ spec:
         name: gitlab-runner-token
 ```
 
-## A single Runner tops out at 10 jobs
+## The three settings
 
-Three settings govern this in gitlab-runner, and only one of them is yours to
-set on this operator:
+| Setting | Scope | Bounds | Default here |
+| --- | --- | --- | --- |
+| `concurrent` | The manager process | Jobs running across every entry | **1** (floored by the operator) |
+| `limit` | One runner entry | Jobs running for that entry | **10** |
+| `request_concurrency` | One runner entry | Job requests in flight, not jobs | **3** |
 
-| Setting | Scope | On this operator |
-| --- | --- | --- |
-| `concurrent` | The manager process | `spec.concurrent`, yours to set. |
-| `limit` | One runner entry | **Hardcoded to 10** by the config generator. Not exposed ([#85](https://github.com/alekc/gitlab-runner-operator/issues/85)). |
-| `request_concurrency` | One runner entry | **Never set**, so it takes gitlab-runner's default of 1. Not exposed. |
+`concurrent` and `limit` both apply and the lower one wins. A `Runner` renders
+exactly one entry, so **`concurrent: 50` with the default `limit` still runs ten
+jobs**. Raise both, or accept ten.
 
-`concurrent` and `limit` both apply, and the lower one wins. A `Runner` object
-renders exactly one entry, so its `limit` of 10 is the real ceiling.
-`concurrent: 50` on a single `Runner` still runs at most ten jobs at a time.
+!!! warning "Raising one without the other is half a change"
 
-To go past ten, add entries or objects:
+    `limit` caps jobs running; `request_concurrency` caps how many jobs the
+    manager can be asking for at once. At `request_concurrency: 1` an entry
+    acquires work one round trip at a time, so `limit: 50` fills fifty slots
+    over fifty sequential requests, paced by `check_interval`. On a queue other
+    runners are also draining it may never catch up, which is the "online but
+    takes almost nothing" symptom. The default of 3 is a starting point, not a
+    target: upstream guidance for a busy fleet is 4 to 20.
+
+## Per entry on a MultiRunner
+
+Both settings live on the **entry**, because that is the only way to stop one
+entry consuming the whole shared `concurrent` budget:
 
 ```yaml
 apiVersion: gitlab.k8s.alekc.dev/v1beta2
@@ -48,40 +62,31 @@ kind: MultiRunner
 metadata:
   name: builders
 spec:
-  # Now meaningful: 3 entries x limit 10 = 30 possible, capped here at 24.
-  concurrent: 24
+  concurrent: 30
   entries:
-    - name: shard-a
+    # A long-running integration suite that must not starve the others.
+    - name: integration
+      limit: 4
+      request_concurrency: 2
       authentication:
         token:
           secret_key_ref:
-            name: gitlab-runner-token-a
-    - name: shard-b
+            name: gitlab-runner-token-integration
+    # Short unit jobs, given the bulk of the budget.
+    - name: unit
+      limit: 24
+      request_concurrency: 8
       authentication:
         token:
           secret_key_ref:
-            name: gitlab-runner-token-b
-    - name: shard-c
-      authentication:
-        token:
-          secret_key_ref:
-            name: gitlab-runner-token-c
+            name: gitlab-runner-token-unit
 ```
 
-Each entry is a separate runner in GitLab, so give them the same `tag_list` if
-you want GitLab to spread work across them.
-
-## The queue-polling default
-
-`request_concurrency` controls how many job requests the manager holds open
-against GitLab's queue at once, and gitlab-runner defaults it to 1. On a busy
-queue that is the reason a runner reports online, looks idle, and drains the
-backlog far more slowly than its `concurrent` suggests it should. Upstream
-guidance is to raise it into the 4 to 20 range for a busy fleet.
-
-That is not reachable through the CRD today
-([#85](https://github.com/alekc/gitlab-runner-operator/issues/85)). Running
-several entries is the available workaround, since each entry polls on its own.
+Each entry is a separate runner in GitLab. The example splits the budget, not
+the work: to route jobs deliberately you also need distinct tags, and `tag_list`
+only exists under `authentication.access_token.create_options`, so entries using
+a pre-created token cannot set it. See
+[authentication](../authentication.md#create_options).
 
 ## Sizing it
 
@@ -102,7 +107,14 @@ consume `concurrent` while doing nothing, so a slow cluster can make a runner
 look stalled. See [jobs stuck in Pending](stuck-pods.md).
 
 **More replicas is not more throughput.** The manager Deployment is fixed at one
-replica. Scale with more entries or more `Runner` objects.
+replica. Scale with `limit`, more entries, or more `Runner` objects.
+
+**`output_limit` is still not exposed.** The job log size cap stays at
+gitlab-runner's default; see [limitations](../reference/limitations.md).
+
+**There is no unlimited.** gitlab-runner treats `limit = 0` as no limit, but the
+schema requires at least 1, so an entry always carries a cap. Bound it by
+`concurrent` instead by setting `limit` to the same value.
 
 **One MultiRunner shares the budget.** `spec.concurrent` is spread across all
 entries in whatever mix GitLab hands out, not applied per entry. If one workload

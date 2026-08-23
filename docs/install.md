@@ -36,21 +36,34 @@ The full values reference lives in the
 
 ### Upgrading
 
+Helm never updates anything installed from a chart's `crds/` directory, so a
+chart upgrade that ships new CRD fields does not apply them. Apply the CRDs
+**first**, then upgrade:
+
 ```bash
 helm repo update
+helm show crds alekc/gitlab-runner-operator | kubectl apply --server-side -f -
 helm upgrade gitlab-runner-operator alekc/gitlab-runner-operator
 ```
 
-Helm never updates anything installed from a chart's `crds/` directory, so a
-chart upgrade that ships new CRD fields does not apply them. Apply them
-yourself:
-
-```bash
-helm show crds alekc/gitlab-runner-operator | kubectl apply --server-side -f -
-```
+Order matters if you create runners from the chart's `runners:` or
+`multiRunners:` values. Those specs pass through unchanged, so a field the
+installed CRD does not know is pruned by the API server, silently and with no
+error. Applying the CRDs afterwards does not bring the pruned value back: you
+would have to run the upgrade again.
 
 Use `--server-side`: these CRDs are large, and a client-side apply stores the
 whole schema in a `last-applied-configuration` annotation.
+
+!!! warning "Upgrading to the release that added request_concurrency rolls every runner once"
+
+    That key is new in the rendered `config.toml`, so the config hash changes
+    for every existing `Runner` and `MultiRunner` even though their specs did
+    not. The first reconcile after the upgrade restarts each runner manager,
+    and the manager does not drain
+    ([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)), so jobs
+    in flight at that moment may be lost. It happens once. Upgrade when the
+    pipeline queue is quiet.
 
 ## Kustomize
 

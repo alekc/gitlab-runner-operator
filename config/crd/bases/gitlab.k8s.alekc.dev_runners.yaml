@@ -1602,6 +1602,14 @@ spec:
               gitlab_instance_url:
                 default: https://gitlab.com/
                 type: string
+              limit:
+                default: 10
+                description: |-
+                  Limit caps the jobs this entry executes at once. The effective ceiling is
+                  the lower of Limit and Concurrent, so raising Concurrent alone does
+                  nothing past this value.
+                minimum: 1
+                type: integer
               log_format:
                 enum:
                 - runner
@@ -1617,6 +1625,14 @@ spec:
                 - info
                 - debug
                 type: string
+              request_concurrency:
+                default: 3
+                description: |-
+                  RequestConcurrency caps job requests in flight to GitLab, not jobs
+                  running. At 1 an entry acquires work one round trip at a time, so a
+                  raised Limit fills slowly.
+                minimum: 1
+                type: integer
               runner_image:
                 description: |-
                   RunnerImage overrides the gitlab-runner container image. Defaults to

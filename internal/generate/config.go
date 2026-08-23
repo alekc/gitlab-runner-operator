@@ -29,8 +29,9 @@ func TomlConfig(runner types.RunnerInfo, tokens map[string]string, caPEM []byte)
 func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string, caPEM []byte) (gitlabConfig, configHashKey string, err error) {
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
-		Name:  r.Name,
-		Limit: 10,
+		Name:               r.Name,
+		Limit:              r.Spec.EffectiveLimit(),
+		RequestConcurrency: r.Spec.EffectiveRequestConcurrency(),
 		RunnerCredentials: config.RunnerCredentials{
 			Token: tokens[r.Name],
 			URL:   r.Spec.GitlabInstanceURL,
@@ -88,8 +89,9 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 		// executorConfig is a separate variable due to go's loop bug
 		executorConfig := entry.ExecutorConfig
 		runnerConfig := config.RunnerConfig{
-			Name:  entry.Name,
-			Limit: 10,
+			Name:               entry.Name,
+			Limit:              entry.EffectiveLimit(),
+			RequestConcurrency: entry.EffectiveRequestConcurrency(),
 			RunnerCredentials: config.RunnerCredentials{
 				Token: tokens[entry.Name],
 				URL:   runnerObject.Spec.GitlabInstanceURL,

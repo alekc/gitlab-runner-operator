@@ -62,19 +62,18 @@ The Deployment is also fixed at one replica, which is correct (two managers woul
 double the effective concurrency) but means throughput scales by adding runner
 objects or `MultiRunner` entries, not replicas.
 
-## Concurrency settings that are not exposed
+## Concurrency settings
 
-Three gitlab-runner settings are hardcoded or unset by the config generator.
-The first two are tracked in
-[#85](https://github.com/alekc/gitlab-runner-operator/issues/85):
+`limit` and `request_concurrency` are settable per runner and per `MultiRunner`
+entry, defaulting to 10 and 3. The default `limit` is still a ceiling: a
+`Runner` with `concurrent: 50` and no `limit` runs ten jobs, because the lower
+of the two wins. See [concurrency](../guides/concurrency.md).
+
+One related setting is not exposed:
 
 | Setting | State | Effect |
 | --- | --- | --- |
-| `limit` | Hardcoded to **10** per runner entry | A single `Runner` runs at most ten jobs at once, whatever `spec.concurrent` says. Going higher needs several entries or objects. |
-| `request_concurrency` | Never set, so gitlab-runner's default of **1** | One open job request against GitLab's queue at a time. On a deep queue the runner drains it far more slowly than `concurrent` implies. |
 | `output_limit` | Never set, so the upstream default | Job log size cap is not tunable per runner. |
-
-See [concurrency](../guides/concurrency.md) for what to do about it today.
 
 ## No API version conversion
 
@@ -85,8 +84,8 @@ v1 to v2 is a manual export and reapply. See
 
 ## MultiRunner entries share more than you might expect
 
-A `MultiRunner` entry can only vary three things: `authentication`,
-`executor_config` and `environment`. Everything else is set once on the spec
+A `MultiRunner` entry can only vary five things: `authentication`,
+`executor_config`, `environment`, `limit` and `request_concurrency`. Everything else is set once on the spec
 and shared by every entry, including `gitlab_instance_url`, `caCertificate`,
 `concurrent`, `check_interval`, `log_level`, `log_format`, `runner_image`,
 `runner_resources`, `runner_image_pull_policy` and

@@ -15,6 +15,22 @@ func valMeta(name string) metav1.ObjectMeta {
 	return metav1.ObjectMeta{Name: name, Namespace: "default"}
 }
 
+// unstructuredRunner builds a minimal valid Runner with one spec field forced,
+// so a value omitempty would drop can still be submitted.
+func unstructuredRunner(name, field string, value any) *unstructured.Unstructured {
+	return &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": GroupVersion.String(),
+		"kind":       "Runner",
+		"metadata":   map[string]any{"name": name, "namespace": "default"},
+		"spec": map[string]any{
+			"authentication": map[string]any{
+				"token": map[string]any{"value": "glrt-x"},
+			},
+			field: value,
+		},
+	}}
+}
+
 func valByoAuth() GitlabAuth {
 	return GitlabAuth{Token: &TokenSource{Value: "glrt-x"}}
 }
@@ -52,6 +68,38 @@ var _ = Describe("CRD validation", func() {
 		Expect(k8sClient.Create(ctx, r)).To(Succeed())
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
 		Expect(r.Spec.GitlabInstanceURL).To(Equal("https://gitlab.com/"))
+	})
+
+	It("defaults the concurrency limits on create, and keeps the CRD in step with the constants", func() {
+		r := &Runner{ObjectMeta: valMeta("val-conc-default"), Spec: RunnerSpec{Authentication: valByoAuth()}}
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+		// Markers carry literals, so this is what stops them drifting from the
+		// constants the generator floors on.
+		Expect(r.Spec.Limit).To(Equal(DefaultRunnerLimit))
+		Expect(r.Spec.RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+	})
+
+	It("defaults the concurrency limits on a MultiRunner entry", func() {
+		m := &MultiRunner{ObjectMeta: valMeta("val-conc-entry"), Spec: MultiRunnerSpec{
+			Entries: []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
+		}}
+		Expect(k8sClient.Create(ctx, m)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
+		Expect(m.Spec.Entries[0].Limit).To(Equal(DefaultRunnerLimit))
+		Expect(m.Spec.Entries[0].RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+	})
+
+	// omitempty drops a typed zero before it reaches the apiserver, so the
+	// boundary itself can only be submitted unstructured.
+	It("rejects an explicit zero limit", func() {
+		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-limit", "limit", int64(0))),
+			"should be greater than or equal to 1")
+	})
+
+	It("rejects an explicit zero request_concurrency", func() {
+		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-rc", "request_concurrency", int64(0))),
+			"should be greater than or equal to 1")
 	})
 
 	It("accepts a valid managed Runner", func() {
