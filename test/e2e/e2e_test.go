@@ -99,22 +99,75 @@ func triggerPipeline() int64 {
 	return p.ID
 }
 
+// buildJob returns build-job from the pipeline. Absence is an error rather than
+// a nil job so a caller polling on it cannot dereference nothing.
+func buildJob(pipelineID int64) (*gitlab.Job, error) {
+	opts := &gitlab.ListJobsOptions{ListOptions: gitlab.ListOptions{PerPage: 100}}
+	jobs, _, err := glab.Jobs.ListPipelineJobs(projectID, pipelineID, opts)
+	if err != nil {
+		return nil, err
+	}
+	for _, j := range jobs {
+		if j.Name == "build-job" {
+			return j, nil
+		}
+	}
+	return nil, fmt.Errorf("build-job not present in pipeline %d yet", pipelineID)
+}
+
+// waitJobDispatched waits for GitLab to move build-job out of "created". A
+// stall here means GitLab never started the pipeline, which is not the runner
+// failing to pick the job up; the two were indistinguishable before (#87).
+func waitJobDispatched(pipelineID int64) {
+	GinkgoHelper()
+	started := time.Now()
+	Eventually(func(g Gomega) {
+		build, err := buildJob(pipelineID)
+		g.Expect(err).NotTo(HaveOccurred(), "waiting for gitlab to dispatch build-job")
+		if build == nil {
+			return
+		}
+		if build.Status == "skipped" || build.Status == "manual" {
+			StopTrying(fmt.Sprintf("build-job is %q and will never run on its own: "+
+				"check the pipeline rules in the fixture's .gitlab-ci.yml", build.Status)).Now()
+		}
+		g.Expect(build.Status).NotTo(Equal("created"),
+			"gitlab has not dispatched build-job: pipeline %d queued for %s with tag %q, "+
+				"so no runner has been offered the job yet",
+			pipelineID, time.Since(started).Round(time.Second), jobTag)
+	}, dispatchTimeout, interval).Should(Succeed())
+	// Always visible: how long dispatch takes across a full matrix is the
+	// number that decides whether the budget or the concurrency is wrong, and
+	// it is only interesting on the runs that pass.
+	AddReportEntry("build-job dispatch latency", ReportEntryVisibilityAlways,
+		time.Since(started).Round(time.Second).String())
+}
+
 // waitJobRanOnRunner waits until build-job in the pipeline reaches success on
 // the given runner id, proving the operator-managed runner executed real CI.
 func waitJobRanOnRunner(pipelineID int64, runnerID int) {
 	GinkgoHelper()
+	waitJobDispatched(pipelineID)
+	started := time.Now()
 	Eventually(func(g Gomega) {
-		jobs, _, err := glab.Jobs.ListPipelineJobs(projectID, pipelineID, nil)
-		g.Expect(err).NotTo(HaveOccurred())
-		var build *gitlab.Job
-		for _, j := range jobs {
-			if j.Name == "build-job" {
-				build = j
-			}
+		build, err := buildJob(pipelineID)
+		g.Expect(err).NotTo(HaveOccurred(), "waiting for build-job to succeed")
+		if build == nil {
+			return
 		}
-		g.Expect(build).NotTo(BeNil(), "build-job not present yet")
-		g.Expect(build.Status).NotTo(BeElementOf("failed", "canceled"), "build-job ended badly")
-		g.Expect(build.Status).To(Equal("success"), "build-job not finished yet")
+		if build.Status == "failed" || build.Status == "canceled" {
+			StopTrying(fmt.Sprintf("build-job ended badly: status %q", build.Status)).Now()
+		}
+		// "pending" means queued and offered but unclaimed, which is a tag or
+		// registration problem rather than a slow job. Naming the difference is
+		// the point of the split.
+		reason := "running but not finished"
+		if build.Status == "pending" {
+			reason = "queued with no runner claiming it, so check the tag matches the runner"
+		}
+		g.Expect(build.Status).To(Equal("success"),
+			"build-job is %q after %s: %s", build.Status,
+			time.Since(started).Round(time.Second), reason)
 		g.Expect(build.Runner.ID).To(Equal(int64(runnerID)), "build-job must run on our runner")
 	}, timeout, interval).Should(Succeed())
 }

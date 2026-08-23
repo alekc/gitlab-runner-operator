@@ -11,7 +11,8 @@ export GITLAB_E2E_URL="https://gitlab.com/"
 
 # Optional. Tag this run registers its runner with, and pins its pipeline to via
 # the RUNNER_TAG pipeline variable. Leave unset locally: the suite falls back to
-# the CI file's default. CI sets a unique value per run so concurrent runs
+# the CI file's default. CI sets a value per run, attempt and Kubernetes
+# version so concurrent runs
 # cannot pick up each other's jobs.
 # export GITLAB_E2E_RUNNER_TAG="e2e-local-$USER"
 

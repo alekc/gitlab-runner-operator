@@ -64,7 +64,10 @@ test: manifests generate fmt vet envtest ## Run unit + envtest suites.
 
 .PHONY: test-e2e
 test-e2e: ## Run the live e2e suite against the current kube context. Requires a deployed operator and GITLAB_E2E_URL / GITLAB_E2E_TOKEN / GITLAB_E2E_PROJECT_ID (see .envrc.example); skips when unset.
-	go test ./test/e2e/... -v -timeout 20m
+# 40m, not 20m: the two job waits are dispatch + run, and the suite runs them
+# twice, so the worst case is well past 20m. The binary has to outlive the waits
+# or Go panics it and none of their diagnostics ever print.
+	go test ./test/e2e/... -v -timeout 40m
 
 .PHONY: lint
 lint: golangci-lint ## Run golangci-lint.
