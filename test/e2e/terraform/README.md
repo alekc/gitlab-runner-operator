@@ -134,7 +134,7 @@ because GitLab refuses `RUNNER_TAG` with "Insufficient permissions to set
 pipeline variables" otherwise, and new projects default to `no_one_allowed`.
 Lowering it further is not needed; raising it breaks the suite.
 
-CI sets a unique tag per run, attempt and matrix leg. That is what lets the
+CI sets a unique tag per run, attempt and Kubernetes version. That is what lets the
 matrix and separate runs execute concurrently against this one shared project: a
 job can only be picked up by the runner its own pipeline named, so a sibling
 cannot take it and then kill it by tearing down its cluster.

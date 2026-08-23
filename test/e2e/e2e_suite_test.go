@@ -28,7 +28,11 @@ const (
 	// .gitlab-ci.yml, used when GITLAB_E2E_RUNNER_TAG is unset.
 	defaultJobTag = "test-gitlab-runner"
 	timeout       = 6 * time.Minute
-	interval      = 5 * time.Second
+	// dispatchTimeout is the separate budget for GitLab to take build-job out
+	// of "created". Queueing is GitLab's latency, not the runner's, and four
+	// legs triggering pipelines seconds apart have taken minutes (#87).
+	dispatchTimeout = 8 * time.Minute
+	interval        = 5 * time.Second
 )
 
 // jobTag is the tag this run registers its runner with and pins its pipeline

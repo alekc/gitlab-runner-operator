@@ -159,7 +159,9 @@ jobs:
   e2e:
     needs: [authorize, k8s_versions]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Covers kind creation, the image build and load, the rollout wait, and a
+    # suite whose own budget is 40m.
+    timeout-minutes: 50
     permissions:
       contents: read
     strategy:
@@ -196,15 +198,29 @@ jobs:
           kubectl -n gitlab-runner-operator-system rollout status \
             deploy/gitlab-runner-operator-controller-manager --timeout=300s
 
+      # Unique per run, attempt and Kubernetes version, so no two legs or runs
+      # can share a tag. strategy.job-index was used here before, but it
+      # renumbers on a partial re-run, so a retried leg's tag no longer names
+      # the version it tested (#87). Its own step because the dots have to go
+      # (tags are simpler to match without them) and GitHub expressions have no
+      # replace. An output rather than GITHUB_ENV so the tag stays scoped to the
+      # step that needs it.
+      - name: Derive the runner tag
+        id: tag
+        shell: bash
+        env:
+          K8S_VERSION: ${{ matrix.k8s_version }}
+        run: |
+          set -euo pipefail
+          echo "value=e2e-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${K8S_VERSION//./-}" \
+            >> "${GITHUB_OUTPUT}"
+
       - name: Run e2e suite
         env:
           GITLAB_E2E_URL: ${{ secrets.GITLAB_E2E_URL }}
           GITLAB_E2E_TOKEN: ${{ secrets.GITLAB_E2E_TOKEN }}
           GITLAB_E2E_PROJECT_ID: ${{ secrets.GITLAB_E2E_PROJECT_ID }}
-          # Unique per run, attempt and matrix leg, so no two legs or runs can
-          # share a tag. job-index rather than the version string because a
-          # runner tag cannot contain the dots in e.g. v1.33.7.
-          GITLAB_E2E_RUNNER_TAG: e2e-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+          GITLAB_E2E_RUNNER_TAG: ${{ steps.tag.outputs.value }}
         run: make test-e2e
 
   # The one context worth marking required. Its name never changes, unlike the
