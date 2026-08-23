@@ -48,8 +48,8 @@ jobs**. Raise both, or accept ten.
     acquires work one round trip at a time, so `limit: 50` fills fifty slots
     over fifty sequential requests, paced by `check_interval`. On a queue other
     runners are also draining it may never catch up, which is the "online but
-    takes almost nothing" symptom. The default of 3 is a floor, not a target:
-    upstream guidance for a busy fleet is 4 to 20.
+    takes almost nothing" symptom. The default of 3 is a starting point, not a
+    target: upstream guidance for a busy fleet is 4 to 20.
 
 ## Per entry on a MultiRunner
 
