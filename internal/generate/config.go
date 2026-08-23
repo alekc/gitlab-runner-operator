@@ -30,8 +30,8 @@ func SingleRunnerConfig(r *v1beta2.Runner, tokens map[string]string, caPEM []byt
 	// define sensible config for some configuration values
 	runnerConfig := &config.RunnerConfig{
 		Name:               r.Name,
-		Limit:              r.Spec.EffectiveLimit(),
-		RequestConcurrency: r.Spec.EffectiveRequestConcurrency(),
+		Limit:              r.Spec.Limit,
+		RequestConcurrency: r.Spec.RequestConcurrency,
 		RunnerCredentials: config.RunnerCredentials{
 			Token: tokens[r.Name],
 			URL:   r.Spec.GitlabInstanceURL,
@@ -90,8 +90,8 @@ func MultiRunnerConfig(runnerObject *v1beta2.MultiRunner, tokens map[string]stri
 		executorConfig := entry.ExecutorConfig
 		runnerConfig := config.RunnerConfig{
 			Name:               entry.Name,
-			Limit:              entry.EffectiveLimit(),
-			RequestConcurrency: entry.EffectiveRequestConcurrency(),
+			Limit:              entry.Limit,
+			RequestConcurrency: entry.RequestConcurrency,
 			RunnerCredentials: config.RunnerCredentials{
 				Token: tokens[entry.Name],
 				URL:   runnerObject.Spec.GitlabInstanceURL,

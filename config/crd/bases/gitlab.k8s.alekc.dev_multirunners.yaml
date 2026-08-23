@@ -1623,23 +1623,21 @@ spec:
                         rule: '!has(self.namespace_overwrite_allowed) || size(self.namespace_overwrite_allowed)
                           == 0'
                     limit:
-                      default: 10
                       description: |-
-                        Limit caps the jobs this entry executes at once. The effective ceiling is
-                        the lower of Limit and Concurrent, so raising Concurrent alone does
-                        nothing past this value.
-                      minimum: 1
+                        Limit caps the jobs this entry runs at once. Zero omits the key, and
+                        upstream acquireBuild only enforces a limit when it is above zero, so the
+                        entry is bounded by Concurrent alone. Both apply, lower wins.
+                      minimum: 0
                       type: integer
                     name:
                       minLength: 1
                       type: string
                     request_concurrency:
-                      default: 3
                       description: |-
                         RequestConcurrency caps job requests in flight to GitLab, not jobs
-                        running. At 1 an entry acquires work one round trip at a time, so a
-                        raised Limit fills slowly.
-                      minimum: 1
+                        running. Zero omits the key, and upstream GetRequestConcurrency returns
+                        max(1, x), so absent means 1 and a raised Limit then fills slowly.
+                      minimum: 0
                       type: integer
                   required:
                   - authentication

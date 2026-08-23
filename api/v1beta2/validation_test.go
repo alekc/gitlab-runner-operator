@@ -31,6 +31,16 @@ func unstructuredRunner(name, field string, value any) *unstructured.Unstructure
 	}}
 }
 
+// expectStoredZero asserts the apiserver kept the field at zero rather than
+// pruning it, which a misspelled field name would do without erroring.
+func expectStoredZero(u *unstructured.Unstructured, field string) {
+	GinkgoHelper()
+	v, found, err := unstructured.NestedInt64(u.Object, "spec", field)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(found).To(BeTrue(), "spec.%s was pruned, not stored", field)
+	Expect(v).To(BeZero())
+}
+
 func valByoAuth() GitlabAuth {
 	return GitlabAuth{Token: &TokenSource{Value: "glrt-x"}}
 }
@@ -70,36 +80,56 @@ var _ = Describe("CRD validation", func() {
 		Expect(r.Spec.GitlabInstanceURL).To(Equal("https://gitlab.com/"))
 	})
 
-	It("defaults the concurrency limits on create, and keeps the CRD in step with the constants", func() {
+	It("defaults neither concurrency field on create", func() {
 		r := &Runner{ObjectMeta: valMeta("val-conc-default"), Spec: RunnerSpec{Authentication: valByoAuth()}}
 		Expect(k8sClient.Create(ctx, r)).To(Succeed())
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
-		// Markers carry literals, so this is what stops them drifting from the
-		// constants the generator floors on.
-		Expect(r.Spec.Limit).To(Equal(DefaultRunnerLimit))
-		Expect(r.Spec.RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+		// A default on either would render a key the spec never asked for, which
+		// is the ceiling-invention this API deliberately gave up.
+		Expect(r.Spec.Limit).To(BeZero())
+		Expect(r.Spec.RequestConcurrency).To(BeZero())
 	})
 
-	It("defaults the concurrency limits on a MultiRunner entry", func() {
+	It("defaults neither concurrency field on a MultiRunner entry", func() {
 		m := &MultiRunner{ObjectMeta: valMeta("val-conc-entry"), Spec: MultiRunnerSpec{
 			Entries: []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
 		}}
 		Expect(k8sClient.Create(ctx, m)).To(Succeed())
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
-		Expect(m.Spec.Entries[0].Limit).To(Equal(DefaultRunnerLimit))
-		Expect(m.Spec.Entries[0].RequestConcurrency).To(Equal(DefaultRequestConcurrency))
+		Expect(m.Spec.Entries[0].Limit).To(BeZero())
+		Expect(m.Spec.Entries[0].RequestConcurrency).To(BeZero())
 	})
 
 	// omitempty drops a typed zero before it reaches the apiserver, so the
 	// boundary itself can only be submitted unstructured.
-	It("rejects an explicit zero limit", func() {
-		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-limit", "limit", int64(0))),
-			"should be greater than or equal to 1")
+	It("accepts an explicit zero limit, meaning bounded by concurrent", func() {
+		r := unstructuredRunner("val-conc-zero-limit", "limit", int64(0))
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+		expectStoredZero(r, "limit")
 	})
 
-	It("rejects an explicit zero request_concurrency", func() {
-		expectInvalid(k8sClient.Create(ctx, unstructuredRunner("val-conc-zero-rc", "request_concurrency", int64(0))),
-			"should be greater than or equal to 1")
+	It("rejects a negative limit", func() {
+		r := &Runner{ObjectMeta: valMeta("val-limit-negative"), Spec: RunnerSpec{
+			Authentication:    valByoAuth(),
+			ConcurrencyLimits: ConcurrencyLimits{Limit: -1},
+		}}
+		expectInvalid(k8sClient.Create(ctx, r), "should be greater than or equal to 0")
+	})
+
+	It("accepts an explicit zero request_concurrency, deferring to upstream", func() {
+		r := unstructuredRunner("val-conc-zero-rc", "request_concurrency", int64(0))
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+		expectStoredZero(r, "request_concurrency")
+	})
+
+	It("rejects a negative request_concurrency", func() {
+		r := &Runner{ObjectMeta: valMeta("val-rc-negative"), Spec: RunnerSpec{
+			Authentication:    valByoAuth(),
+			ConcurrencyLimits: ConcurrencyLimits{RequestConcurrency: -1},
+		}}
+		expectInvalid(k8sClient.Create(ctx, r), "should be greater than or equal to 0")
 	})
 
 	It("accepts a valid managed Runner", func() {
