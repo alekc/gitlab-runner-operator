@@ -6,11 +6,13 @@ import (
 	. "github.com/onsi/gomega"
 	"gitlab.k8s.alekc.dev/api/v1beta2"
 	"gitlab.k8s.alekc.dev/internal/validate"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // The reconcile must settle on the second pass, against a real apiserver and
@@ -18,25 +20,40 @@ import (
 // so it cannot fail for the reason that matters: the apiserver storing
 // something other than what the operator sent.
 var _ = Describe("manager pod convergence", func() {
-	converge := func(name string, spec v1beta2.RunnerSpec) (first, second bool) {
+	reconcile := func(runner *v1beta2.Runner) bool {
+		GinkgoHelper()
+		res, err := validate.Deployment(ctx, k8sClient, runner, logr.Discard())
+		Expect(err).NotTo(HaveOccurred())
+		return res != nil
+	}
+
+	storedVersion := func(name string) string {
+		GinkgoHelper()
+		var deployment appsv1.Deployment
+		Expect(k8sClient.Get(ctx, client.ObjectKey{Name: "gitlab-runner-" + name, Namespace: "default"}, &deployment)).To(Succeed())
+		return deployment.ResourceVersion
+	}
+
+	// Settling has to hold on every later pass, not just the second. Where the
+	// cluster refuses part of the spec the reconcile keeps issuing an update it
+	// knows will not stick, so what makes that harmless is the write being a
+	// no-op: an unchanged ResourceVersion means no watch event, so the operator
+	// does not wake itself in a loop.
+	settles := func(name string, spec v1beta2.RunnerSpec) {
+		GinkgoHelper()
 		runner := &v1beta2.Runner{
 			TypeMeta:   metav1.TypeMeta{APIVersion: "gitlab.k8s.alekc.dev/v1beta2", Kind: "Runner"},
 			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default", UID: types.UID(name)},
 			Spec:       spec,
 		}
-		res, err := validate.Deployment(ctx, k8sClient, runner, logr.Discard())
-		Expect(err).NotTo(HaveOccurred())
-		first = res != nil
-		res, err = validate.Deployment(ctx, k8sClient, runner, logr.Discard())
-		Expect(err).NotTo(HaveOccurred())
-		return first, res != nil
-	}
+		Expect(reconcile(runner)).To(BeTrue(), "the first pass must create the deployment")
+		Expect(reconcile(runner)).To(BeFalse(), "the reconcile did not settle: it would requeue forever and never report ready")
 
-	settles := func(name string, spec v1beta2.RunnerSpec) {
-		GinkgoHelper()
-		created, pending := converge(name, spec)
-		Expect(created).To(BeTrue(), "the first pass must create the deployment")
-		Expect(pending).To(BeFalse(), "the reconcile did not settle: it would requeue forever and never report ready")
+		settled := storedVersion(name)
+		for pass := 3; pass <= 5; pass++ {
+			Expect(reconcile(runner)).To(BeFalse(), "pass %d stopped being settled", pass)
+			Expect(storedVersion(name)).To(Equal(settled), "pass %d moved the ResourceVersion, so it would wake itself again", pass)
+		}
 	}
 
 	It("settles with no placement", func() {

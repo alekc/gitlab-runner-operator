@@ -214,9 +214,12 @@ func TestDeployment_SettlesAgainstAMutatingWebhook(t *testing.T) {
 	reconcile(t, cl, runner)
 
 	// The webhook overwrote our node selector, so the shapes will never match.
-	// Settling on that is the point: the alternative is an update per reconcile.
-	if reconcile(t, cl, runner) {
-		t.Fatal("kept trying to overwrite a mutating webhook instead of settling")
+	// Settling on that is the point, and it has to hold on every later pass, not
+	// just the second.
+	for pass := 2; pass <= 4; pass++ {
+		if reconcile(t, cl, runner) {
+			t.Fatalf("pass %d kept trying to overwrite a mutating webhook instead of settling", pass)
+		}
 	}
 }
 
