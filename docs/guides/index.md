@@ -27,6 +27,7 @@ something up, start with the task.
 | `ImagePullBackOff` on the job's own image | pull secret missing, or Docker Hub rate limit | [Pull from a private registry](private-registry.md) |
 | Connection refused reaching postgres or redis | service not ready yet, or OOM-killed | [Service containers](service-containers.md) |
 | Runner is online but picks up almost nothing | `concurrent` and `request_concurrency` are both 1 when unset | [Concurrency](concurrency.md) |
+| Runner stuck `NotReady`, connection error reaching GitLab | egress proxy, and `spec.environment` does not reach the manager | [Outbound proxy](outbound-proxy.md) |
 | Jobs fail as `script_failure` after a node disappeared | spot eviction is not classified as a system failure | [Spot and preemptible nodes](spot-nodes.md) |
 | `cache:` declared but never restores | no distributed cache support yet | [Limitations](../reference/limitations.md) |
 | `x509: certificate signed by unknown authority` | GitLab behind a private CA | [Authentication](../authentication.md#custom-ca-for-a-self-signed-gitlab) |
@@ -60,6 +61,7 @@ something up, start with the task.
 
 - [Dedicated build namespace](build-namespace.md): the allow-list, PSA, quotas, NetworkPolicy
 - [Service containers](service-containers.md): postgres, redis, aliases as hostnames
+- [Outbound proxy](outbound-proxy.md): HTTP_PROXY/HTTPS_PROXY/NO_PROXY on the manager, not the job
 
 **Operations**
 

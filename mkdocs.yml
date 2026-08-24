@@ -93,6 +93,7 @@ nav:
       - Jobs stuck in Pending: guides/stuck-pods.md
       - Dedicated build namespace: guides/build-namespace.md
       - Service containers: guides/service-containers.md
+      - Outbound proxy: guides/outbound-proxy.md
       - Watching a runner: guides/monitoring.md
   - Operations:
       - RBAC and namespaces: operations/rbac-and-namespaces.md

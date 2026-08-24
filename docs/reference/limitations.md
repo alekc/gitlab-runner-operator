@@ -51,8 +51,9 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 
 `executor_config` shapes **job** pods. The manager pod takes a narrower set of
 `runner_*` fields: its image, resources, pull policy, security context,
-environment variables (`runner_env`), and its placement (`runner_node_selector`,
-`runner_tolerations`, `runner_affinity`, `runner_priority_class_name`, see
+environment variables (`runner_env`, see [outbound proxy](../guides/outbound-proxy.md)),
+and its placement (`runner_node_selector`, `runner_tolerations`,
+`runner_affinity`, `runner_priority_class_name`, see
 [node placement](../guides/node-placement.md)). One thing production clusters
 ask for is still missing:
 
