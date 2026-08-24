@@ -2,90 +2,90 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/authentication/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/contributing/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/install/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/build-namespace/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/concurrency/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/docker-in-docker/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/monitoring/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/mount-secrets/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/node-placement/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/private-registry/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/rootless-builds/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/service-containers/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/sizing-jobs/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/spot-nodes/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/storage/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/guides/stuck-pods/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/operations/rbac-and-namespaces/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/operations/uninstall/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/reference/api/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
     <url>
          <loc>https://gitlab-runner-operator.alekc.dev/latest/dev/reference/limitations/</loc>
-         <lastmod>2026-08-23</lastmod>
+         <lastmod>2026-08-24</lastmod>
     </url>
 </urlset>

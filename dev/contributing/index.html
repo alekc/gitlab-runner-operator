@@ -1358,6 +1358,9 @@ make<span class="w"> </span>govulncheck<span class="w">            </span><span 
 <p><code>make test</code> runs <code>manifests</code> and <code>generate</code> first, so a change to the API types
 that you forgot to regenerate shows up as a dirty tree rather than as a
 mysterious test failure.</p>
+<p><code>make lint</code> reports zero issues on a clean tree, so anything it prints is
+yours. CI gates only the lines a PR touches, which is deliberately weaker; the
+local target is the full-tree check.</p>
 <h3 id="live-e2e">Live e2e<a class="headerlink" href="#live-e2e" title="Permanent link">&para;</a></h3>
 <p><code>make test-e2e</code> runs against the current kube context and a real GitLab
 project. It needs a deployed operator and three environment variables, and
