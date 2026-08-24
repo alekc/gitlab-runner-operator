@@ -95,7 +95,7 @@ var _ = Describe("manager pod convergence", func() {
 		})
 	})
 
-	It("settles with explicit resources and security context", func() {
+	It("settles with explicit resources, security context and env", func() {
 		settles("cv-container", v1beta2.RunnerSpec{
 			RunnerResources: &corev1.ResourceRequirements{
 				Limits: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("512Mi")},
@@ -107,6 +107,17 @@ var _ = Describe("manager pod convergence", func() {
 					Drop: []corev1.Capability{"ALL"},
 				},
 			},
+			// A plain value plus a secretKeyRef, so both branches of EnvVar's
+			// schema round-trip, not just the simpler one.
+			RunnerEnv: []corev1.EnvVar{
+				{Name: "HTTP_PROXY", Value: "http://proxy:3128"},
+				{Name: "PROXY_PASSWORD", ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: "proxy-creds"},
+						Key:                  "password",
+					},
+				}},
+			},
 		})
 	})
 
@@ -117,6 +128,7 @@ var _ = Describe("manager pod convergence", func() {
 			RunnerAffinity:        &corev1.Affinity{},
 			RunnerResources:       &corev1.ResourceRequirements{},
 			RunnerSecurityContext: &corev1.SecurityContext{},
+			RunnerEnv:             []corev1.EnvVar{},
 		})
 	})
 

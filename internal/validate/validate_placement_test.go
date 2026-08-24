@@ -147,8 +147,8 @@ func TestDeployment_PlacementChangeRolls(t *testing.T) {
 	}
 }
 
-// runner_resources and runner_security_context were silently inert before this
-// change: neither is in config.toml, so neither moved the config hash.
+// runner_resources, runner_security_context and runner_env were silently inert
+// before this change: none is in config.toml, so none moved the config hash.
 func TestDeployment_ContainerFieldChangeRolls(t *testing.T) {
 	runner := placementRunner(v1beta2.RunnerSpec{})
 	cl := fake.NewClientBuilder().WithScheme(systemIDScheme(t)).Build()
@@ -157,6 +157,14 @@ func TestDeployment_ContainerFieldChangeRolls(t *testing.T) {
 	runner.Spec.RunnerSecurityContext = &corev1.SecurityContext{}
 	if !reconcile(t, cl, runner) {
 		t.Fatal("a runner_security_context change did not roll the deployment")
+	}
+	if reconcile(t, cl, runner) {
+		t.Fatal("precondition: reconcile must be settled before the runner_env change")
+	}
+
+	runner.Spec.RunnerEnv = []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy:3128"}}
+	if !reconcile(t, cl, runner) {
+		t.Fatal("a runner_env change did not roll the deployment")
 	}
 }
 
@@ -237,6 +245,7 @@ func TestDeployment_MultiRunnerPlacementProjection(t *testing.T) {
 			RunnerTolerations:       spec.RunnerTolerations,
 			RunnerAffinity:          spec.RunnerAffinity,
 			RunnerPriorityClassName: spec.RunnerPriorityClassName,
+			RunnerEnv:               []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy:3128"}},
 		},
 	}
 
@@ -261,6 +270,7 @@ func TestDeployment_MultiRunnerPlacementProjection(t *testing.T) {
 		ImagePullPolicy:   multi.RunnerImagePullPolicy(),
 		Resources:         multi.RunnerResources(),
 		SecurityContext:   multi.RunnerSecurityContext(),
+		Env:               multi.RunnerEnv(),
 		NodeSelector:      spec.RunnerNodeSelector,
 		Tolerations:       spec.RunnerTolerations,
 		Affinity:          spec.RunnerAffinity,

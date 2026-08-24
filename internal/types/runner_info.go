@@ -36,6 +36,10 @@ type RunnerInfo interface {
 	RunnerResources() corev1.ResourceRequirements
 	RunnerImagePullPolicy() corev1.PullPolicy
 	RunnerSecurityContext() *corev1.SecurityContext
+	// RunnerEnv returns extra env vars for the manager container. Unlike
+	// RunnerResources/RunnerSecurityContext this has no hardened default: nil
+	// is a legitimate "set nothing".
+	RunnerEnv() []corev1.EnvVar
 	// The manager pod placement controls. All four are pass-through: unset
 	// means no constraint, so nil and empty are equivalent.
 	RunnerNodeSelector() map[string]string

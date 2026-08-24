@@ -128,6 +128,25 @@ func TestManagerPodShape_SecurityContextPointerIsCompared(t *testing.T) {
 	}
 }
 
+// Env must be visible to the drift comparison exactly like Resources and
+// SecurityContext, or runner_env silently no-ops on an existing Deployment.
+func TestManagerPodShape_EnvIsCaptured(t *testing.T) {
+	with := ManagerPodShape(tplWith(corev1.PodSpec{Containers: []corev1.Container{{
+		Name: "runner",
+		Env:  []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy:3128"}},
+	}}}))
+	without := ManagerPodShape(tplWith(corev1.PodSpec{Containers: []corev1.Container{{
+		Name: "runner",
+	}}}))
+
+	if apiequality.Semantic.DeepEqual(with, without) {
+		t.Fatal("an env var change must not compare equal")
+	}
+	if len(with.Env) != 1 || with.Env[0].Name != "HTTP_PROXY" {
+		t.Fatalf("Env: got %+v, want the runner container's env", with.Env)
+	}
+}
+
 func mustQuantity(t *testing.T, s string) resource.Quantity {
 	t.Helper()
 	q, err := resource.ParseQuantity(s)

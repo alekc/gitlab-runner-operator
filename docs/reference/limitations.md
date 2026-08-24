@@ -50,14 +50,14 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 ## The runner manager pod is only partly configurable
 
 `executor_config` shapes **job** pods. The manager pod takes a narrower set of
-`runner_*` fields: its image, resources, pull policy, security context, and its
-placement (`runner_node_selector`, `runner_tolerations`, `runner_affinity`,
-`runner_priority_class_name`, see [node placement](../guides/node-placement.md)).
-Two things production clusters ask for are still missing:
+`runner_*` fields: its image, resources, pull policy, security context,
+environment variables (`runner_env`), and its placement (`runner_node_selector`,
+`runner_tolerations`, `runner_affinity`, `runner_priority_class_name`, see
+[node placement](../guides/node-placement.md)). One thing production clusters
+ask for is still missing:
 
 | Missing | Consequence | Issue |
 | --- | --- | --- |
-| Environment variables on the container | No `HTTP_PROXY` / `NO_PROXY`, so a runner behind an outbound proxy cannot register. `spec.environment` is the *build* environment and does not help. | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
 | `terminationGracePeriodSeconds` and a drain hook | Stuck at Kubernetes' 30s default with no `preStop`, so a rollout or eviction kills in-flight jobs instead of draining. | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
 
 The Deployment is also fixed at one replica, which is correct (two managers would
@@ -116,9 +116,9 @@ A `MultiRunner` entry can only vary five things: `authentication`,
 and shared by every entry, including `gitlab_instance_url`, `caCertificate`,
 `concurrent`, `check_interval`, `log_level`, `log_format`, `runner_image`,
 `runner_resources`, `runner_image_pull_policy`, `runner_security_context`,
-`runner_node_selector`, `runner_tolerations`, `runner_affinity` and
-`runner_priority_class_name`. The placement fields are shared because there is
-one manager pod, so per-entry placement is not a thing that could exist.
+`runner_env`, `runner_node_selector`, `runner_tolerations`, `runner_affinity`
+and `runner_priority_class_name`. The placement fields are shared because there
+is one manager pod, so per-entry placement is not a thing that could exist.
 
 So one `MultiRunner` cannot span two GitLab instances, or use a different CA
 per entry. Use separate `Runner` objects for that.

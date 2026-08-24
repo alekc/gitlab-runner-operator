@@ -17,6 +17,7 @@ type PodShape struct {
 	ImagePullPolicy   corev1.PullPolicy
 	Resources         corev1.ResourceRequirements
 	SecurityContext   *corev1.SecurityContext
+	Env               []corev1.EnvVar
 	NodeSelector      map[string]string
 	Tolerations       []corev1.Toleration
 	Affinity          *corev1.Affinity
@@ -46,6 +47,7 @@ func ManagerPodShape(tpl *corev1.PodTemplateSpec) PodShape {
 		shape.ImagePullPolicy = c.ImagePullPolicy
 		shape.Resources = c.Resources
 		shape.SecurityContext = c.SecurityContext
+		shape.Env = c.Env
 		break
 	}
 	return shape

@@ -67,12 +67,11 @@ something up, start with the task.
 
 ## Before you file a bug
 
-Three things are known gaps rather than misconfiguration, and each has an issue:
+Two things are known gaps rather than misconfiguration, and each has an issue:
 
 | Gap | Issue |
 | --- | --- |
 | No distributed cache (`[runners.cache]`) | [#81](https://github.com/alekc/gitlab-runner-operator/issues/81) |
-| No environment variables on the manager container, so no outbound proxy | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
 | Manager does not drain gracefully on rollout or eviction | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
 
 The full list, including fields that are accepted but inert, is in
