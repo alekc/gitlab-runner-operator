@@ -162,8 +162,8 @@ type KubernetesDNSConfig struct {
 }
 
 type KubernetesDNSConfigOption struct {
-	Name  string  `toml:"name" json:"name" json:"name"`
-	Value *string `toml:"value,omitempty" json:"value,omitempty" json:"value,omitempty"`
+	Name  string  `toml:"name" json:"name"`
+	Value *string `toml:"value,omitempty" json:"value,omitempty"`
 }
 
 type KubernetesVolumes struct {
@@ -265,18 +265,18 @@ type KubernetesAffinity struct {
 }
 
 type KubernetesNodeAffinity struct {
-	RequiredDuringSchedulingIgnoredDuringExecution  *NodeSelector             `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution"`
-	PreferredDuringSchedulingIgnoredDuringExecution []PreferredSchedulingTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution"`
+	RequiredDuringSchedulingIgnoredDuringExecution  *NodeSelector             `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty"`
+	PreferredDuringSchedulingIgnoredDuringExecution []PreferredSchedulingTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty"`
 }
 
 type KubernetesPodAffinity struct {
-	RequiredDuringSchedulingIgnoredDuringExecution  []PodAffinityTerm         `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution"`
-	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution"`
+	RequiredDuringSchedulingIgnoredDuringExecution  []PodAffinityTerm         `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty"`
+	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty"`
 }
 
 type KubernetesPodAntiAffinity struct {
-	RequiredDuringSchedulingIgnoredDuringExecution  []PodAffinityTerm         `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution"`
-	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution"`
+	RequiredDuringSchedulingIgnoredDuringExecution  []PodAffinityTerm         `toml:"required_during_scheduling_ignored_during_execution,omitempty" json:"required_during_scheduling_ignored_during_execution,omitempty"`
+	PreferredDuringSchedulingIgnoredDuringExecution []WeightedPodAffinityTerm `toml:"preferred_during_scheduling_ignored_during_execution,omitempty" json:"preferred_during_scheduling_ignored_during_execution,omitempty"`
 }
 
 type KubernetesHostAliases struct {
@@ -321,42 +321,42 @@ type KubernetesLifecycleTCPSocket struct {
 }
 
 type NodeSelector struct {
-	NodeSelectorTerms []NodeSelectorTerm `toml:"node_selector_terms" json:"node_selector_terms" json:"node_selector_terms"`
+	NodeSelectorTerms []NodeSelectorTerm `toml:"node_selector_terms" json:"node_selector_terms"`
 }
 
 type PreferredSchedulingTerm struct {
-	Weight     int32            `toml:"weight" json:"weight" json:"weight"`
-	Preference NodeSelectorTerm `toml:"preference" json:"preference" json:"preference"`
+	Weight     int32            `toml:"weight" json:"weight"`
+	Preference NodeSelectorTerm `toml:"preference" json:"preference"`
 }
 
 type WeightedPodAffinityTerm struct {
-	Weight          int32           `toml:"weight" json:"weight" json:"weight"`
-	PodAffinityTerm PodAffinityTerm `toml:"pod_affinity_term" json:"pod_affinity_term" json:"pod_affinity_term"`
+	Weight          int32           `toml:"weight" json:"weight"`
+	PodAffinityTerm PodAffinityTerm `toml:"pod_affinity_term" json:"pod_affinity_term"`
 }
 
 type NodeSelectorTerm struct {
-	MatchExpressions []NodeSelectorRequirement `toml:"match_expressions,omitempty" json:"match_expressions,omitempty" json:"match_expressions"`
-	MatchFields      []NodeSelectorRequirement `toml:"match_fields,omitempty" json:"match_fields,omitempty" json:"match_fields"`
+	MatchExpressions []NodeSelectorRequirement `toml:"match_expressions,omitempty" json:"match_expressions,omitempty"`
+	MatchFields      []NodeSelectorRequirement `toml:"match_fields,omitempty" json:"match_fields,omitempty"`
 }
 
 type NodeSelectorRequirement struct {
-	Key      string   `toml:"key,omitempty" json:"key,omitempty" json:"key"`
-	Operator string   `toml:"operator,omitempty" json:"operator,omitempty" json:"operator"`
-	Values   []string `toml:"values,omitempty" json:"values,omitempty" json:"values"`
+	Key      string   `toml:"key,omitempty" json:"key,omitempty"`
+	Operator string   `toml:"operator,omitempty" json:"operator,omitempty"`
+	Values   []string `toml:"values,omitempty" json:"values,omitempty"`
 }
 
 type PodAffinityTerm struct {
-	LabelSelector     *LabelSelector `toml:"label_selector,omitempty" json:"label_selector,omitempty" json:"label_selector"`
-	Namespaces        []string       `toml:"namespaces,omitempty" json:"namespaces,omitempty" json:"namespaces"`
-	TopologyKey       string         `toml:"topology_key,omitempty" json:"topology_key,omitempty" json:"topology_key"`
-	NamespaceSelector *LabelSelector `toml:"namespace_selector,omitempty" json:"namespace_selector,omitempty" json:"namespace_selector"`
+	LabelSelector     *LabelSelector `toml:"label_selector,omitempty" json:"label_selector,omitempty"`
+	Namespaces        []string       `toml:"namespaces,omitempty" json:"namespaces,omitempty"`
+	TopologyKey       string         `toml:"topology_key,omitempty" json:"topology_key,omitempty"`
+	NamespaceSelector *LabelSelector `toml:"namespace_selector,omitempty" json:"namespace_selector,omitempty"`
 	MatchLabelKeys    []string       `toml:"match_label_keys,omitempty" json:"match_label_keys,omitempty"`
 	MismatchLabelKeys []string       `toml:"mismatch_label_keys,omitempty" json:"mismatch_label_keys,omitempty"`
 }
 
 type LabelSelector struct {
-	MatchLabels      map[string]string         `toml:"match_labels,omitempty" json:"match_labels,omitempty" json:"match_labels"`
-	MatchExpressions []NodeSelectorRequirement `toml:"match_expressions,omitempty" json:"match_expressions,omitempty" json:"match_expressions"`
+	MatchLabels      map[string]string         `toml:"match_labels,omitempty" json:"match_labels,omitempty"`
+	MatchExpressions []NodeSelectorRequirement `toml:"match_expressions,omitempty" json:"match_expressions,omitempty"`
 }
 
 type Service struct {
