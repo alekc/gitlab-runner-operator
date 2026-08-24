@@ -68,6 +68,30 @@ type MultiRunnerSpec struct {
 	// +optional
 	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
 
+	// RunnerNodeSelector constrains the runner manager pod to nodes carrying
+	// these labels. Shapes the manager only; executor_config.node_selector
+	// places job pods.
+	// +optional
+	RunnerNodeSelector map[string]string `json:"runner_node_selector,omitempty"`
+
+	// RunnerTolerations lets the runner manager pod schedule onto tainted
+	// nodes. Native Kubernetes list shape, not the "key=value": "effect" map
+	// that executor_config.node_tolerations takes.
+	// +optional
+	RunnerTolerations []corev1.Toleration `json:"runner_tolerations,omitempty"`
+
+	// RunnerAffinity sets affinity on the runner manager pod. Prefer
+	// RunnerNodeSelector for equality matching and reach for this only for
+	// In / NotIn / Exists or a soft preference.
+	// +optional
+	RunnerAffinity *corev1.Affinity `json:"runner_affinity,omitempty"`
+
+	// RunnerPriorityClassName protects the runner manager pod from preemption.
+	// A manager killed mid-job loses the jobs it was tracking, so it wants a
+	// higher priority than the workloads it shares a node with.
+	// +optional
+	RunnerPriorityClassName string `json:"runner_priority_class_name,omitempty"`
+
 	// CACertificate, when set, provides a PEM CA bundle used to verify the
 	// GitLab endpoint for both the operator's API calls and every runner
 	// entry's own connection. Supply it inline (value) or from a Secret or
@@ -227,6 +251,27 @@ func (r *MultiRunner) RunnerSecurityContext() *corev1.SecurityContext {
 		return r.Spec.RunnerSecurityContext
 	}
 	return defaultRunnerSecurityContext()
+}
+
+// RunnerNodeSelector returns the manager pod node selector, nil when unset.
+func (r *MultiRunner) RunnerNodeSelector() map[string]string {
+	return r.Spec.RunnerNodeSelector
+}
+
+// RunnerTolerations returns the manager pod tolerations, nil when unset.
+func (r *MultiRunner) RunnerTolerations() []corev1.Toleration {
+	return r.Spec.RunnerTolerations
+}
+
+// RunnerAffinity returns the manager pod affinity, nil when unset.
+func (r *MultiRunner) RunnerAffinity() *corev1.Affinity {
+	return r.Spec.RunnerAffinity
+}
+
+// RunnerPriorityClassName returns the manager pod priority class, empty when
+// unset.
+func (r *MultiRunner) RunnerPriorityClassName() string {
+	return r.Spec.RunnerPriorityClassName
 }
 
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {

@@ -1174,6 +1174,25 @@ func (in *MultiRunnerSpec) DeepCopyInto(out *MultiRunnerSpec) {
 		*out = new(v1.SecurityContext)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.RunnerNodeSelector != nil {
+		in, out := &in.RunnerNodeSelector, &out.RunnerNodeSelector
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	if in.RunnerTolerations != nil {
+		in, out := &in.RunnerTolerations, &out.RunnerTolerations
+		*out = make([]v1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.RunnerAffinity != nil {
+		in, out := &in.RunnerAffinity, &out.RunnerAffinity
+		*out = new(v1.Affinity)
+		(*in).DeepCopyInto(*out)
+	}
 	if in.CACertificate != nil {
 		in, out := &in.CACertificate, &out.CACertificate
 		*out = new(CASource)
@@ -1496,6 +1515,25 @@ func (in *RunnerSpec) DeepCopyInto(out *RunnerSpec) {
 	if in.RunnerSecurityContext != nil {
 		in, out := &in.RunnerSecurityContext, &out.RunnerSecurityContext
 		*out = new(v1.SecurityContext)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.RunnerNodeSelector != nil {
+		in, out := &in.RunnerNodeSelector, &out.RunnerNodeSelector
+		*out = make(map[string]string, len(*in))
+		for key, val := range *in {
+			(*out)[key] = val
+		}
+	}
+	if in.RunnerTolerations != nil {
+		in, out := &in.RunnerTolerations, &out.RunnerTolerations
+		*out = make([]v1.Toleration, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
+	if in.RunnerAffinity != nil {
+		in, out := &in.RunnerAffinity, &out.RunnerAffinity
+		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
 	if in.CACertificate != nil {

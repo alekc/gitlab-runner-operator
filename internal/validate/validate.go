@@ -10,6 +10,7 @@ import (
 	"gitlab.k8s.alekc.dev/internal/types"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -49,6 +50,10 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					},
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector:      runnerObj.RunnerNodeSelector(),
+					Tolerations:       runnerObj.RunnerTolerations(),
+					Affinity:          runnerObj.RunnerAffinity(),
+					PriorityClassName: runnerObj.RunnerPriorityClassName(),
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{
@@ -72,7 +77,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 						},
 					}},
 					Containers: []corev1.Container{{
-						Name:            "runner",
+						Name:            types.RunnerContainerName,
 						Image:           runnerObj.RunnerImage(),
 						ImagePullPolicy: runnerObj.RunnerImagePullPolicy(),
 						Resources:       runnerObj.RunnerResources(),
@@ -127,23 +132,23 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 	}
 
 	// Deployment exists. Roll it only on a tracked change: the rendered config,
-	// the runner image, or the derived system_id. The system_id is read from
-	// the pod template, the copy the projection resolves, so a rollback to a
-	// revision without it is repaired instead of silently kept.
+	// the derived system_id, or the manager pod shape. The system_id is read
+	// from the pod template, the copy the projection resolves, so a rollback to
+	// a revision without it is repaired instead of silently kept.
 	//
-	// We deliberately do NOT diff the whole spec: the API server defaults
-	// fields we never set (port protocol, terminationMessagePath, and so on),
-	// so a subset compare never converges and the controller re-applies its
-	// sparse spec forever, never reaching Ready.
-	existingImage := ""
-	if len(existingDeployment.Spec.Template.Spec.Containers) > 0 {
-		existingImage = existingDeployment.Spec.Template.Spec.Containers[0].Image
-	}
+	// The shape compare is a NAMED subset, never the whole spec: the apiserver
+	// defaults fields we never set (port protocol, terminationMessagePath), so
+	// a whole-spec diff never converges and the controller re-applies its
+	// sparse spec forever, never reaching Ready. The subset is not immune to
+	// that either, which is what the post-update check below handles.
 	existingSystemID := existingDeployment.Spec.Template.GetAnnotations()[types.SystemIDAnnotationKey]
 	if existingDeployment.GetAnnotations()[types.ConfigVersionAnnotationKey] != runnerObj.ConfigMapVersion() ||
 		existingSystemID != systemID ||
-		existingImage != runnerObj.RunnerImage() {
-		logger.Info("deployment changed (config, image or system id), updating", "deployment_name", existingDeployment.Name)
+		!apiequality.Semantic.DeepEqual(
+			ManagerPodShape(&existingDeployment.Spec.Template),
+			ManagerPodShape(&wantedDeployment.Spec.Template)) {
+		logger.Info("deployment changed (config, system id or pod shape), updating", "deployment_name", existingDeployment.Name)
+		intendedShape := ManagerPodShape(&wantedDeployment.Spec.Template)
 		// Carry the live ResourceVersion so this is a conditional update: a
 		// concurrent change conflicts and requeues instead of being silently
 		// overwritten by our from-scratch spec.
@@ -152,6 +157,19 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 		if err != nil {
 			logger.Error(err, "cannot update deployment")
 			return result.RequeueWithDefaultTimeout(), err
+		}
+		// Update decodes the stored object back into wantedDeployment, so this
+		// compares what the cluster kept against what we asked for. A gap means
+		// re-applying cannot close it: either the apiserver dropped a field this
+		// CRD accepts, or a mutating webhook rewrote ours. Settle instead of
+		// requeueing forever and never reporting the runner ready.
+		storedShape := ManagerPodShape(&wantedDeployment.Spec.Template)
+		if !apiequality.Semantic.DeepEqual(intendedShape, storedShape) {
+			logger.Info("cluster did not store the manager pod spec as sent; leaving it as stored",
+				"deployment_name", existingDeployment.Name,
+				"intended", shapeJSON(intendedShape),
+				"stored", shapeJSON(storedShape))
+			return nil, nil
 		}
 		return result.RequeueNow(), nil
 	}

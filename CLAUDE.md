@@ -25,10 +25,13 @@ Two invariants matter when changing any of this:
   config tells the runner to use.** `KubernetesConfig.EffectiveNamespace` is the
   single source of that rule and is shared by both paths deliberately. Do not
   reimplement the defaulting.
-- **The config hash rolls the Deployment.** `status.config_map_version` is a
-  digest of the rendered config; the controller writes it as a pod annotation so
-  a config change restarts the runner. Anything that should take effect on the
-  running runner has to be inside that hash.
+- **Two things roll the Deployment, and a new field has to be in one of them.**
+  `status.config_map_version` is a digest of the rendered `config.toml`, written
+  as a pod annotation. Anything that reaches the runner through `config.toml`
+  belongs in that hash. Anything that shapes the manager *pod* instead belongs
+  in `validate.PodShape`, which the reconcile compares field by field. A field
+  in neither is accepted and silently inert, which is what #83 fixed for the
+  placement fields and for `runner_resources` before them.
 
 ## Layout
 

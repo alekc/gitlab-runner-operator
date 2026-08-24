@@ -6,9 +6,11 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func valMeta(name string) metav1.ObjectMeta {
@@ -316,5 +318,94 @@ var _ = Describe("CRD validation", func() {
 				{Name: "dup", Authentication: valByoAuth()},
 			}},
 		}), "Duplicate value")
+	})
+})
+
+// The manager placement fields (#83) are only useful if the generated CRD
+// carries them. A misspelled json tag is pruned by the apiserver without an
+// error, so these specs read the object back rather than trusting the create.
+var _ = Describe("manager pod placement schema", func() {
+	placement := func() RunnerSpec {
+		return RunnerSpec{
+			Authentication:     valByoAuth(),
+			RunnerNodeSelector: map[string]string{"node-pool": "ci"},
+			RunnerTolerations: []corev1.Toleration{{
+				Key:      "dedicated",
+				Operator: corev1.TolerationOpEqual,
+				Value:    "ci",
+				Effect:   corev1.TaintEffectNoSchedule,
+			}},
+			RunnerAffinity: &corev1.Affinity{
+				NodeAffinity: &corev1.NodeAffinity{
+					RequiredDuringSchedulingIgnoredDuringExecution: &corev1.NodeSelector{
+						NodeSelectorTerms: []corev1.NodeSelectorTerm{{
+							MatchExpressions: []corev1.NodeSelectorRequirement{{
+								Key:      "node-lifecycle",
+								Operator: corev1.NodeSelectorOpNotIn,
+								Values:   []string{"spot"},
+							}},
+						}},
+					},
+				},
+			},
+			RunnerPriorityClassName: "system-cluster-critical",
+		}
+	}
+
+	It("stores every placement field on a Runner", func() {
+		r := &Runner{ObjectMeta: valMeta("val-place-runner"), Spec: placement()}
+		Expect(k8sClient.Create(ctx, r)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, r) })
+
+		var stored Runner
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(r), &stored)).To(Succeed())
+		Expect(stored.Spec.RunnerNodeSelector).To(HaveKeyWithValue("node-pool", "ci"))
+		Expect(stored.Spec.RunnerTolerations).To(HaveLen(1))
+		Expect(stored.Spec.RunnerTolerations[0].Effect).To(Equal(corev1.TaintEffectNoSchedule))
+		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
+		Expect(stored.Spec.RunnerAffinity.NodeAffinity).NotTo(BeNil())
+		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+	})
+
+	It("stores every placement field on a MultiRunner", func() {
+		spec := placement()
+		m := &MultiRunner{ObjectMeta: valMeta("val-place-multi"), Spec: MultiRunnerSpec{
+			Entries:                 []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
+			RunnerNodeSelector:      spec.RunnerNodeSelector,
+			RunnerTolerations:       spec.RunnerTolerations,
+			RunnerAffinity:          spec.RunnerAffinity,
+			RunnerPriorityClassName: spec.RunnerPriorityClassName,
+		}}
+		Expect(k8sClient.Create(ctx, m)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
+
+		var stored MultiRunner
+		Expect(k8sClient.Get(ctx, client.ObjectKeyFromObject(m), &stored)).To(Succeed())
+		Expect(stored.Spec.RunnerNodeSelector).To(HaveKeyWithValue("node-pool", "ci"))
+		Expect(stored.Spec.RunnerTolerations).To(HaveLen(1))
+		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
+		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+	})
+
+	// Positive control on the shape itself. corev1.Toleration carries no enum
+	// markers upstream, so no value is rejected; what proves the field is a
+	// typed object rather than a free-form map is that the structural schema
+	// prunes a key it does not know.
+	It("prunes an unknown key inside a toleration", func() {
+		u := unstructuredRunner("val-place-prune", "runner_tolerations", []any{map[string]any{
+			"key":      "dedicated",
+			"operator": "Equal",
+			"value":    "ci",
+			"nonsense": "dropped",
+		}})
+		Expect(k8sClient.Create(ctx, u)).To(Succeed())
+		DeferCleanup(func() { _ = k8sClient.Delete(ctx, u) })
+
+		tolerations, found, err := unstructured.NestedSlice(u.Object, "spec", "runner_tolerations")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(found).To(BeTrue(), "spec.runner_tolerations was pruned entirely")
+		Expect(tolerations).To(HaveLen(1))
+		Expect(tolerations[0]).To(HaveKeyWithValue("key", "dedicated"))
+		Expect(tolerations[0]).NotTo(HaveKey("nonsense"))
 	})
 })
