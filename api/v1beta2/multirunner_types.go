@@ -305,10 +305,6 @@ type MultiRunnerList struct {
 	Items           []MultiRunner `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&MultiRunner{}, &MultiRunnerList{})
-}
-
 func (r *MultiRunner) IsBeingDeleted() bool {
 	return !r.ObjectMeta.DeletionTimestamp.IsZero()
 }
