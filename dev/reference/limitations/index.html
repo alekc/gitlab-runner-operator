@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="What the GitLab Runner Operator deliberately does not do: no distributed cache, static build namespace, inert fields, and the manager pod's fixed knobs.">
+        <meta name="description" content="What the GitLab Runner Operator deliberately does not do: no distributed cache, static build namespace, inert fields, and what the manager pod still cannot be told.">
       
       
         <meta name="author" content="Alexander Chernov">
@@ -1101,10 +1101,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-runner-manager-pod-is-not-configurable" class="md-nav__link">
+  <a href="#the-runner-manager-pod-is-only-partly-configurable" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The runner manager pod is not configurable
+        The runner manager pod is only partly configurable
       
     </span>
   </a>
@@ -1280,10 +1280,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#the-runner-manager-pod-is-not-configurable" class="md-nav__link">
+  <a href="#the-runner-manager-pod-is-only-partly-configurable" class="md-nav__link">
     <span class="md-ellipsis">
       
-        The runner manager pod is not configurable
+        The runner manager pod is only partly configurable
       
     </span>
   </a>
@@ -1413,10 +1413,12 @@ operator. See <a href="../../operations/rbac-and-namespaces/">RBAC and namespace
 </tr>
 </tbody>
 </table>
-<h2 id="the-runner-manager-pod-is-not-configurable">The runner manager pod is not configurable<a class="headerlink" href="#the-runner-manager-pod-is-not-configurable" title="Permanent link">&para;</a></h2>
-<p><code>executor_config</code> shapes <strong>job</strong> pods. The manager pod that runs gitlab-runner
-itself takes almost nothing from the spec, and three things are missing that
-production clusters ask for:</p>
+<h2 id="the-runner-manager-pod-is-only-partly-configurable">The runner manager pod is only partly configurable<a class="headerlink" href="#the-runner-manager-pod-is-only-partly-configurable" title="Permanent link">&para;</a></h2>
+<p><code>executor_config</code> shapes <strong>job</strong> pods. The manager pod takes a narrower set of
+<code>runner_*</code> fields: its image, resources, pull policy, security context, and its
+placement (<code>runner_node_selector</code>, <code>runner_tolerations</code>, <code>runner_affinity</code>,
+<code>runner_priority_class_name</code>, see <a href="../../guides/node-placement/">node placement</a>).
+Two things production clusters ask for are still missing:</p>
 <table>
 <thead>
 <tr>
@@ -1432,11 +1434,6 @@ production clusters ask for:</p>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/82">#82</a></td>
 </tr>
 <tr>
-<td><code>nodeSelector</code>, <code>tolerations</code>, <code>affinity</code></td>
-<td>The manager cannot be pinned: not to a tainted CI pool, not off spot capacity, not onto a matching architecture.</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/83">#83</a></td>
-</tr>
-<tr>
 <td><code>terminationGracePeriodSeconds</code> and a drain hook</td>
 <td>Stuck at Kubernetes' 30s default with no <code>preStop</code>, so a rollout or eviction kills in-flight jobs instead of draining.</td>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a></td>
@@ -1446,6 +1443,27 @@ production clusters ask for:</p>
 <p>The Deployment is also fixed at one replica, which is correct (two managers would
 double the effective concurrency) but means throughput scales by adding runner
 objects or <code>MultiRunner</code> entries, not replicas.</p>
+<p>Three consequences of how the manager Deployment is reconciled, all sharpened by
+the placement fields because they give it more to compare:</p>
+<ul>
+<li><strong>Hand edits to the Deployment are reverted.</strong> Each roll rewrites the spec
+  from scratch, so labels, annotations, extra containers and a changed <code>replicas</code>
+  are dropped on the next roll. This was always true; it now happens on more
+  triggers. A mutating webhook is the exception rather than an example: it
+  re-applies during the operator's own write, so its additions survive, and
+  anything it adds outside the compared subset does not even trigger a roll.</li>
+<li><strong>A mutating webhook that rewrites the manager pod wins.</strong> If a policy engine
+  rewrites <code>nodeSelector</code>, <code>tolerations</code>, <code>priorityClassName</code> or <code>resources</code> on
+  the Deployment, the operator notices its own write did not stick and leaves the
+  webhook's version in place rather than fighting it. Your spec value is then
+  ignored, and the reconcile logs what it asked for against what was stored.</li>
+<li><strong>A field this CRD accepts but your cluster cannot store is silently ignored.</strong>
+  The CRDs are generated against a newer Kubernetes than the oldest one the
+  operator supports, so a gated or unknown field (<code>runner_resources.claims</code>
+  without <code>DynamicResourceAllocation</code>, <code>appArmorProfile</code> below 1.30,
+  <code>matchLabelKeys</code> below 1.31) is dropped by the apiserver with a warning rather
+  than an error. The runner still becomes ready; the field just does nothing.</li>
+</ul>
 <h2 id="concurrency-settings">Concurrency settings<a class="headerlink" href="#concurrency-settings" title="Permanent link">&para;</a></h2>
 <p><code>limit</code> and <code>request_concurrency</code> are settable per runner and per <code>MultiRunner</code>
 entry. Neither is defaulted by the operator: unset, the key is omitted and
@@ -1482,8 +1500,10 @@ v1 to v2 is a manual export and reapply. See
 <code>executor_config</code>, <code>environment</code>, <code>limit</code> and <code>request_concurrency</code>. Everything else is set once on the spec
 and shared by every entry, including <code>gitlab_instance_url</code>, <code>caCertificate</code>,
 <code>concurrent</code>, <code>check_interval</code>, <code>log_level</code>, <code>log_format</code>, <code>runner_image</code>,
-<code>runner_resources</code>, <code>runner_image_pull_policy</code> and
-<code>runner_security_context</code>.</p>
+<code>runner_resources</code>, <code>runner_image_pull_policy</code>, <code>runner_security_context</code>,
+<code>runner_node_selector</code>, <code>runner_tolerations</code>, <code>runner_affinity</code> and
+<code>runner_priority_class_name</code>. The placement fields are shared because there is
+one manager pod, so per-entry placement is not a thing that could exist.</p>
 <p>So one <code>MultiRunner</code> cannot span two GitLab instances, or use a different CA
 per entry. Use separate <code>Runner</code> objects for that.</p>
 <p>All entries are also served by one runner manager pod, which is the point of

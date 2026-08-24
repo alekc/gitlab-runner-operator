@@ -1395,6 +1395,18 @@ the manager does not drain
 in flight at that moment may be lost. It happens once. Upgrade when the
 pipeline queue is quiet.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title">Manager pod settings that were silently ignored start taking effect</p>
+<p><code>runner_resources</code>, <code>runner_image_pull_policy</code> and <code>runner_security_context</code>
+shape the manager pod but never reach <code>config.toml</code>, so until now a change to
+one of them did not roll the Deployment and did not apply. The reconcile now
+compares the manager pod's shape directly, so the value you set takes effect
+on the first reconcile after the upgrade, at the cost of one manager restart.
+As above, the manager does not drain
+(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>).</p>
+<p>A runner that never set any of the three is unaffected: the operator's own
+defaults are stable, so its live pod already matches and nothing rolls.</p>
+</div>
 <h2 id="kustomize">Kustomize<a class="headerlink" href="#kustomize" title="Permanent link">&para;</a></h2>
 <p>From a checkout of the repo:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>install<span class="w">                      </span><span class="c1"># CRDs only</span>

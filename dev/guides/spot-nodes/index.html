@@ -1300,12 +1300,20 @@ the first runner reconciles, and each runner that wants them gets them back on
 its own next reconcile. A job starting in that window fails with
 <code>poddisruptionbudgets is forbidden</code>.</p>
 <p><strong>Put the manager on stable capacity.</strong> The manager pod tracks in-flight jobs; if
-it is evicted, those jobs are lost even though the job pods were fine. Today the
-manager pod has no placement controls, so you cannot pin it off spot
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/83">#83</a>), and it also
+it is evicted, those jobs are lost even though the job pods were fine. Keep it
+off spot explicitly rather than by luck:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">runner_node_selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node-lifecycle</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">on-demand</span>
+<span class="w">  </span><span class="c1"># A class you create, not a built-in system one. See node placement.</span>
+<span class="w">  </span><span class="nt">runner_priority_class_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-manager</span>
+</code></pre></div>
+<p><code>runner_affinity</code> with <code>node-lifecycle NotIn [spot]</code> does the same thing where
+the on-demand nodes carry no positive label. Either way the manager still
 cannot drain gracefully on a rollout
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>). Until those
-land, run the manager on a cluster or node pool that is not preemptible.</p>
+(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>), so a
+voluntary disruption of the manager loses in-flight jobs even on stable
+capacity. See <a href="../node-placement/">node placement</a>.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../node-placement/">Node placement</a></li>

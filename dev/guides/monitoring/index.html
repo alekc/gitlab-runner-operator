@@ -1304,7 +1304,7 @@ kubectl<span class="w"> </span>get<span class="w"> </span>runner<span class="w">
 </tr>
 <tr>
 <td><code>config_map_version</code></td>
-<td>Hash of the rendered config. A change here is what rolls the Deployment.</td>
+<td>Hash of the rendered config. A change here rolls the Deployment, and so does a change to the manager pod's own shape (image, resources, placement), which this field does not cover.</td>
 </tr>
 </tbody>
 </table>

@@ -1354,7 +1354,7 @@ something up, start with the task.</p>
 <li><a href="monitoring/">Watching a runner</a>: status fields, runner metrics on 9090, operator metrics</li>
 </ul>
 <h2 id="before-you-file-a-bug">Before you file a bug<a class="headerlink" href="#before-you-file-a-bug" title="Permanent link">&para;</a></h2>
-<p>Four things are known gaps rather than misconfiguration, and each has an issue:</p>
+<p>Three things are known gaps rather than misconfiguration, and each has an issue:</p>
 <table>
 <thead>
 <tr>
@@ -1370,10 +1370,6 @@ something up, start with the task.</p>
 <tr>
 <td>No environment variables on the manager container, so no outbound proxy</td>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/82">#82</a></td>
-</tr>
-<tr>
-<td>No <code>nodeSelector</code> / <code>tolerations</code> / <code>affinity</code> for the manager pod</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/83">#83</a></td>
 </tr>
 <tr>
 <td>Manager does not drain gracefully on rollout or eviction</td>

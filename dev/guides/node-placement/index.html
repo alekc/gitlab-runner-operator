@@ -6,7 +6,7 @@
       <meta charset="utf-8">
       <meta name="viewport" content="width=device-width,initial-scale=1">
       
-        <meta name="description" content="Pin GitLab CI job pods to a node pool or CPU architecture with node_selector, node_tolerations and affinity, including arm64 and mixed-arch fleets.">
+        <meta name="description" content="Pin GitLab CI job pods and the runner manager pod to a node pool or CPU architecture with node_selector, tolerations and affinity, including arm64 and mixed-arch fleets.">
       
       
         <meta name="author" content="Alexander Chernov">
@@ -562,6 +562,17 @@
     <span class="md-ellipsis">
       
         Mixed-arch fleets
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#placing-the-manager-pod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Placing the manager pod
       
     </span>
   </a>
@@ -1192,6 +1203,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#placing-the-manager-pod" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Placing the manager pod
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#gotchas" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1300,6 +1322,55 @@ rather than two.</p>
 <span class="w">        </span><span class="nt">helper_image_autoset_arch_and_os</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
 </code></pre></div>
 <p>Jobs then choose with <code>tags: [arm64]</code>.</p>
+<h2 id="placing-the-manager-pod">Placing the manager pod<a class="headerlink" href="#placing-the-manager-pod" title="Permanent link">&para;</a></h2>
+<p>Everything above places <strong>job</strong> pods. The manager pod that runs gitlab-runner
+itself is placed by four spec-level fields, on both <code>Runner</code> and <code>MultiRunner</code>:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab.k8s.alekc.dev/v1beta2</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Runner</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-ci-pool</span>
+<span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">authentication</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">token</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">secret_key_ref</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gitlab-runner-token</span>
+<span class="w">  </span><span class="c1"># Where the manager runs.</span>
+<span class="w">  </span><span class="nt">runner_node_selector</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node-pool</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci</span>
+<span class="w">  </span><span class="nt">runner_tolerations</span><span class="p">:</span>
+<span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dedicated</span>
+<span class="w">      </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">Equal</span>
+<span class="w">      </span><span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci</span>
+<span class="w">      </span><span class="nt">effect</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NoSchedule</span>
+<span class="w">  </span><span class="c1"># A class you create; see the gotcha below on why not a built-in one.</span>
+<span class="w">  </span><span class="nt">runner_priority_class_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-manager</span>
+<span class="w">  </span><span class="c1"># Where the jobs run. Separate setting, separate shape.</span>
+<span class="w">  </span><span class="nt">executor_config</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">node_selector</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">node-pool</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci</span>
+<span class="w">    </span><span class="nt">node_tolerations</span><span class="p">:</span>
+<span class="w">      </span><span class="s">"dedicated=ci"</span><span class="p p-Indicator">:</span><span class="w"> </span><span class="s">"NoSchedule"</span>
+</code></pre></div>
+<p>A <code>MultiRunner</code> serves every entry from one manager pod, so these are spec
+level there too, never per entry.</p>
+<p><code>runner_affinity</code> covers what a selector cannot express:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">spec</span><span class="p">:</span>
+<span class="w">  </span><span class="c1"># Keep the manager off spot capacity: an evicted manager loses the jobs it</span>
+<span class="w">  </span><span class="c1"># was tracking, even when the job pods themselves were fine.</span>
+<span class="w">  </span><span class="nt">runner_affinity</span><span class="p">:</span>
+<span class="w">    </span><span class="nt">nodeAffinity</span><span class="p">:</span>
+<span class="w">      </span><span class="nt">requiredDuringSchedulingIgnoredDuringExecution</span><span class="p">:</span>
+<span class="w">        </span><span class="nt">nodeSelectorTerms</span><span class="p">:</span>
+<span class="w">          </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">matchExpressions</span><span class="p">:</span>
+<span class="w">              </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">key</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">node-lifecycle</span>
+<span class="w">                </span><span class="nt">operator</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">NotIn</span>
+<span class="w">                </span><span class="nt">values</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">spot</span><span class="p p-Indicator">]</span>
+</code></pre></div>
+<p>Changing any of these rolls the manager pod, which drops the jobs it is
+tracking. Set them when you create the runner, or expect a restart. That
+includes edits Kubernetes would treat as identical: the operator compares the
+lists as written, so reordering two tolerations or two <code>matchExpressions</code> rolls
+the pod even though it changes nothing. Reformat when the queue is quiet.</p>
 <h2 id="gotchas">Gotchas<a class="headerlink" href="#gotchas" title="Permanent link">&para;</a></h2>
 <p><strong><code>exec format error</code>, or the helper crashing immediately.</strong> The helper image
 defaults to an amd64 build. Land it on an arm64 node and it cannot execute. That
@@ -1308,12 +1379,66 @@ can schedule onto more than one architecture, not just the arm64 one.</p>
 <p><strong><code>node_tolerations</code> is a map, not a list.</strong> The key is <code>"key=value"</code> and the
 value is the effect: <code>"dedicated=ci": "NoSchedule"</code>. A toleration for a taint
 with no value is written <code>"key=": "NoSchedule"</code>.</p>
-<p><strong>The manager pod cannot be placed.</strong> Everything on this page applies to <strong>job</strong>
-pods. The runner manager pod has no <code>nodeSelector</code>, <code>tolerations</code> or <code>affinity</code>
-yet, so on a fully tainted CI pool the manager schedules elsewhere, and on a
-mixed-arch cluster you cannot steer it onto an architecture matching its own
-image. Tracked in
-<a href="https://github.com/alekc/gitlab-runner-operator/issues/83">#83</a>.</p>
+<p><strong>Use your own PriorityClass, not <code>system-cluster-critical</code>.</strong> The two built-in
+classes sit at the top of the range (<code>system-cluster-critical</code> is 2000000000), so
+a manager using one can preempt the control-plane and CNI pods it depends on. The
+apiserver does accept it outside <code>kube-system</code>, which is what makes it an easy
+mistake. Create a class above your normal workloads and well below the system
+ones, and point <code>runner_priority_class_name</code> at that:</p>
+<div class="highlight"><pre><span></span><code><span class="nt">apiVersion</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">scheduling.k8s.io/v1</span>
+<span class="nt">kind</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">PriorityClass</span>
+<span class="nt">metadata</span><span class="p">:</span>
+<span class="w">  </span><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-manager</span>
+<span class="nt">value</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">100000</span>
+<span class="nt">description</span><span class="p">:</span><span class="w"> </span><span class="s">"GitLab</span><span class="nv"> </span><span class="s">runner</span><span class="nv"> </span><span class="s">managers.</span><span class="nv"> </span><span class="s">Above</span><span class="nv"> </span><span class="s">CI</span><span class="nv"> </span><span class="s">jobs,</span><span class="nv"> </span><span class="s">below</span><span class="nv"> </span><span class="s">cluster</span><span class="nv"> </span><span class="s">components."</span>
+</code></pre></div>
+<p>Nothing needs a priority class to work. Set one when the manager competes for
+capacity with workloads that could otherwise evict it.</p>
+<p><strong>An unplaceable manager still reports <code>Ready</code>.</strong> The runner status goes
+<code>Ready=true</code> once the operator has written the Deployment; it does not wait for
+the pod. So a <code>runner_node_selector</code> matching no node, a taint you did not
+tolerate, or a <code>runner_priority_class_name</code> that does not exist all leave the
+Runner looking healthy with no manager pod running and no jobs being picked up.
+Check the pod, not the CR, after changing placement:</p>
+<div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>get<span class="w"> </span>pods<span class="w"> </span>-l<span class="w"> </span><span class="nv">deployment</span><span class="o">=</span>&lt;runner-name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+kubectl<span class="w"> </span>describe<span class="w"> </span>rs<span class="w"> </span>-l<span class="w"> </span><span class="nv">deployment</span><span class="o">=</span>&lt;runner-name&gt;<span class="w"> </span>-n<span class="w"> </span>&lt;namespace&gt;
+</code></pre></div>
+<p>A missing PriorityClass is rejected when the ReplicaSet tries to create the
+pod, so the reason is on the ReplicaSet rather than anywhere on the Runner.</p>
+<p><strong>The manager fields and the executor fields take different shapes.</strong> They
+configure the same Kubernetes concepts, but <code>runner_*</code> is passed to Kubernetes
+directly while <code>executor_config</code> is passed to gitlab-runner, which has its own
+config format. So:</p>
+<table>
+<thead>
+<tr>
+<th>Concept</th>
+<th>Manager (<code>runner_*</code>)</th>
+<th>Jobs (<code>executor_config</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tolerations</td>
+<td>a list of <code>{key, operator, value, effect}</code></td>
+<td>a map of <code>"key=value": "effect"</code></td>
+</tr>
+<tr>
+<td>Affinity</td>
+<td><code>nodeAffinity</code>, <code>requiredDuringScheduling...</code></td>
+<td><code>node_affinity</code>, <code>required_during_scheduling...</code></td>
+</tr>
+<tr>
+<td>Node selector</td>
+<td>a map of labels, same either way</td>
+<td>a map of labels, same either way</td>
+</tr>
+</tbody>
+</table>
+<p>Copying an affinity block from one to the other does not fail, it is <strong>silently
+dropped</strong>: the CRD prunes keys it does not recognise, so the field reads back
+empty and the pod schedules as if you had set nothing. Check with
+<code>kubectl get runner &lt;name&gt; -o yaml</code> after applying.</p>
 <p><strong>Per-job overrides are off by default.</strong> <code>KUBERNETES_NODE_SELECTOR_*</code> and
 <code>KUBERNETES_NODE_TOLERATIONS_*</code> in a job only take effect if the runner sets
 <code>node_selector_overwrite_allowed</code> / <code>node_tolerations_overwrite_allowed</code> to a
