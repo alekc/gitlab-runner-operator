@@ -36,6 +36,12 @@ type RunnerInfo interface {
 	RunnerResources() corev1.ResourceRequirements
 	RunnerImagePullPolicy() corev1.PullPolicy
 	RunnerSecurityContext() *corev1.SecurityContext
+	// The manager pod placement controls. All four are pass-through: unset
+	// means no constraint, so nil and empty are equivalent.
+	RunnerNodeSelector() map[string]string
+	RunnerTolerations() []corev1.Toleration
+	RunnerAffinity() *corev1.Affinity
+	RunnerPriorityClassName() string
 	SetObservedGeneration(generation int64)
 	SetReadyCondition(ready bool, reason, message string)
 	RegistrationConfig() []v1beta2.GitlabRegInfo

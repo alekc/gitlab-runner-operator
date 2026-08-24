@@ -86,6 +86,19 @@ whole schema in a `last-applied-configuration` annotation.
     in flight at that moment may be lost. It happens once. Upgrade when the
     pipeline queue is quiet.
 
+!!! warning "Manager pod settings that were silently ignored start taking effect"
+
+    `runner_resources`, `runner_image_pull_policy` and `runner_security_context`
+    shape the manager pod but never reach `config.toml`, so until now a change to
+    one of them did not roll the Deployment and did not apply. The reconcile now
+    compares the manager pod's shape directly, so the value you set takes effect
+    on the first reconcile after the upgrade, at the cost of one manager restart.
+    As above, the manager does not drain
+    ([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)).
+
+    A runner that never set any of the three is unaffected: the operator's own
+    defaults are stable, so its live pod already matches and nothing rolls.
+
 ## Kustomize
 
 From a checkout of the repo:

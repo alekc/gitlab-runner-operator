@@ -1,7 +1,8 @@
 ---
 description: >-
   What the GitLab Runner Operator deliberately does not do: no distributed
-  cache, static build namespace, inert fields, and the manager pod's fixed knobs.
+  cache, static build namespace, inert fields, and what the manager pod still
+  cannot be told.
 ---
 
 # Limitations
@@ -46,21 +47,43 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 | `executor_config.terminationGracePeriodSeconds` | Accepted, rendered into `config.toml`, then silently dropped by the runner. gitlab-runner removed the key in v17.0.0. Use `pod_termination_grace_period_seconds` and `cleanup_grace_period_seconds` instead. |
 | `executor_config.pod_spec` | Rendered, but the runner ignores it unless the job also sets the `FF_USE_ADVANCED_POD_SPEC_CONFIGURATION` [feature flag](https://docs.gitlab.com/runner/configuration/feature-flags.html). |
 
-## The runner manager pod is not configurable
+## The runner manager pod is only partly configurable
 
-`executor_config` shapes **job** pods. The manager pod that runs gitlab-runner
-itself takes almost nothing from the spec, and three things are missing that
-production clusters ask for:
+`executor_config` shapes **job** pods. The manager pod takes a narrower set of
+`runner_*` fields: its image, resources, pull policy, security context, and its
+placement (`runner_node_selector`, `runner_tolerations`, `runner_affinity`,
+`runner_priority_class_name`, see [node placement](../guides/node-placement.md)).
+Two things production clusters ask for are still missing:
 
 | Missing | Consequence | Issue |
 | --- | --- | --- |
 | Environment variables on the container | No `HTTP_PROXY` / `NO_PROXY`, so a runner behind an outbound proxy cannot register. `spec.environment` is the *build* environment and does not help. | [#82](https://github.com/alekc/gitlab-runner-operator/issues/82) |
-| `nodeSelector`, `tolerations`, `affinity` | The manager cannot be pinned: not to a tainted CI pool, not off spot capacity, not onto a matching architecture. | [#83](https://github.com/alekc/gitlab-runner-operator/issues/83) |
 | `terminationGracePeriodSeconds` and a drain hook | Stuck at Kubernetes' 30s default with no `preStop`, so a rollout or eviction kills in-flight jobs instead of draining. | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
 
 The Deployment is also fixed at one replica, which is correct (two managers would
 double the effective concurrency) but means throughput scales by adding runner
 objects or `MultiRunner` entries, not replicas.
+
+Three consequences of how the manager Deployment is reconciled, all sharpened by
+the placement fields because they give it more to compare:
+
+- **Hand edits to the Deployment are reverted.** Each roll rewrites the spec
+  from scratch, so labels, annotations, extra containers and a changed `replicas`
+  are dropped on the next roll. This was always true; it now happens on more
+  triggers. A mutating webhook is the exception rather than an example: it
+  re-applies during the operator's own write, so its additions survive, and
+  anything it adds outside the compared subset does not even trigger a roll.
+- **A mutating webhook that rewrites the manager pod wins.** If a policy engine
+  rewrites `nodeSelector`, `tolerations`, `priorityClassName` or `resources` on
+  the Deployment, the operator notices its own write did not stick and leaves the
+  webhook's version in place rather than fighting it. Your spec value is then
+  ignored, and the reconcile logs what it asked for against what was stored.
+- **A field this CRD accepts but your cluster cannot store is silently ignored.**
+  The CRDs are generated against a newer Kubernetes than the oldest one the
+  operator supports, so a gated or unknown field (`runner_resources.claims`
+  without `DynamicResourceAllocation`, `appArmorProfile` below 1.30,
+  `matchLabelKeys` below 1.31) is dropped by the apiserver with a warning rather
+  than an error. The runner still becomes ready; the field just does nothing.
 
 ## Concurrency settings
 
@@ -92,8 +115,10 @@ A `MultiRunner` entry can only vary five things: `authentication`,
 `executor_config`, `environment`, `limit` and `request_concurrency`. Everything else is set once on the spec
 and shared by every entry, including `gitlab_instance_url`, `caCertificate`,
 `concurrent`, `check_interval`, `log_level`, `log_format`, `runner_image`,
-`runner_resources`, `runner_image_pull_policy` and
-`runner_security_context`.
+`runner_resources`, `runner_image_pull_policy`, `runner_security_context`,
+`runner_node_selector`, `runner_tolerations`, `runner_affinity` and
+`runner_priority_class_name`. The placement fields are shared because there is
+one manager pod, so per-entry placement is not a thing that could exist.
 
 So one `MultiRunner` cannot span two GitLab instances, or use a different CA
 per entry. Use separate `Runner` objects for that.

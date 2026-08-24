@@ -81,12 +81,23 @@ its own next reconcile. A job starting in that window fails with
 `poddisruptionbudgets is forbidden`.
 
 **Put the manager on stable capacity.** The manager pod tracks in-flight jobs; if
-it is evicted, those jobs are lost even though the job pods were fine. Today the
-manager pod has no placement controls, so you cannot pin it off spot
-([#83](https://github.com/alekc/gitlab-runner-operator/issues/83)), and it also
+it is evicted, those jobs are lost even though the job pods were fine. Keep it
+off spot explicitly rather than by luck:
+
+```yaml
+spec:
+  runner_node_selector:
+    node-lifecycle: on-demand
+  # A class you create, not a built-in system one. See node placement.
+  runner_priority_class_name: runner-manager
+```
+
+`runner_affinity` with `node-lifecycle NotIn [spot]` does the same thing where
+the on-demand nodes carry no positive label. Either way the manager still
 cannot drain gracefully on a rollout
-([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)). Until those
-land, run the manager on a cluster or node pool that is not preemptible.
+([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)), so a
+voluntary disruption of the manager loses in-flight jobs even on stable
+capacity. See [node placement](node-placement.md).
 
 ## Related
 

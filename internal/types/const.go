@@ -8,6 +8,11 @@ const ConfigMapKeyName = "config.toml"
 // into SystemIDFileName inside the config volume.
 const SystemIDAnnotationKey = "system-id"
 
+// RunnerContainerName is the manager container inside the Deployment pod
+// template. Looked up by name, not position: a sidecar injected ahead of it
+// would otherwise make the reconcile compare the wrong container.
+const RunnerContainerName = "runner"
+
 // SystemIDFileName is the gitlab-runner state file holding system_id. Its
 // location is not configurable: the runner always looks for it next to
 // config.toml, so it has to live in the config volume.

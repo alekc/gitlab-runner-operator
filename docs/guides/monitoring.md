@@ -29,7 +29,7 @@ kubectl get runner runner-sample -o jsonpath='{.status}' | jq
 | `observed_generation` | The spec generation the controller last acted on. Behind `metadata.generation` means your edit has not been processed. |
 | `runner_id` | GitLab's numeric id, for a managed runner. Zero in bring-your-own-token mode. |
 | `token_expires_at` | When GitLab will expire a managed token. The operator recreates the runner within 24h of this. |
-| `config_map_version` | Hash of the rendered config. A change here is what rolls the Deployment. |
+| `config_map_version` | Hash of the rendered config. A change here rolls the Deployment, and so does a change to the manager pod's own shape (image, resources, placement), which this field does not cover. |
 
 !!! note "MultiRunner keys are different"
 

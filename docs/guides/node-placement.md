@@ -1,7 +1,8 @@
 ---
 description: >-
-  Pin GitLab CI job pods to a node pool or CPU architecture with node_selector,
-  node_tolerations and affinity, including arm64 and mixed-arch fleets.
+  Pin GitLab CI job pods and the runner manager pod to a node pool or CPU
+  architecture with node_selector, tolerations and affinity, including arm64
+  and mixed-arch fleets.
 ---
 
 # Node placement and architecture
@@ -76,6 +77,64 @@ spec:
 
 Jobs then choose with `tags: [arm64]`.
 
+## Placing the manager pod
+
+Everything above places **job** pods. The manager pod that runs gitlab-runner
+itself is placed by four spec-level fields, on both `Runner` and `MultiRunner`:
+
+```yaml
+apiVersion: gitlab.k8s.alekc.dev/v1beta2
+kind: Runner
+metadata:
+  name: runner-ci-pool
+spec:
+  authentication:
+    token:
+      secret_key_ref:
+        name: gitlab-runner-token
+  # Where the manager runs.
+  runner_node_selector:
+    node-pool: ci
+  runner_tolerations:
+    - key: dedicated
+      operator: Equal
+      value: ci
+      effect: NoSchedule
+  # A class you create; see the gotcha below on why not a built-in one.
+  runner_priority_class_name: runner-manager
+  # Where the jobs run. Separate setting, separate shape.
+  executor_config:
+    node_selector:
+      node-pool: ci
+    node_tolerations:
+      "dedicated=ci": "NoSchedule"
+```
+
+A `MultiRunner` serves every entry from one manager pod, so these are spec
+level there too, never per entry.
+
+`runner_affinity` covers what a selector cannot express:
+
+```yaml
+spec:
+  # Keep the manager off spot capacity: an evicted manager loses the jobs it
+  # was tracking, even when the job pods themselves were fine.
+  runner_affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: node-lifecycle
+                operator: NotIn
+                values: [spot]
+```
+
+Changing any of these rolls the manager pod, which drops the jobs it is
+tracking. Set them when you create the runner, or expect a restart. That
+includes edits Kubernetes would treat as identical: the operator compares the
+lists as written, so reordering two tolerations or two `matchExpressions` rolls
+the pod even though it changes nothing. Reformat when the queue is quiet.
+
 ## Gotchas
 
 **`exec format error`, or the helper crashing immediately.** The helper image
@@ -87,12 +146,55 @@ can schedule onto more than one architecture, not just the arm64 one.
 value is the effect: `"dedicated=ci": "NoSchedule"`. A toleration for a taint
 with no value is written `"key=": "NoSchedule"`.
 
-**The manager pod cannot be placed.** Everything on this page applies to **job**
-pods. The runner manager pod has no `nodeSelector`, `tolerations` or `affinity`
-yet, so on a fully tainted CI pool the manager schedules elsewhere, and on a
-mixed-arch cluster you cannot steer it onto an architecture matching its own
-image. Tracked in
-[#83](https://github.com/alekc/gitlab-runner-operator/issues/83).
+**Use your own PriorityClass, not `system-cluster-critical`.** The two built-in
+classes sit at the top of the range (`system-cluster-critical` is 2000000000), so
+a manager using one can preempt the control-plane and CNI pods it depends on. The
+apiserver does accept it outside `kube-system`, which is what makes it an easy
+mistake. Create a class above your normal workloads and well below the system
+ones, and point `runner_priority_class_name` at that:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: runner-manager
+value: 100000
+description: "GitLab runner managers. Above CI jobs, below cluster components."
+```
+
+Nothing needs a priority class to work. Set one when the manager competes for
+capacity with workloads that could otherwise evict it.
+
+**An unplaceable manager still reports `Ready`.** The runner status goes
+`Ready=true` once the operator has written the Deployment; it does not wait for
+the pod. So a `runner_node_selector` matching no node, a taint you did not
+tolerate, or a `runner_priority_class_name` that does not exist all leave the
+Runner looking healthy with no manager pod running and no jobs being picked up.
+Check the pod, not the CR, after changing placement:
+
+```bash
+kubectl get pods -l deployment=<runner-name> -n <namespace>
+kubectl describe rs -l deployment=<runner-name> -n <namespace>
+```
+
+A missing PriorityClass is rejected when the ReplicaSet tries to create the
+pod, so the reason is on the ReplicaSet rather than anywhere on the Runner.
+
+**The manager fields and the executor fields take different shapes.** They
+configure the same Kubernetes concepts, but `runner_*` is passed to Kubernetes
+directly while `executor_config` is passed to gitlab-runner, which has its own
+config format. So:
+
+| Concept | Manager (`runner_*`) | Jobs (`executor_config`) |
+| --- | --- | --- |
+| Tolerations | a list of `{key, operator, value, effect}` | a map of `"key=value": "effect"` |
+| Affinity | `nodeAffinity`, `requiredDuringScheduling...` | `node_affinity`, `required_during_scheduling...` |
+| Node selector | a map of labels, same either way | a map of labels, same either way |
+
+Copying an affinity block from one to the other does not fail, it is **silently
+dropped**: the CRD prunes keys it does not recognise, so the field reads back
+empty and the pod schedules as if you had set nothing. Check with
+`kubectl get runner <name> -o yaml` after applying.
 
 **Per-job overrides are off by default.** `KUBERNETES_NODE_SELECTOR_*` and
 `KUBERNETES_NODE_TOLERATIONS_*` in a job only take effect if the runner sets
