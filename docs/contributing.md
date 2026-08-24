@@ -57,6 +57,10 @@ make govulncheck            # CVE scan of the built binary
 that you forgot to regenerate shows up as a dirty tree rather than as a
 mysterious test failure.
 
+`make lint` reports zero issues on a clean tree, so anything it prints is
+yours. CI gates only the lines a PR touches, which is deliberately weaker; the
+local target is the full-tree check.
+
 ### Live e2e
 
 `make test-e2e` runs against the current kube context and a real GitLab

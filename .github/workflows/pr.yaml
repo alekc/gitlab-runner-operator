@@ -46,8 +46,10 @@ jobs:
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.12.2
-          # Gate only issues introduced by the PR, so the pre-existing backlog
-          # does not block adoption.
+          # Gate only issues introduced by the PR. The tree lints clean as of
+          # #91, so this no longer hides a backlog; it absorbs findings a future
+          # linter bump adds on lines the PR did not touch. Not a full-tree
+          # gate: make lint is that.
           only-new-issues: true
 
   govulncheck:

@@ -399,10 +399,17 @@ func CreateNamespace(c client.Client) (string, error) {
 		},
 	}
 	var err error
-	err = wait.Poll(time.Second, 10*time.Second, func() (bool, error) {
-		err = c.Create(context.Background(), ns)
-		return err == nil, nil
-	})
+	// immediate false keeps wait.Poll's one-interval delay, and Create keeps
+	// Background so the deadline cannot cancel a create already in flight.
+	// Unlike Poll this drops the extra attempt at the deadline, so 9 tries in
+	// this window rather than 10.
+	err = wait.PollUntilContextTimeout(
+		context.Background(), time.Second, 10*time.Second, false,
+		func(context.Context) (bool, error) {
+			err = c.Create(context.Background(), ns)
+			return err == nil, nil
+		},
+	)
 	if err != nil {
 		return "", err
 	}

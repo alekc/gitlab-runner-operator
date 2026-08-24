@@ -178,10 +178,6 @@ type RunnerList struct {
 	Items           []Runner `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&Runner{}, &RunnerList{})
-}
-
 // GetAnnotation returns the annotation value for a given key.
 // If the key doesn't exist, an empty string is returned
 func (r *Runner) GetAnnotation(key string) string {
