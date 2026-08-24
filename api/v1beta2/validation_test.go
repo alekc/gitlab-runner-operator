@@ -349,6 +349,14 @@ var _ = Describe("manager pod placement schema", func() {
 				},
 			},
 			RunnerPriorityClassName: "system-cluster-critical",
+			// A secretKeyRef, not just a plain value, so the nested EnvVarSource
+			// schema round-trips and not only the flat EnvVar shape.
+			RunnerEnv: []corev1.EnvVar{{Name: "PROXY_PASSWORD", ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: "proxy-creds"},
+					Key:                  "password",
+				},
+			}}},
 		}
 	}
 
@@ -365,6 +373,8 @@ var _ = Describe("manager pod placement schema", func() {
 		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerAffinity.NodeAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+		Expect(stored.Spec.RunnerEnv).To(HaveLen(1))
+		Expect(stored.Spec.RunnerEnv[0].ValueFrom.SecretKeyRef.Key).To(Equal("password"))
 	})
 
 	It("stores every placement field on a MultiRunner", func() {
@@ -375,6 +385,7 @@ var _ = Describe("manager pod placement schema", func() {
 			RunnerTolerations:       spec.RunnerTolerations,
 			RunnerAffinity:          spec.RunnerAffinity,
 			RunnerPriorityClassName: spec.RunnerPriorityClassName,
+			RunnerEnv:               spec.RunnerEnv,
 		}}
 		Expect(k8sClient.Create(ctx, m)).To(Succeed())
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
@@ -385,6 +396,8 @@ var _ = Describe("manager pod placement schema", func() {
 		Expect(stored.Spec.RunnerTolerations).To(HaveLen(1))
 		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+		Expect(stored.Spec.RunnerEnv).To(HaveLen(1))
+		Expect(stored.Spec.RunnerEnv[0].ValueFrom.SecretKeyRef.Key).To(Equal("password"))
 	})
 
 	// Positive control on the shape itself. corev1.Toleration carries no enum

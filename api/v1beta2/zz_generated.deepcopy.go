@@ -1174,6 +1174,13 @@ func (in *MultiRunnerSpec) DeepCopyInto(out *MultiRunnerSpec) {
 		*out = new(v1.SecurityContext)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.RunnerEnv != nil {
+		in, out := &in.RunnerEnv, &out.RunnerEnv
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
+	}
 	if in.RunnerNodeSelector != nil {
 		in, out := &in.RunnerNodeSelector, &out.RunnerNodeSelector
 		*out = make(map[string]string, len(*in))
@@ -1516,6 +1523,13 @@ func (in *RunnerSpec) DeepCopyInto(out *RunnerSpec) {
 		in, out := &in.RunnerSecurityContext, &out.RunnerSecurityContext
 		*out = new(v1.SecurityContext)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.RunnerEnv != nil {
+		in, out := &in.RunnerEnv, &out.RunnerEnv
+		*out = make([]v1.EnvVar, len(*in))
+		for i := range *in {
+			(*in)[i].DeepCopyInto(&(*out)[i])
+		}
 	}
 	if in.RunnerNodeSelector != nil {
 		in, out := &in.RunnerNodeSelector, &out.RunnerNodeSelector

@@ -82,6 +82,7 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 						ImagePullPolicy: runnerObj.RunnerImagePullPolicy(),
 						Resources:       runnerObj.RunnerResources(),
 						SecurityContext: runnerObj.RunnerSecurityContext(),
+						Env:             runnerObj.RunnerEnv(),
 						Ports: []corev1.ContainerPort{{
 							Name:          "metrics",
 							ContainerPort: 9090,

@@ -68,6 +68,13 @@ type MultiRunnerSpec struct {
 	// +optional
 	RunnerSecurityContext *corev1.SecurityContext `json:"runner_security_context,omitempty"`
 
+	// RunnerEnv sets extra env vars on the runner manager container, e.g. an
+	// outbound HTTP_PROXY. Distinct from Environment, which only reaches job
+	// builds via config.toml. Prefer valueFrom for secrets, plain values log
+	// verbatim; a fieldRef needs an explicit apiVersion or reconciles forever.
+	// +optional
+	RunnerEnv []corev1.EnvVar `json:"runner_env,omitempty"`
+
 	// RunnerNodeSelector constrains the runner manager pod to nodes carrying
 	// these labels. Shapes the manager only; executor_config.node_selector
 	// places job pods.
@@ -251,6 +258,11 @@ func (r *MultiRunner) RunnerSecurityContext() *corev1.SecurityContext {
 		return r.Spec.RunnerSecurityContext
 	}
 	return defaultRunnerSecurityContext()
+}
+
+// RunnerEnv returns the manager container's extra env vars, nil when unset.
+func (r *MultiRunner) RunnerEnv() []corev1.EnvVar {
+	return r.Spec.RunnerEnv
 }
 
 // RunnerNodeSelector returns the manager pod node selector, nil when unset.
