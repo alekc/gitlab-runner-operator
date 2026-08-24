@@ -847,6 +847,34 @@
   
   
     <li class="md-nav__item">
+      <a href="outbound-proxy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outbound proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="monitoring/" class="md-nav__link">
         
   
@@ -1300,6 +1328,11 @@ something up, start with the task.</p>
 <td><a href="concurrency/">Concurrency</a></td>
 </tr>
 <tr>
+<td>Runner stuck <code>NotReady</code>, connection error reaching GitLab</td>
+<td>egress proxy, and <code>spec.environment</code> does not reach the manager</td>
+<td><a href="outbound-proxy/">Outbound proxy</a></td>
+</tr>
+<tr>
 <td>Jobs fail as <code>script_failure</code> after a node disappeared</td>
 <td>spot eviction is not classified as a system failure</td>
 <td><a href="spot-nodes/">Spot and preemptible nodes</a></td>
@@ -1348,13 +1381,14 @@ something up, start with the task.</p>
 <ul>
 <li><a href="build-namespace/">Dedicated build namespace</a>: the allow-list, PSA, quotas, NetworkPolicy</li>
 <li><a href="service-containers/">Service containers</a>: postgres, redis, aliases as hostnames</li>
+<li><a href="outbound-proxy/">Outbound proxy</a>: HTTP_PROXY/HTTPS_PROXY/NO_PROXY on the manager, not the job</li>
 </ul>
 <p><strong>Operations</strong></p>
 <ul>
 <li><a href="monitoring/">Watching a runner</a>: status fields, runner metrics on 9090, operator metrics</li>
 </ul>
 <h2 id="before-you-file-a-bug">Before you file a bug<a class="headerlink" href="#before-you-file-a-bug" title="Permanent link">&para;</a></h2>
-<p>Three things are known gaps rather than misconfiguration, and each has an issue:</p>
+<p>Two things are known gaps rather than misconfiguration, and each has an issue:</p>
 <table>
 <thead>
 <tr>
@@ -1366,10 +1400,6 @@ something up, start with the task.</p>
 <tr>
 <td>No distributed cache (<code>[runners.cache]</code>)</td>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/81">#81</a></td>
-</tr>
-<tr>
-<td>No environment variables on the manager container, so no outbound proxy</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/82">#82</a></td>
 </tr>
 <tr>
 <td>Manager does not drain gracefully on rollout or eviction</td>

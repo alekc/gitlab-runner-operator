@@ -765,6 +765,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/outbound-proxy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outbound proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/monitoring/" class="md-nav__link">
         
   
@@ -1415,10 +1443,12 @@ operator. See <a href="../../operations/rbac-and-namespaces/">RBAC and namespace
 </table>
 <h2 id="the-runner-manager-pod-is-only-partly-configurable">The runner manager pod is only partly configurable<a class="headerlink" href="#the-runner-manager-pod-is-only-partly-configurable" title="Permanent link">&para;</a></h2>
 <p><code>executor_config</code> shapes <strong>job</strong> pods. The manager pod takes a narrower set of
-<code>runner_*</code> fields: its image, resources, pull policy, security context, and its
-placement (<code>runner_node_selector</code>, <code>runner_tolerations</code>, <code>runner_affinity</code>,
-<code>runner_priority_class_name</code>, see <a href="../../guides/node-placement/">node placement</a>).
-Two things production clusters ask for are still missing:</p>
+<code>runner_*</code> fields: its image, resources, pull policy, security context,
+environment variables (<code>runner_env</code>, see <a href="../../guides/outbound-proxy/">outbound proxy</a>),
+and its placement (<code>runner_node_selector</code>, <code>runner_tolerations</code>,
+<code>runner_affinity</code>, <code>runner_priority_class_name</code>, see
+<a href="../../guides/node-placement/">node placement</a>). One thing production clusters
+ask for is still missing:</p>
 <table>
 <thead>
 <tr>
@@ -1428,11 +1458,6 @@ Two things production clusters ask for are still missing:</p>
 </tr>
 </thead>
 <tbody>
-<tr>
-<td>Environment variables on the container</td>
-<td>No <code>HTTP_PROXY</code> / <code>NO_PROXY</code>, so a runner behind an outbound proxy cannot register. <code>spec.environment</code> is the <em>build</em> environment and does not help.</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/82">#82</a></td>
-</tr>
 <tr>
 <td><code>terminationGracePeriodSeconds</code> and a drain hook</td>
 <td>Stuck at Kubernetes' 30s default with no <code>preStop</code>, so a rollout or eviction kills in-flight jobs instead of draining.</td>
@@ -1501,9 +1526,9 @@ v1 to v2 is a manual export and reapply. See
 and shared by every entry, including <code>gitlab_instance_url</code>, <code>caCertificate</code>,
 <code>concurrent</code>, <code>check_interval</code>, <code>log_level</code>, <code>log_format</code>, <code>runner_image</code>,
 <code>runner_resources</code>, <code>runner_image_pull_policy</code>, <code>runner_security_context</code>,
-<code>runner_node_selector</code>, <code>runner_tolerations</code>, <code>runner_affinity</code> and
-<code>runner_priority_class_name</code>. The placement fields are shared because there is
-one manager pod, so per-entry placement is not a thing that could exist.</p>
+<code>runner_env</code>, <code>runner_node_selector</code>, <code>runner_tolerations</code>, <code>runner_affinity</code>
+and <code>runner_priority_class_name</code>. The placement fields are shared because there
+is one manager pod, so per-entry placement is not a thing that could exist.</p>
 <p>So one <code>MultiRunner</code> cannot span two GitLab instances, or use a different CA
 per entry. Use separate <code>Runner</code> objects for that.</p>
 <p>All entries are also served by one runner manager pod, which is the point of

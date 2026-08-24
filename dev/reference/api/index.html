@@ -765,6 +765,34 @@
   
   
     <li class="md-nav__item">
+      <a href="../../guides/outbound-proxy/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Outbound proxy
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
       <a href="../../guides/monitoring/" class="md-nav__link">
         
   
@@ -4452,6 +4480,12 @@ validated at admission instead.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>runner_env</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#envvar-v1-core">EnvVar</a> array</em></td>
+<td>RunnerEnv sets extra env vars on the runner manager container, e.g. an<br />outbound HTTP_PROXY. Distinct from Environment, which only reaches job<br />builds via config.toml. Prefer valueFrom for secrets, plain values log<br />verbatim; a fieldRef needs an explicit apiVersion or reconciles forever.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>runner_node_selector</code> <em>object (keys:string, values:string)</em></td>
 <td>RunnerNodeSelector constrains the runner manager pod to nodes carrying<br />these labels. Shapes the manager only; executor_config.node_selector<br />places job pods.</td>
 <td></td>
@@ -4939,6 +4973,12 @@ used in managed mode.</p>
 <tr>
 <td><code>runner_security_context</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#securitycontext-v1-core">SecurityContext</a></em></td>
 <td>RunnerSecurityContext overrides the runner manager container security<br />context.</td>
+<td></td>
+<td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_env</code> <em><a href="https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.36/#envvar-v1-core">EnvVar</a> array</em></td>
+<td>RunnerEnv sets extra env vars on the runner manager container, e.g. an<br />outbound HTTP_PROXY. Distinct from Environment, which only reaches job<br />builds via config.toml. Prefer valueFrom for secrets, plain values log<br />verbatim; a fieldRef needs an explicit apiVersion or reconciles forever.</td>
 <td></td>
 <td>Optional: {} <br /></td>
 </tr>
