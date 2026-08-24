@@ -20,3 +20,11 @@ linters:
         - -QF1008
         - -ST1000
         - -ST1003
+
+issues:
+  # Lift the silent truncation (3 per message, 50 per linter by default), which
+  # turned the count into a guess: the 24 duplicate struct tags of #91 surfaced
+  # as 3, and the tree reported 9 issues where there were 30. Generated files
+  # stay excluded via linters.exclusions.generated.
+  max-same-issues: 0
+  max-issues-per-linter: 0
