@@ -67,10 +67,12 @@ objects or `MultiRunner` entries, not replicas.
 Three consequences of how the manager Deployment is reconciled, all sharpened by
 the placement fields because they give it more to compare:
 
-- **Out-of-band edits to the Deployment are reverted.** Each roll rewrites the
-  spec from scratch, so labels, annotations or containers added by hand or by a
-  policy engine are dropped, and `replicas` is reset to 1. This was always true;
-  it now happens on more triggers.
+- **Hand edits to the Deployment are reverted.** Each roll rewrites the spec
+  from scratch, so labels, annotations, extra containers and a changed `replicas`
+  are dropped on the next roll. This was always true; it now happens on more
+  triggers. A mutating webhook is the exception rather than an example: it
+  re-applies during the operator's own write, so its additions survive, and
+  anything it adds outside the compared subset does not even trigger a roll.
 - **A mutating webhook that rewrites the manager pod wins.** If a policy engine
   rewrites `nodeSelector`, `tolerations`, `priorityClassName` or `resources` on
   the Deployment, the operator notices its own write did not stick and leaves the

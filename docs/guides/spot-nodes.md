@@ -88,7 +88,8 @@ off spot explicitly rather than by luck:
 spec:
   runner_node_selector:
     node-lifecycle: on-demand
-  runner_priority_class_name: system-cluster-critical
+  # A class you create, not a built-in system one. See node placement.
+  runner_priority_class_name: runner-manager
 ```
 
 `runner_affinity` with `node-lifecycle NotIn [spot]` does the same thing where

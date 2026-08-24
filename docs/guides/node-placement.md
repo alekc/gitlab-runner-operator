@@ -100,7 +100,8 @@ spec:
       operator: Equal
       value: ci
       effect: NoSchedule
-  runner_priority_class_name: system-cluster-critical
+  # A class you create; see the gotcha below on why not a built-in one.
+  runner_priority_class_name: runner-manager
   # Where the jobs run. Separate setting, separate shape.
   executor_config:
     node_selector:
@@ -144,6 +145,25 @@ can schedule onto more than one architecture, not just the arm64 one.
 **`node_tolerations` is a map, not a list.** The key is `"key=value"` and the
 value is the effect: `"dedicated=ci": "NoSchedule"`. A toleration for a taint
 with no value is written `"key=": "NoSchedule"`.
+
+**Use your own PriorityClass, not `system-cluster-critical`.** The two built-in
+classes sit at the top of the range (`system-cluster-critical` is 2000000000), so
+a manager using one can preempt the control-plane and CNI pods it depends on. The
+apiserver does accept it outside `kube-system`, which is what makes it an easy
+mistake. Create a class above your normal workloads and well below the system
+ones, and point `runner_priority_class_name` at that:
+
+```yaml
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: runner-manager
+value: 100000
+description: "GitLab runner managers. Above CI jobs, below cluster components."
+```
+
+Nothing needs a priority class to work. Set one when the manager competes for
+capacity with workloads that could otherwise evict it.
 
 **An unplaceable manager still reports `Ready`.** The runner status goes
 `Ready=true` once the operator has written the Deployment; it does not wait for
