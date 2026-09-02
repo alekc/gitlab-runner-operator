@@ -4,7 +4,7 @@
 # The binary lands at /manager to match config/manager (command: [/manager]).
 # Pin the builder to the native build platform and cross-compile via GOARCH so a
 # multiarch `buildx --platform` build stays QEMU-free (Go cross-compiles fast).
-FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
+FROM --platform=$BUILDPLATFORM golang:1.27 AS builder
 ARG TARGETOS
 ARG TARGETARCH
 
