@@ -7,7 +7,7 @@ toolchain go1.26.9
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/go-logr/logr v1.4.4
-	github.com/onsi/ginkgo/v2 v2.32.1
+	github.com/onsi/ginkgo/v2 v2.33.1
 	github.com/onsi/gomega v1.44.0
 	gitlab.com/gitlab-org/api/client-go v1.46.0
 	k8s.io/api v0.37.1
