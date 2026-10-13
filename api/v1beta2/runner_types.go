@@ -121,7 +121,7 @@ type RunnerSpec struct {
 
 // DefaultRunnerImage is the gitlab-runner image used when the spec does not
 // set RunnerImage.
-const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.3.2"
+const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.4.1"
 
 // RunnerStatus defines the observed state of Runner
 type RunnerStatus struct {
