@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# Regression cover for runner-release-watch.sh. gh and curl are stubbed, so
-# nothing reaches GitHub or Docker Hub. The cases that matter most are the
-# refusals: a parse failure, an empty tag list, a stale mirror or an empty key
-# extraction must all refuse or say so, because a silent pass means a release
-# goes unnoticed forever.
+# Regression cover for runner-release-watch.sh; gh and curl are stubbed, so
+# nothing reaches GitHub, GitLab or Docker Hub. Refusals matter most: a parse
+# failure, an empty tag list, a stale mirror or an empty key extraction must say
+# so, because a silent pass means a release goes unnoticed forever.
 set -uo pipefail
 
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -39,16 +38,7 @@ project() {
 }
 case "$*" in
   *"/tags?per_page="*) echo "unexpected mirror tag query" >&2; exit 1 ;;
-  *"contents/common/config.go"*)
-    [ "${GH_CONFIG_FAIL:-}" = "1" ] && exit 1
-    case "$*" in *"repos/${EXPECT_MIRROR}/"*) ;; *) echo "wrong mirror" >&2; exit 1 ;; esac
-    # Without the raw Accept header the real API returns base64 JSON.
-    case "${accept}" in *vnd.github.raw*) ;; *) echo '{"content":"cGFja2FnZQo="}'; exit 0 ;; esac
-    case "$*" in
-      *"ref=v${PINNED_V}"*) cat "${GH_CONFIG_OLD}" ;;
-      *) cat "${GH_CONFIG_NEW}" ;;
-    esac
-    exit 0 ;;
+  *"contents/common/config.go"*) echo "unexpected mirror config query" >&2; exit 1 ;;
 esac
 if [ "$1" = "issue" ] && [ "$2" = "list" ]; then
   case "$*" in *"--repo ${GITHUB_REPOSITORY}"*) ;; *) echo "wrong repo" >&2; exit 1 ;; esac
@@ -99,6 +89,17 @@ case "${url}" in
   *"/releases"*)
     [ "${GITLAB_FAIL:-}" = "1" ] && exit 22
     cat "${GITLAB_FIXTURE}"; exit 0 ;;
+  *"/repository/files/common%2Fconfig.go/raw?ref=v"*)
+    [ "${CONFIG_FAIL:-}" = "1" ] && exit 22
+    case "${url}" in
+      "https://gitlab.com/api/v4/projects/gitlab-org%2Fgitlab-runner/"*) ;;
+      *) echo "wrong project" >&2; exit 1 ;;
+    esac
+    case "${url}" in
+      *"ref=v${PINNED_V}") cat "${CONFIG_OLD}" ;;
+      *) cat "${CONFIG_NEW}" ;;
+    esac
+    exit 0 ;;
   *gitlab-runner-helper*)
     [ "${HUB_FAIL:-}" = "1" ] && exit 22
     # The name filter is part of the request the real API honours.
@@ -212,8 +213,8 @@ export GH_UNLABELLED_FIXTURE="${ROOT}/unlabelled.json"
 export GH_TITLE_CAPTURE="${ROOT}/title.txt"
 export GH_LIST_FIXTURE="${ROOT}/list.json"
 export GH_SEARCH_FIXTURE="${ROOT}/search.json"
-export GH_CONFIG_OLD="${ROOT}/old.go"
-export GH_CONFIG_NEW="${ROOT}/new.go"
+export CONFIG_OLD="${ROOT}/old.go"
+export CONFIG_NEW="${ROOT}/new.go"
 export HUB_FIXTURE="${ROOT}/hub.json"
 export RUNNER_WATCH_TYPES_FILE="${ROOT}/types.go"
 export RUNNER_WATCH_CONFIG_FILE="${ROOT}/ours.go"
@@ -235,17 +236,16 @@ reset() {
   # undocumented-flavour block is exercised rather than always empty.
   printf '{"count":4,"results":[{"name":"x86_64-v19.10.0"},{"name":"ubuntu-x86_64-v19.10.0"},{"name":"ubi-fips-v19.10.0"},{"name":"x86_64-v19.10.0-nanoserver1809"}]}\n' \
     > "${HUB_FIXTURE}"
-  mk_config_at "${GH_CONFIG_OLD}" nested_shared shared_key gone_upstream
-  mk_config_at "${GH_CONFIG_NEW}" nested_shared shared_key brand_new_key
+  mk_config_at "${CONFIG_OLD}" nested_shared shared_key gone_upstream
+  mk_config_at "${CONFIG_NEW}" nested_shared shared_key brand_new_key
   mk_config_at "${ROOT}/ours.go" nested_shared shared_key
   printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
   : > "${ROOT}/suppress"
   export RUNNER_WATCH_SUPPRESS_FILE="${ROOT}/suppress"
-  unset GH_CONFIG_FAIL HUB_FAIL GITLAB_FAIL GH_LABEL_FAIL GH_SEARCH_FAIL
+  unset CONFIG_FAIL HUB_FAIL GITLAB_FAIL GH_LABEL_FAIL GH_SEARCH_FAIL
   unset RUNNER_WATCH_DRY_RUN GH_TRACKED_STATE
   export PINNED_V=19.1.0
   export EXPECT_VERSION=19.10.0
-  export EXPECT_MIRROR=gitlabhq/gitlab-runner
   export EXPECT_TITLE="gitlab-runner v19.10.0 released: review CRD and behaviour"
 }
 
@@ -262,6 +262,8 @@ reset; mk_types 19.1.0
 out=$("${SCRIPT}" 2>&1); rc=$?
 rc_is "exits 0" "${rc}" 0
 check "creates an issue" "issue create" "${GH_CALLS}"
+check "reads the new config from gitlab.com" "common%2Fconfig.go/raw?ref=v19.10.0" "${GH_CALLS}"
+check "reads the pinned config from gitlab.com" "common%2Fconfig.go/raw?ref=v19.1.0" "${GH_CALLS}"
 check "picks the numeric maximum" "v19.10.0" "${GH_BODY_CAPTURE}"
 absent "ignores rc tags" "19.11.0" "${GH_BODY_CAPTURE}"
 check "carries the marker" "<!-- runner-release: v19.10.0 -->" "${GH_BODY_CAPTURE}"
@@ -288,7 +290,7 @@ fi
 
 echo "case 3: nested Kubernetes* types are in scope"
 reset; mk_types 19.1.0
-mk_config_at "${GH_CONFIG_NEW}" nested_added shared_key
+mk_config_at "${CONFIG_NEW}" nested_added shared_key
 out=$("${SCRIPT}" 2>&1)
 check "diffs a nested-type key" "KubernetesCSI.nested_added" "${GH_BODY_CAPTURE}"
 # Referenced is reachable only through a field type, so a roots-only extraction
@@ -299,7 +301,7 @@ echo "case 3b: a per-struct gap a flat name set cannot see"
 reset; mk_types 19.1.0
 # `shared_key` is present in both files, so a bare-name comparison is satisfied.
 # Only upstream puts it on KubernetesCSI, and only we put `other_key` there.
-mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
+mk_config_pairs "${CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 out=$("${SCRIPT}" 2>&1)
 in_section "In the upstream v19.10.0 Kubernetes executor config but not exposed by" "KubernetesCSI.shared_key" \
@@ -316,7 +318,7 @@ check "states the comparison performed" "Compared as (struct, key) pairs" "${GH_
 
 echo "case 3c: an exclusion drops a pair from both directions"
 reset; mk_types 19.1.0
-mk_config_pairs "${GH_CONFIG_NEW}" shared_key ref_key shared_key
+mk_config_pairs "${CONFIG_NEW}" shared_key ref_key shared_key
 mk_config_pairs "${ROOT}/ours.go" other_key ref_key shared_key
 printf '# why\nKubernetesCSI.shared_key\nKubernetesCSI.other_key\n' > "${ROOT}/suppress"
 out=$("${SCRIPT}" 2>&1)
@@ -367,8 +369,8 @@ echo "case 3h: a key added outside the executor closure is reported, not dropped
 reset; mk_types 19.1.0
 # Executor keys identical on both sides, so the executor delta is empty and the
 # old behaviour printed a clean bill. Only GlobalSection moves.
-mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
-mk_config_with_other "${GH_CONFIG_NEW}" shared_key new_global
+mk_config_with_other "${CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${CONFIG_NEW}" shared_key new_global
 mk_config_with_other "${ROOT}/ours.go" shared_key old_global
 printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
 out=$("${SCRIPT}" 2>&1); rc=$?
@@ -389,8 +391,8 @@ reset; mk_types 19.1.0
 # Only one side moves. The section guard is an OR, and an AND would suppress
 # the whole section here, which is the common shape: releases add far more
 # often than they remove.
-mk_config_with_other "${GH_CONFIG_OLD}" shared_key old_global
-mk_config_with_other "${GH_CONFIG_NEW}" shared_key old_global extra_global
+mk_config_with_other "${CONFIG_OLD}" shared_key old_global
+mk_config_with_other "${CONFIG_NEW}" shared_key old_global extra_global
 mk_config_with_other "${ROOT}/ours.go" shared_key old_global
 printf 'Set helper image flavor (alpine, ubuntu)\n' >> "${ROOT}/ours.go"
 out=$("${SCRIPT}" 2>&1)
@@ -515,7 +517,7 @@ check "names the source" "could not query" "${ROOT}/o11"
 absent "does not create" "issue create" "${GH_CALLS}"
 
 echo "case 12: empty key extraction is not reported as 'nothing added'"
-reset; mk_types 19.1.0; printf 'package common\n' > "${GH_CONFIG_NEW}"
+reset; mk_types 19.1.0; printf 'package common\n' > "${CONFIG_NEW}"
 out=$("${SCRIPT}" 2>&1); rc=$?
 rc_is "exits 0" "${rc}" 0
 check "still opens the issue" "issue create" "${GH_CALLS}"
@@ -525,7 +527,7 @@ absent "no false reassurance" "No new CRD fields needed" "${GH_BODY_CAPTURE}"
 check "marker survives" "<!-- runner-release: v19.10.0 -->" "${GH_BODY_CAPTURE}"
 
 echo "case 13: upstream config fetch failure is stated, not hidden"
-reset; mk_types 19.1.0; export GH_CONFIG_FAIL=1
+reset; mk_types 19.1.0; export CONFIG_FAIL=1
 out=$("${SCRIPT}" 2>&1); rc=$?
 rc_is "exits 0" "${rc}" 0
 check "flags the gap loudly" "Compare the executor config by hand" "${GH_BODY_CAPTURE}"
