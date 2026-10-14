@@ -71,7 +71,7 @@ vgt() {
 
 # Releases come from gitlab.com, which is authoritative. Asking a GitHub mirror
 # instead would report "up to date" forever if its tag refs stopped syncing.
-releases=$(curl -sf "${GITLAB_API}/releases?per_page=100") || {
+releases=$(curl -sf --max-time 30 "${GITLAB_API}/releases?per_page=100") || {
   echo "could not query ${GITLAB_API} for releases; refusing to report up to date" >&2
   exit 1
 }
@@ -164,7 +164,7 @@ all_keys() { awk -v all=1 "${KEYS_AWK}" "$1" | sort -u; }
 # From gitlab.com like the releases: the GitHub mirror stopped syncing at
 # v19.3.1, so every later tag 404ed there and no comparison was ever made.
 fetch_upstream_config() {
-  curl -sf "${GITLAB_API}/repository/files/common%2Fconfig.go/raw?ref=v$1"
+  curl -sf --max-time 30 "${GITLAB_API}/repository/files/common%2Fconfig.go/raw?ref=v$1"
 }
 
 tmp=$(mktemp -d)
@@ -281,7 +281,7 @@ config_section() {
 
 helper_section() {
   local json rc=0 total shown flavours documented undocumented esc
-  json=$(curl -sf "${HUB}/gitlab/gitlab-runner-helper/tags/?page_size=100&name=v${latest}") || rc=$?
+  json=$(curl -sf --max-time 30 "${HUB}/gitlab/gitlab-runner-helper/tags/?page_size=100&name=v${latest}") || rc=$?
   # A failed query is not evidence of absence, and conflating the two would
   # advise against a bump on no information at all.
   if [ "${rc}" -ne 0 ]; then

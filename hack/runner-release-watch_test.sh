@@ -85,6 +85,8 @@ cat > "${STUB}/curl" <<'STUBEOF'
 url=""
 for a in "$@"; do case "${a}" in http*) url="${a}" ;; esac; done
 echo "curl ${url}" >> "${GH_CALLS}"
+# Every request is bounded, or a stalled host blocks the job until it times out.
+case " $* " in *" --max-time "*) ;; *) echo "unbounded curl: ${url}" >&2; exit 1 ;; esac
 case "${url}" in
   *"/releases"*)
     [ "${GITLAB_FAIL:-}" = "1" ] && exit 22
