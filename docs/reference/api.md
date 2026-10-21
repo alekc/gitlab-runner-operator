@@ -298,6 +298,7 @@ _Appears in:_
 | `allowed_users` _string array_ |  |  |  |
 | `allowed_groups` _string array_ |  |  |  |
 | `automount_service_account_token` _boolean_ |  |  |  |
+| `enable_service_links` _boolean_ |  |  |  |
 | `pod_disruption_budget` _boolean_ |  |  |  |
 | `print_pod_warning_events` _boolean_ |  |  |  |
 | `use_service_account_image_pull_secrets` _boolean_ |  |  |  |

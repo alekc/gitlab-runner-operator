@@ -110,7 +110,7 @@ type KubernetesConfig struct {
 	ContainerLifecycle                      *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                       string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
 
-	// The field set below matches gitlab-runner v19.4.1.
+	// The field set below matches gitlab-runner v19.5.0.
 	// cleanup_resources_timeout is a string because the runner's toml decoder
 	// parses a duration string into time.Duration. The kubernetes autoscaler and
 	// suspend_* keys are left out on purpose; see runner-release-watch.suppress.
@@ -133,6 +133,7 @@ type KubernetesConfig struct {
 	AllowedUsers                        []string            `toml:"allowed_users,omitempty" json:"allowed_users,omitempty" description:"A list of users allowed to run the build container"`
 	AllowedGroups                       []string            `toml:"allowed_groups,omitempty" json:"allowed_groups,omitempty" description:"A list of groups allowed to run the build container"`
 	AutomountServiceAccountToken        *bool               `toml:"automount_service_account_token,omitempty" json:"automount_service_account_token,omitempty" description:"Whether to mount the service account token into build pods"`
+	EnableServiceLinks                  *bool               `toml:"enable_service_links,omitempty" json:"enable_service_links,omitempty" description:"Inject service environment variables into build pods. Kubernetes defaults to true; set false to keep them out of the job environment"`
 	PodDisruptionBudget                 *bool               `toml:"pod_disruption_budget,omitempty" json:"pod_disruption_budget,omitempty" description:"Create a PodDisruptionBudget so build pods are not evicted mid-job. Upstream warns this can make node drains hang while a job runs"`
 	PrintPodWarningEvents               *bool               `toml:"print_pod_warning_events,omitempty" json:"print_pod_warning_events,omitempty" description:"Print pod warning events into the job log"`
 	UseServiceAccountImagePullSecrets   bool                `toml:"use_service_account_image_pull_secrets,omitempty" json:"use_service_account_image_pull_secrets,omitempty" description:"Use the image pull secrets of the service account instead of the configured ones"`

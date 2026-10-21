@@ -118,6 +118,7 @@ func TestSingleRunnerConfig_CAInHash(t *testing.T) {
 // tags is what proves the key actually reaches the runner.
 func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
 	truthy := true
+	falsy := false
 	limit := 7
 	backoff := 2000
 
@@ -129,6 +130,7 @@ func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
 				AllowedUsers:                      []string{"1000"},
 				AllowedGroups:                     []string{"2000"},
 				AutomountServiceAccountToken:      &truthy,
+				EnableServiceLinks:                &falsy,
 				PodDisruptionBudget:               &truthy,
 				PrintPodWarningEvents:             &truthy,
 				UseServiceAccountImagePullSecrets: true,
@@ -183,6 +185,7 @@ func TestSingleRunnerConfig_ExposedExecutorKeys(t *testing.T) {
 		`allowed_users = ["1000"]`,
 		`allowed_groups = ["2000"]`,
 		`automount_service_account_token = true`,
+		`enable_service_links = false`,
 		`pod_disruption_budget = true`,
 		`print_pod_warning_events = true`,
 		`use_service_account_image_pull_secrets = true`,
