@@ -393,6 +393,11 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 		*out = new(bool)
 		**out = **in
 	}
+	if in.EnableServiceLinks != nil {
+		in, out := &in.EnableServiceLinks, &out.EnableServiceLinks
+		*out = new(bool)
+		**out = **in
+	}
 	if in.RequestRetryLimit != nil {
 		in, out := &in.RequestRetryLimit, &out.RequestRetryLimit
 		*out = new(int)

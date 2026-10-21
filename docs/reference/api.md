@@ -301,6 +301,7 @@ _Appears in:_
 | `pod_disruption_budget` _boolean_ |  |  |  |
 | `print_pod_warning_events` _boolean_ |  |  |  |
 | `use_service_account_image_pull_secrets` _boolean_ |  |  |  |
+| `enable_service_links` _boolean_ | Sets enableServiceLinks on build pods. Unset keeps the Kubernetes default<br />(true); false keeps per-Service environment variables out of jobs. |  |  |
 | `cleanup_resources_timeout` _string_ | A Go duration string such as 5m. The runner's toml decoder parses it into<br />time.Duration, so no bespoke CRD type is needed. |  | MaxLength: 32 <br />Pattern: `^\+?(0\|(([0-9]+(\.[0-9]*)?\|\.[0-9]+)(ns\|us\|µs\|μs\|ms\|s\|m\|h))+)$` <br /> |
 | `retry_limit` _integer_ |  |  |  |
 | `retry_limits` _object (keys:string, values:integer)_ |  |  |  |
