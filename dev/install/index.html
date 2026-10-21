@@ -1435,6 +1435,17 @@ As above, the manager does not drain
 <p>A runner that never set any of the three is unaffected: the operator's own
 defaults are stable, so its live pod already matches and nothing rolls.</p>
 </div>
+<div class="admonition warning">
+<p class="admonition-title"><code>executor_config.terminationGracePeriodSeconds</code> is removed</p>
+<p>gitlab-runner dropped this key in v17.0.0, so it has done nothing since. The
+CRD no longer has it, so <code>kubectl apply</code> (strict field validation is its
+default) rejects a manifest that still sets it, and so does any tool that
+applies with strict field validation. Delete it, including from chart
+<code>runners:</code> values, and set <code>pod_termination_grace_period_seconds</code> or
+<code>cleanup_grace_period_seconds</code> if you meant a grace period. The operator
+ignores a value already stored on an object. If that value was non-zero it was
+in the rendered config, so dropping it rolls that runner's manager once.</p>
+</div>
 <h2 id="kustomize">Kustomize<a class="headerlink" href="#kustomize" title="Permanent link">&para;</a></h2>
 <p>From a checkout of the repo:</p>
 <div class="highlight"><pre><span></span><code>make<span class="w"> </span>install<span class="w">                      </span><span class="c1"># CRDs only</span>

@@ -1432,10 +1432,6 @@ operator. See <a href="../../operations/rbac-and-namespaces/">RBAC and namespace
 </thead>
 <tbody>
 <tr>
-<td><code>executor_config.terminationGracePeriodSeconds</code></td>
-<td>Accepted, rendered into <code>config.toml</code>, then silently dropped by the runner. gitlab-runner removed the key in v17.0.0. Use <code>pod_termination_grace_period_seconds</code> and <code>cleanup_grace_period_seconds</code> instead.</td>
-</tr>
-<tr>
 <td><code>executor_config.pod_spec</code></td>
 <td>Rendered, but the runner ignores it unless the job also sets the <code>FF_USE_ADVANCED_POD_SPEC_CONFIGURATION</code> <a href="https://docs.gitlab.com/runner/configuration/feature-flags.html">feature flag</a>.</td>
 </tr>

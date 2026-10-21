@@ -3028,12 +3028,6 @@ cannot use, so the constraints here are validated at admission instead.</p>
 <td></td>
 </tr>
 <tr>
-<td><code>terminationGracePeriodSeconds</code> <em>integer</em></td>
-<td>Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.<br />A value set here is accepted, rendered into config.toml, then silently<br />dropped by the runner. Set pod_termination_grace_period_seconds and<br />cleanup_grace_period_seconds instead.</td>
-<td></td>
-<td></td>
-</tr>
-<tr>
 <td><code>pod_termination_grace_period_seconds</code> <em>integer</em></td>
 <td>PodTerminationGracePeriodSeconds is the build pod's grace period. Unset<br />means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an<br />unset grace period meant 0s, so a runner upgraded across that boundary<br />waits 30s where it used to terminate at once.</td>
 <td></td>
