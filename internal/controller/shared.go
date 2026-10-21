@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -27,8 +28,11 @@ import (
 	"gitlab.k8s.alekc.dev/internal/api"
 	"gitlab.k8s.alekc.dev/internal/crud"
 	"gitlab.k8s.alekc.dev/internal/types"
+	"gitlab.k8s.alekc.dev/internal/validate"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -50,6 +54,10 @@ const (
 
 	maxDeleteAttempts        = 5
 	deleteAttemptsAnnotation = "gitlab.k8s.alekc.dev/delete-attempts"
+
+	// drainMargin is how long past its grace period a manager pod may linger
+	// (kubelet extension, a NotReady node) before deletion proceeds without it.
+	drainMargin = time.Minute
 )
 
 // resolveTokenSource resolves a TokenSource to its literal token. An inline
@@ -437,12 +445,80 @@ func deleteManagedRunner(ctx context.Context, cl client.Client, injected api.Git
 	return nil
 }
 
+// drainManager deletes the manager Deployment and reports whether its pods are
+// gone. Past the grace period plus drainMargin it reports drained anyway, so a
+// pod stuck Terminating on a lost node cannot wedge the finalizer.
+func drainManager(ctx context.Context, cl client.Client, apiReader client.Reader, obj types.RunnerInfo, now time.Time, logger logr.Logger) (bool, error) {
+	dep := &appsv1.Deployment{ObjectMeta: metav1.ObjectMeta{Name: obj.ChildName(), Namespace: obj.GetNamespace()}}
+	if err := cl.Delete(ctx, dep, client.PropagationPolicy(metav1.DeletePropagationBackground)); err != nil && !apierrors.IsNotFound(err) {
+		return false, err
+	}
+
+	// Uncached: a pod informer would cache every pod in the cluster.
+	var pods corev1.PodList
+	if err := apiReader.List(ctx, &pods, client.InNamespace(obj.GetNamespace()), client.MatchingLabels(validate.ManagerPodLabels(obj))); err != nil {
+		return false, err
+	}
+	// A deleted pod's deletionTimestamp already includes its own grace period,
+	// so it is the deadline; a pod GC has not reached yet falls back to the CR's.
+	fallback := obj.GetDeletionTimestamp().Add(time.Duration(obj.RunnerTerminationGracePeriodSeconds()) * time.Second)
+	remaining := 0
+	var deadline time.Time
+	for i := range pods.Items {
+		pod := &pods.Items[i]
+		if !isManagerPod(pod, obj.ChildName()) {
+			continue
+		}
+		remaining++
+		podDeadline := fallback
+		if pod.DeletionTimestamp != nil {
+			podDeadline = pod.DeletionTimestamp.Time
+		}
+		if podDeadline.After(deadline) {
+			deadline = podDeadline
+		}
+	}
+	if remaining == 0 {
+		return true, nil
+	}
+
+	deadline = deadline.Add(drainMargin)
+	if now.After(deadline) {
+		logger.Info("runner manager pods outlived their grace period, deregistering anyway", "pods", remaining)
+		return true, nil
+	}
+	logger.Info("waiting for the runner manager to finish running jobs", "pods", remaining, "deadline", deadline)
+	return false, nil
+}
+
+// isManagerPod reports whether pod belongs to a ReplicaSet of the named manager
+// Deployment, so another workload reusing the selector label is not waited on.
+func isManagerPod(pod *corev1.Pod, deployment string) bool {
+	for _, ref := range pod.OwnerReferences {
+		if ref.Kind == "ReplicaSet" && strings.HasPrefix(ref.Name, deployment+"-") {
+			return true
+		}
+	}
+	return false
+}
+
 // finalizeDeletion removes managed runners from GitLab, then the finalizer. On
 // failure it keeps the finalizer and requeues so the runner is not orphaned,
 // up to maxDeleteAttempts; after that it logs loudly and removes the finalizer
 // anyway so the object never wedges.
 func finalizeDeletion(ctx context.Context, cl client.Client, apiReader client.Reader, injected api.GitlabClient, obj types.RunnerInfo, logger logr.Logger) (ctrl.Result, error) {
 	logger.Info("runner is being deleted")
+	// Deregistering or dropping cross-namespace RBAC under a draining manager
+	// would fail the jobs it is finishing, so both wait for its pods to go.
+	drained, err := drainManager(ctx, cl, apiReader, obj, time.Now(), logger)
+	if err != nil {
+		logger.Error(err, "cannot drain the runner manager, will retry")
+		return resultRequeueAfterDefaultTimeout, err
+	}
+	if !drained {
+		return resultRequeueAfterDefaultTimeout, nil
+	}
+
 	if err := removeManagedRunners(ctx, cl, injected, obj, logger); err != nil {
 		attempts := deleteAttempts(obj) + 1
 		setDeleteAttempts(obj, attempts)

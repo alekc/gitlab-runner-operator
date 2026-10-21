@@ -22,6 +22,7 @@ type PodShape struct {
 	Tolerations       []corev1.Toleration
 	Affinity          *corev1.Affinity
 	PriorityClassName string
+	GracePeriod       *int64
 }
 
 // ManagerPodShape reads the shape out of a pod template. Compare two of these
@@ -35,6 +36,7 @@ func ManagerPodShape(tpl *corev1.PodTemplateSpec) PodShape {
 		Tolerations:       tpl.Spec.Tolerations,
 		Affinity:          tpl.Spec.Affinity,
 		PriorityClassName: tpl.Spec.PriorityClassName,
+		GracePeriod:       tpl.Spec.TerminationGracePeriodSeconds,
 	}
 	// A template with no runner container leaves the container fields zero,
 	// which never matches a rendered spec and so forces an update.

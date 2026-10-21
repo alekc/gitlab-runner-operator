@@ -60,6 +60,11 @@ var _ = Describe("manager pod convergence", func() {
 		settles("cv-bare", v1beta2.RunnerSpec{})
 	})
 
+	It("settles with an explicit or zero grace period", func() {
+		settles("cv-grace", v1beta2.RunnerSpec{RunnerTerminationGracePeriodSeconds: ptr.To[int64](600)})
+		settles("cv-grace-zero", v1beta2.RunnerSpec{RunnerTerminationGracePeriodSeconds: ptr.To[int64](0)})
+	})
+
 	It("settles with rich placement", func() {
 		settles("cv-rich", v1beta2.RunnerSpec{
 			RunnerNodeSelector: map[string]string{"node-pool": "ci"},

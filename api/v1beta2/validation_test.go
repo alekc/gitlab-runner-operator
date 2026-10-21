@@ -10,6 +10,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -130,6 +131,14 @@ var _ = Describe("CRD validation", func() {
 		r := &Runner{ObjectMeta: valMeta("val-rc-negative"), Spec: RunnerSpec{
 			Authentication:    valByoAuth(),
 			ConcurrencyLimits: ConcurrencyLimits{RequestConcurrency: -1},
+		}}
+		expectInvalid(k8sClient.Create(ctx, r), "should be greater than or equal to 0")
+	})
+
+	It("rejects a negative runner_termination_grace_period_seconds", func() {
+		r := &Runner{ObjectMeta: valMeta("val-grace-negative"), Spec: RunnerSpec{
+			Authentication:                      valByoAuth(),
+			RunnerTerminationGracePeriodSeconds: ptr.To[int64](-1),
 		}}
 		expectInvalid(k8sClient.Create(ctx, r), "should be greater than or equal to 0")
 	})
@@ -348,7 +357,8 @@ var _ = Describe("manager pod placement schema", func() {
 					},
 				},
 			},
-			RunnerPriorityClassName: "system-cluster-critical",
+			RunnerPriorityClassName:             "system-cluster-critical",
+			RunnerTerminationGracePeriodSeconds: ptr.To[int64](600),
 			// A secretKeyRef, not just a plain value, so the nested EnvVarSource
 			// schema round-trips and not only the flat EnvVar shape.
 			RunnerEnv: []corev1.EnvVar{{Name: "PROXY_PASSWORD", ValueFrom: &corev1.EnvVarSource{
@@ -373,6 +383,7 @@ var _ = Describe("manager pod placement schema", func() {
 		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerAffinity.NodeAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+		Expect(stored.Spec.RunnerTerminationGracePeriodSeconds).To(HaveValue(Equal(int64(600))))
 		Expect(stored.Spec.RunnerEnv).To(HaveLen(1))
 		Expect(stored.Spec.RunnerEnv[0].ValueFrom.SecretKeyRef.Key).To(Equal("password"))
 	})
@@ -380,12 +391,13 @@ var _ = Describe("manager pod placement schema", func() {
 	It("stores every placement field on a MultiRunner", func() {
 		spec := placement()
 		m := &MultiRunner{ObjectMeta: valMeta("val-place-multi"), Spec: MultiRunnerSpec{
-			Entries:                 []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
-			RunnerNodeSelector:      spec.RunnerNodeSelector,
-			RunnerTolerations:       spec.RunnerTolerations,
-			RunnerAffinity:          spec.RunnerAffinity,
-			RunnerPriorityClassName: spec.RunnerPriorityClassName,
-			RunnerEnv:               spec.RunnerEnv,
+			Entries:                             []MultiRunnerEntry{{Name: "e1", Authentication: valByoAuth()}},
+			RunnerNodeSelector:                  spec.RunnerNodeSelector,
+			RunnerTolerations:                   spec.RunnerTolerations,
+			RunnerAffinity:                      spec.RunnerAffinity,
+			RunnerPriorityClassName:             spec.RunnerPriorityClassName,
+			RunnerEnv:                           spec.RunnerEnv,
+			RunnerTerminationGracePeriodSeconds: spec.RunnerTerminationGracePeriodSeconds,
 		}}
 		Expect(k8sClient.Create(ctx, m)).To(Succeed())
 		DeferCleanup(func() { _ = k8sClient.Delete(ctx, m) })
@@ -396,6 +408,7 @@ var _ = Describe("manager pod placement schema", func() {
 		Expect(stored.Spec.RunnerTolerations).To(HaveLen(1))
 		Expect(stored.Spec.RunnerAffinity).NotTo(BeNil())
 		Expect(stored.Spec.RunnerPriorityClassName).To(Equal("system-cluster-critical"))
+		Expect(stored.Spec.RunnerTerminationGracePeriodSeconds).To(HaveValue(Equal(int64(600))))
 		Expect(stored.Spec.RunnerEnv).To(HaveLen(1))
 		Expect(stored.Spec.RunnerEnv[0].ValueFrom.SecretKeyRef.Key).To(Equal("password"))
 	})

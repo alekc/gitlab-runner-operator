@@ -3019,6 +3019,13 @@ spec:
                         type: string
                     type: object
                 type: object
+              runner_termination_grace_period_seconds:
+                description: |-
+                  RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may
+                  spend finishing running jobs. Defaults to 3600; 0 kills immediately.
+                format: int64
+                minimum: 0
+                type: integer
               runner_tolerations:
                 description: |-
                   RunnerTolerations lets the runner manager pod schedule onto tainted

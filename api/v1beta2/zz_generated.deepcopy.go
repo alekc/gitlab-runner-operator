@@ -1200,6 +1200,11 @@ func (in *MultiRunnerSpec) DeepCopyInto(out *MultiRunnerSpec) {
 		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.RunnerTerminationGracePeriodSeconds != nil {
+		in, out := &in.RunnerTerminationGracePeriodSeconds, &out.RunnerTerminationGracePeriodSeconds
+		*out = new(int64)
+		**out = **in
+	}
 	if in.CACertificate != nil {
 		in, out := &in.CACertificate, &out.CACertificate
 		*out = new(CASource)
@@ -1549,6 +1554,11 @@ func (in *RunnerSpec) DeepCopyInto(out *RunnerSpec) {
 		in, out := &in.RunnerAffinity, &out.RunnerAffinity
 		*out = new(v1.Affinity)
 		(*in).DeepCopyInto(*out)
+	}
+	if in.RunnerTerminationGracePeriodSeconds != nil {
+		in, out := &in.RunnerTerminationGracePeriodSeconds, &out.RunnerTerminationGracePeriodSeconds
+		*out = new(int64)
+		**out = **in
 	}
 	if in.CACertificate != nil {
 		in, out := &in.CACertificate, &out.CACertificate

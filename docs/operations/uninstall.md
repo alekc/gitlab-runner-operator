@@ -16,6 +16,11 @@ RoleBindings the operator created in other namespaces. Only a running operator
 can complete it. Take the operator away first and the objects wedge in
 `Terminating`.
 
+The finalizer first lets each runner manager finish its running jobs, so a
+delete can take up to `runner_termination_grace_period_seconds` (3600 by
+default) plus a minute. To skip that, see
+[draining the runner manager](../guides/draining.md).
+
 ```bash
 kubectl delete runners --all -A
 kubectl delete multirunners --all -A

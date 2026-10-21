@@ -46,6 +46,9 @@ type RunnerInfo interface {
 	RunnerTolerations() []corev1.Toleration
 	RunnerAffinity() *corev1.Affinity
 	RunnerPriorityClassName() string
+	// RunnerTerminationGracePeriodSeconds is the manager pod's drain budget,
+	// already defaulted.
+	RunnerTerminationGracePeriodSeconds() int64
 	SetObservedGeneration(generation int64)
 	SetReadyCondition(ready bool, reason, message string)
 	RegistrationConfig() []v1beta2.GitlabRegInfo

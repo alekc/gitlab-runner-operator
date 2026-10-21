@@ -21,6 +21,9 @@ import (
 var _ = Describe("manager pod shape", func() {
 	shapedTemplate := func(placement corev1.PodSpec) corev1.PodTemplateSpec {
 		spec := placement
+		// Always set, as Deployment renders it: a nil grace period is defaulted to
+		// 30 by the apiserver and would never round-trip.
+		spec.TerminationGracePeriodSeconds = ptr.To[int64](3600)
 		spec.Containers = []corev1.Container{{
 			Name:            "runner",
 			Image:           "gitlab/gitlab-runner:alpine-v19.3.0",

@@ -32,6 +32,7 @@ something up, start with the task.
 | `cache:` declared but never restores | no distributed cache support yet | [Limitations](../reference/limitations.md) |
 | `x509: certificate signed by unknown authority` | GitLab behind a private CA | [Authentication](../authentication.md#custom-ca-for-a-self-signed-gitlab) |
 | Runner NotReady, no obvious reason | read `status.error` and the `Ready` condition | [Watching a runner](monitoring.md) |
+| Jobs die when the runner is rolled, or `kubectl delete runner` hangs | a drain shorter, or longer, than the running jobs | [Draining the runner manager](draining.md) |
 
 ## By task
 
@@ -66,15 +67,15 @@ something up, start with the task.
 **Operations**
 
 - [Watching a runner](monitoring.md): status fields, runner metrics on 9090, operator metrics
+- [Draining the runner manager](draining.md): finishing running jobs on rollout, eviction and delete
 
 ## Before you file a bug
 
-Two things are known gaps rather than misconfiguration, and each has an issue:
+One thing is a known gap rather than misconfiguration, and it has an issue:
 
 | Gap | Issue |
 | --- | --- |
 | No distributed cache (`[runners.cache]`) | [#81](https://github.com/alekc/gitlab-runner-operator/issues/81) |
-| Manager does not drain gracefully on rollout or eviction | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
 
 The full list, including fields that are accepted but inert, is in
 [limitations](../reference/limitations.md).
