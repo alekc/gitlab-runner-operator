@@ -253,7 +253,6 @@ _Appears in:_
 | `image_pull_secrets` _string array_ |  |  |  |
 | `helper_image` _string_ |  |  |  |
 | `helper_image_flavor` _string_ | HelperImageFlavor selects the OS base for the helper image. Upstream<br />interpolates it into the image tag rather than validating it, so an<br />unrecognised value fails as an ImagePullBackOff on the build pod rather<br />than at admission. Empty means alpine, or concrete under FF_CONCRETE. |  |  |
-| `terminationGracePeriodSeconds` _integer_ | Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.<br />A value set here is accepted, rendered into config.toml, then silently<br />dropped by the runner. Set pod_termination_grace_period_seconds and<br />cleanup_grace_period_seconds instead. |  |  |
 | `pod_termination_grace_period_seconds` _integer_ | PodTerminationGracePeriodSeconds is the build pod's grace period. Unset<br />means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an<br />unset grace period meant 0s, so a runner upgraded across that boundary<br />waits 30s where it used to terminate at once. |  |  |
 | `cleanup_grace_period_seconds` _integer_ | CleanupGracePeriodSeconds is the DeleteOptions grace period used when<br />tearing down the build pod and its credentials secret after a job. Unset<br />defers to each object's own grace period, which for the pod is<br />pod_termination_grace_period_seconds. |  |  |
 | `poll_interval` _integer_ |  |  |  |

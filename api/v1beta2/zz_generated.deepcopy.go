@@ -270,11 +270,6 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 		*out = make([]string, len(*in))
 		copy(*out, *in)
 	}
-	if in.TerminationGracePeriodSeconds != nil {
-		in, out := &in.TerminationGracePeriodSeconds, &out.TerminationGracePeriodSeconds
-		*out = new(int64)
-		**out = **in
-	}
 	if in.PodTerminationGracePeriodSeconds != nil {
 		in, out := &in.PodTerminationGracePeriodSeconds, &out.PodTerminationGracePeriodSeconds
 		*out = new(int64)
