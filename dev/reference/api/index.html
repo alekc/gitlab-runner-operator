@@ -3316,6 +3316,12 @@ cannot use, so the constraints here are validated at admission instead.</p>
 <td></td>
 </tr>
 <tr>
+<td><code>enable_service_links</code> <em>boolean</em></td>
+<td>Sets enableServiceLinks on build pods. Unset keeps the Kubernetes default<br />(true); false keeps per-Service environment variables out of jobs.</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
 <td><code>cleanup_resources_timeout</code> <em>string</em></td>
 <td>A Go duration string such as 5m. The runner's toml decoder parses it into<br />time.Duration, so no bespoke CRD type is needed.</td>
 <td></td>
