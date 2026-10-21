@@ -24,9 +24,3 @@ AutoscalerPolicyConfig.timezone
 KubernetesConfig.suspend_pvc_size
 KubernetesConfig.suspend_pvc_storage_class
 Service.suspend_data_path
-
-# terminationGracePeriodSeconds is stale and pending removal, tracked in #62.
-# Upstream dropped it at v17.0.0; removing it here fails `kubectl apply` for any
-# manifest that still sets it, so it goes in a release that documents the break.
-# Delete this line with the field, and the watcher will flag it as unused.
-KubernetesConfig.terminationGracePeriodSeconds

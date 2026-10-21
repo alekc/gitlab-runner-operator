@@ -1450,14 +1450,6 @@ spec:
                             - name
                             type: object
                           type: array
-                        terminationGracePeriodSeconds:
-                          description: |-
-                            Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.
-                            A value set here is accepted, rendered into config.toml, then silently
-                            dropped by the runner. Set pod_termination_grace_period_seconds and
-                            cleanup_grace_period_seconds instead.
-                          format: int64
-                          type: integer
                         use_service_account_image_pull_secrets:
                           type: boolean
                         volumes:

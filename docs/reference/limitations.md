@@ -44,7 +44,6 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 
 | Field | What actually happens |
 | --- | --- |
-| `executor_config.terminationGracePeriodSeconds` | Accepted, rendered into `config.toml`, then silently dropped by the runner. gitlab-runner removed the key in v17.0.0. Use `pod_termination_grace_period_seconds` and `cleanup_grace_period_seconds` instead. |
 | `executor_config.pod_spec` | Rendered, but the runner ignores it unless the job also sets the `FF_USE_ADVANCED_POD_SPEC_CONFIGURATION` [feature flag](https://docs.gitlab.com/runner/configuration/feature-flags.html). |
 
 ## The runner manager pod is only partly configurable

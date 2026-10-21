@@ -99,6 +99,17 @@ whole schema in a `last-applied-configuration` annotation.
     A runner that never set any of the three is unaffected: the operator's own
     defaults are stable, so its live pod already matches and nothing rolls.
 
+!!! warning "`executor_config.terminationGracePeriodSeconds` is removed"
+
+    gitlab-runner dropped this key in v17.0.0, so it has done nothing since. The
+    CRD no longer has it, so `kubectl apply` (strict field validation is its
+    default) rejects a manifest that still sets it, and so does any tool that
+    applies with strict field validation. Delete it, including from chart
+    `runners:` values, and set `pod_termination_grace_period_seconds` or
+    `cleanup_grace_period_seconds` if you meant a grace period. The operator
+    ignores a value already stored on an object. If that value was non-zero it was
+    in the rendered config, so dropping it rolls that runner's manager once.
+
 ## Kustomize
 
 From a checkout of the repo:
