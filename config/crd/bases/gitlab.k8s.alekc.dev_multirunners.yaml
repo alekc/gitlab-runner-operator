@@ -900,6 +900,9 @@ spec:
                         dns_policy:
                           type: string
                         enable_service_links:
+                          description: |-
+                            Sets enableServiceLinks on build pods. Unset keeps the Kubernetes default
+                            (true); false keeps per-Service environment variables out of jobs.
                           type: boolean
                         ephemeral_storage_limit:
                           type: string

@@ -383,11 +383,6 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 		*out = new(bool)
 		**out = **in
 	}
-	if in.EnableServiceLinks != nil {
-		in, out := &in.EnableServiceLinks, &out.EnableServiceLinks
-		*out = new(bool)
-		**out = **in
-	}
 	if in.PodDisruptionBudget != nil {
 		in, out := &in.PodDisruptionBudget, &out.PodDisruptionBudget
 		*out = new(bool)
@@ -395,6 +390,11 @@ func (in *KubernetesConfig) DeepCopyInto(out *KubernetesConfig) {
 	}
 	if in.PrintPodWarningEvents != nil {
 		in, out := &in.PrintPodWarningEvents, &out.PrintPodWarningEvents
+		*out = new(bool)
+		**out = **in
+	}
+	if in.EnableServiceLinks != nil {
+		in, out := &in.EnableServiceLinks, &out.EnableServiceLinks
 		*out = new(bool)
 		**out = **in
 	}
