@@ -459,10 +459,9 @@ func drainManager(ctx context.Context, cl client.Client, apiReader client.Reader
 	if err := apiReader.List(ctx, &pods, client.InNamespace(obj.GetNamespace()), client.MatchingLabels(validate.ManagerPodLabels(obj))); err != nil {
 		return false, err
 	}
-	// A deleted pod's deletionTimestamp already includes its own grace period,
-	// so it is the deadline; a pod GC has not reached yet falls back to the CR's.
-	fallback := obj.GetDeletionTimestamp().Add(time.Duration(obj.RunnerTerminationGracePeriodSeconds()) * time.Second)
-	remaining := 0
+	// A deleted pod's deletionTimestamp is its kill deadline. A pod GC has not
+	// reached yet is deleted here, so its clock starts now, not at the CR delete.
+	remaining, pending := 0, 0
 	var deadline time.Time
 	for i := range pods.Items {
 		pod := &pods.Items[i]
@@ -470,16 +469,23 @@ func drainManager(ctx context.Context, cl client.Client, apiReader client.Reader
 			continue
 		}
 		remaining++
-		podDeadline := fallback
-		if pod.DeletionTimestamp != nil {
-			podDeadline = pod.DeletionTimestamp.Time
+		if pod.DeletionTimestamp == nil {
+			pending++
+			if err := cl.Delete(ctx, pod); err != nil && !apierrors.IsNotFound(err) {
+				return false, err
+			}
+			continue
 		}
-		if podDeadline.After(deadline) {
-			deadline = podDeadline
+		if pod.DeletionTimestamp.After(deadline) {
+			deadline = pod.DeletionTimestamp.Time
 		}
 	}
 	if remaining == 0 {
 		return true, nil
+	}
+	if pending > 0 {
+		logger.Info("stopping the runner manager so it can finish running jobs", "pods", remaining)
+		return false, nil
 	}
 
 	deadline = deadline.Add(drainMargin)

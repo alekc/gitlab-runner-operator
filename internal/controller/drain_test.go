@@ -40,12 +40,21 @@ func drainFixture(t *testing.T, deletedAt time.Time, pods ...*corev1.Pod) (*v1be
 	return r, fake.NewClientBuilder().WithScheme(s).WithObjects(objs...).Build()
 }
 
+// managerPod carries a finalizer so a delete leaves it Terminating, as a real
+// kubelet does while the runner drains, rather than removing it at once.
 func managerPod(name, ownerRS string) *corev1.Pod {
 	return &corev1.Pod{ObjectMeta: metav1.ObjectMeta{
 		Name: name, Namespace: "ns",
 		Labels:          map[string]string{"deployment": "r1"},
 		OwnerReferences: []metav1.OwnerReference{{Kind: "ReplicaSet", Name: ownerRS, APIVersion: "apps/v1", UID: "rs"}},
+		Finalizers:      []string{"test/keep"},
 	}}
+}
+
+func terminatingPod(name string, deadline time.Time) *corev1.Pod {
+	pod := managerPod(name, "gitlab-runner-r1-abc")
+	pod.DeletionTimestamp = &metav1.Time{Time: deadline}
+	return pod
 }
 
 // A delete must not deregister from GitLab while the manager still runs jobs:
@@ -67,6 +76,29 @@ func TestDrainManagerWaitsForManagerPods(t *testing.T) {
 	}
 }
 
+// An operator that comes back long after the CR delete may find the manager
+// pod not yet deleted. It must start the pod's own clock, not deregister on a
+// deadline that expired while it was down (#125 review).
+func TestDrainManagerStartsTheClockForAnUndeletedPod(t *testing.T) {
+	crDeleted := time.Now().Add(-2 * time.Hour)
+	r, cl := drainFixture(t, crDeleted, managerPod("p1", "gitlab-runner-r1-abc"))
+
+	drained, err := drainManager(context.Background(), cl, cl, r, time.Now(), logr.Discard())
+	if err != nil {
+		t.Fatalf("drainManager: %v", err)
+	}
+	if drained {
+		t.Fatal("deregistered on the CR's expired deadline while the manager pod was never stopped")
+	}
+	var pod corev1.Pod
+	if err := cl.Get(context.Background(), client.ObjectKey{Namespace: "ns", Name: "p1"}, &pod); err != nil {
+		t.Fatalf("get pod: %v", err)
+	}
+	if pod.DeletionTimestamp == nil {
+		t.Fatal("the manager pod was not deleted, so its grace clock never started")
+	}
+}
+
 // A pod that only shares the selector label belongs to someone else's workload.
 func TestDrainManagerIgnoresForeignPods(t *testing.T) {
 	now := time.Now()
@@ -85,7 +117,7 @@ func TestDrainManagerIgnoresForeignPods(t *testing.T) {
 // Terminating on a lost node cannot hold the object forever.
 func TestDrainManagerGivesUpAfterTheGracePeriod(t *testing.T) {
 	deletedAt := time.Now()
-	r, cl := drainFixture(t, deletedAt, managerPod("p1", "gitlab-runner-r1-abc"))
+	r, cl := drainFixture(t, deletedAt, terminatingPod("p1", deletedAt.Add(600*time.Second)))
 
 	justBefore := deletedAt.Add(600*time.Second + drainMargin - time.Second)
 	if drained, _ := drainManager(context.Background(), cl, cl, r, justBefore, logr.Discard()); drained {
@@ -101,11 +133,8 @@ func TestDrainManagerGivesUpAfterTheGracePeriod(t *testing.T) {
 // operator that was down for a while must still wait out the pod's own grace.
 func TestDrainManagerWaitsOutAPodDeletedLate(t *testing.T) {
 	crDeleted := time.Now()
-	pod := managerPod("p1", "gitlab-runner-r1-abc")
 	podDeadline := crDeleted.Add(30*time.Minute + 600*time.Second)
-	pod.DeletionTimestamp = &metav1.Time{Time: podDeadline}
-	pod.Finalizers = []string{"test/keep"}
-	r, cl := drainFixture(t, crDeleted, pod)
+	r, cl := drainFixture(t, crDeleted, terminatingPod("p1", podDeadline))
 
 	pastCRDeadline := crDeleted.Add(600*time.Second + drainMargin + time.Second)
 	if drained, _ := drainManager(context.Background(), cl, cl, r, pastCRDeadline, logr.Discard()); drained {

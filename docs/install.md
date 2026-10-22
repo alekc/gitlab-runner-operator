@@ -113,7 +113,10 @@ whole schema in a `last-applied-configuration` annotation.
     Manager pods get a 3600s grace period by default
     (`runner_termination_grace_period_seconds`), so every manager rolls once on
     upgrade. That roll still stops the old pod within its old 30s, so it does
-    not drain; later ones do. Deleting a `Runner` or `MultiRunner` now waits for
+    not drain; later ones do. It happens even where a warning above says a
+    setting avoids the restart or that nothing rolls: those notes are about
+    their own change, not this one, so upgrade when the pipeline queue is quiet.
+    Deleting a `Runner` or `MultiRunner` now waits for
     its running jobs before removing it from GitLab, so a delete can take as long
     as the longest job. See [draining the runner manager](guides/draining.md).
 

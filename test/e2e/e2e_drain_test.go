@@ -49,12 +49,16 @@ func drainBranch() string {
 	return branch
 }
 
+// drainTag is this spec's own tag: a manager left by an earlier spec still
+// advertises jobTag while it shuts down, and must not take the drain job.
+var drainTag = jobTag + "-drain"
+
 func triggerDrainPipeline(branch string) int64 {
 	GinkgoHelper()
 	p, _, err := glab.Pipelines.CreatePipeline(projectID, &gitlab.CreatePipelineOptions{
 		Ref: gitlab.Ptr(branch),
 		Variables: &[]*gitlab.PipelineVariableOptions{{
-			Key: gitlab.Ptr("RUNNER_TAG"), Value: gitlab.Ptr(jobTag),
+			Key: gitlab.Ptr("RUNNER_TAG"), Value: gitlab.Ptr(drainTag),
 		}},
 	})
 	Expect(err).NotTo(HaveOccurred(), "could not trigger the drain pipeline")
@@ -91,6 +95,15 @@ func waitDrainJob(pipelineID int64, want string, budget time.Duration) {
 	}, budget, interval).Should(Succeed())
 }
 
+// expectDrainJobOn fails unless drain-job is running on runnerID, so stopping
+// this spec's manager is known to interrupt the job under test.
+func expectDrainJobOn(pipelineID int64, runnerID int) {
+	GinkgoHelper()
+	job, err := drainJob(pipelineID)
+	Expect(err).NotTo(HaveOccurred())
+	Expect(job.Runner.ID).To(Equal(int64(runnerID)), "drain-job is running on another runner")
+}
+
 // managerPodName returns the one running, not terminating, manager pod.
 func managerPodName(name string) string {
 	GinkgoHelper()
@@ -116,7 +129,7 @@ var _ = Describe("Manager drain", func() {
 				GitlabInstanceURL: gitlabURL,
 				Authentication: gitlabv1beta2.GitlabAuth{
 					AccessToken:   &gitlabv1beta2.TokenSource{Value: gitlabToken},
-					CreateOptions: managedCreateOptions([]string{jobTag}),
+					CreateOptions: managedCreateOptions([]string{drainTag}),
 				},
 			},
 		}
@@ -129,6 +142,7 @@ var _ = Describe("Manager drain", func() {
 		By("rolling the manager while drain-job runs")
 		pipeline := triggerDrainPipeline(branch)
 		waitDrainJob(pipeline, "running", dispatchTimeout)
+		expectDrainJobOn(pipeline, got.Status.RunnerID)
 		oldPod := managerPodName(name)
 		Eventually(func(g Gomega) {
 			var cur gitlabv1beta2.Runner
@@ -161,6 +175,7 @@ var _ = Describe("Manager drain", func() {
 		waitDeploymentUp(got.ChildName())
 		pipeline = triggerDrainPipeline(branch)
 		waitDrainJob(pipeline, "running", dispatchTimeout)
+		expectDrainJobOn(pipeline, got.Status.RunnerID)
 		Expect(k8sClient.Delete(ctx, &gitlabv1beta2.Runner{ObjectMeta: objMeta(name)})).To(Succeed())
 		Eventually(func(g Gomega) {
 			job, err := drainJob(pipeline)
