@@ -933,6 +933,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1418,10 +1446,9 @@ jump you were trying to prevent.</p>
 <p>Otherwise, because <code>limit = 10</code> stops being rendered, the config hash changes
 for every existing <code>Runner</code> and <code>MultiRunner</code> even though their specs did
 not. The first reconcile after the upgrade restarts each runner manager, and
-the manager does not drain
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>), so jobs
-in flight at that moment may be lost. It happens once. Upgrade when the
-pipeline queue is quiet.</p>
+the old pod stops with the 30s grace period it was created with (see
+<a href="../guides/draining/">draining</a>), so jobs in flight at that moment may be
+lost. It happens once. Upgrade when the pipeline queue is quiet.</p>
 </div>
 <div class="admonition warning">
 <p class="admonition-title">Manager pod settings that were silently ignored start taking effect</p>
@@ -1430,8 +1457,7 @@ shape the manager pod but never reach <code>config.toml</code>, so until now a c
 one of them did not roll the Deployment and did not apply. The reconcile now
 compares the manager pod's shape directly, so the value you set takes effect
 on the first reconcile after the upgrade, at the cost of one manager restart.
-As above, the manager does not drain
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>).</p>
+As above, that restart does not drain.</p>
 <p>A runner that never set any of the three is unaffected: the operator's own
 defaults are stable, so its live pod already matches and nothing rolls.</p>
 </div>
@@ -1445,6 +1471,18 @@ applies with strict field validation. Delete it, including from chart
 <code>cleanup_grace_period_seconds</code> if you meant a grace period. The operator
 ignores a value already stored on an object. If that value was non-zero it was
 in the rendered config, so dropping it rolls that runner's manager once.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">The runner manager now drains, and deletes wait for it</p>
+<p>Manager pods get a 3600s grace period by default
+(<code>runner_termination_grace_period_seconds</code>), so every manager rolls once on
+upgrade. That roll still stops the old pod within its old 30s, so it does
+not drain; later ones do. It happens even where a warning above says a
+setting avoids the restart or that nothing rolls: those notes are about
+their own change, not this one, so upgrade when the pipeline queue is quiet.
+Deleting a <code>Runner</code> or <code>MultiRunner</code> now waits for
+its running jobs before removing it from GitLab, so a delete can take as long
+as the longest job. See <a href="../guides/draining/">draining the runner manager</a>.</p>
 </div>
 <h2 id="kustomize">Kustomize<a class="headerlink" href="#kustomize" title="Permanent link">&para;</a></h2>
 <p>From a checkout of the repo:</p>

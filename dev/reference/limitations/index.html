@@ -814,6 +814,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1443,24 +1471,9 @@ operator. See <a href="../../operations/rbac-and-namespaces/">RBAC and namespace
 environment variables (<code>runner_env</code>, see <a href="../../guides/outbound-proxy/">outbound proxy</a>),
 and its placement (<code>runner_node_selector</code>, <code>runner_tolerations</code>,
 <code>runner_affinity</code>, <code>runner_priority_class_name</code>, see
-<a href="../../guides/node-placement/">node placement</a>). One thing production clusters
-ask for is still missing:</p>
-<table>
-<thead>
-<tr>
-<th>Missing</th>
-<th>Consequence</th>
-<th>Issue</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td><code>terminationGracePeriodSeconds</code> and a drain hook</td>
-<td>Stuck at Kubernetes' 30s default with no <code>preStop</code>, so a rollout or eviction kills in-flight jobs instead of draining.</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a></td>
-</tr>
-</tbody>
-</table>
+<a href="../../guides/node-placement/">node placement</a>), and how long it may drain
+(<code>runner_termination_grace_period_seconds</code>, see
+<a href="../../guides/draining/">draining the runner manager</a>).</p>
 <p>The Deployment is also fixed at one replica, which is correct (two managers would
 double the effective concurrency) but means throughput scales by adding runner
 objects or <code>MultiRunner</code> entries, not replicas.</p>

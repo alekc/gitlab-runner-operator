@@ -896,6 +896,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1352,6 +1380,11 @@ something up, start with the task.</p>
 <td>read <code>status.error</code> and the <code>Ready</code> condition</td>
 <td><a href="monitoring/">Watching a runner</a></td>
 </tr>
+<tr>
+<td>Jobs die when the runner is rolled, or <code>kubectl delete runner</code> hangs</td>
+<td>a drain shorter, or longer, than the running jobs</td>
+<td><a href="draining/">Draining the runner manager</a></td>
+</tr>
 </tbody>
 </table>
 <h2 id="by-task">By task<a class="headerlink" href="#by-task" title="Permanent link">&para;</a></h2>
@@ -1386,9 +1419,10 @@ something up, start with the task.</p>
 <p><strong>Operations</strong></p>
 <ul>
 <li><a href="monitoring/">Watching a runner</a>: status fields, runner metrics on 9090, operator metrics</li>
+<li><a href="draining/">Draining the runner manager</a>: finishing running jobs on rollout, eviction and delete</li>
 </ul>
 <h2 id="before-you-file-a-bug">Before you file a bug<a class="headerlink" href="#before-you-file-a-bug" title="Permanent link">&para;</a></h2>
-<p>Two things are known gaps rather than misconfiguration, and each has an issue:</p>
+<p>One thing is a known gap rather than misconfiguration, and it has an issue:</p>
 <table>
 <thead>
 <tr>
@@ -1400,10 +1434,6 @@ something up, start with the task.</p>
 <tr>
 <td>No distributed cache (<code>[runners.cache]</code>)</td>
 <td><a href="https://github.com/alekc/gitlab-runner-operator/issues/81">#81</a></td>
-</tr>
-<tr>
-<td>Manager does not drain gracefully on rollout or eviction</td>
-<td><a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a></td>
 </tr>
 </tbody>
 </table>

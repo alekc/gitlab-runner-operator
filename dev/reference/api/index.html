@@ -814,6 +814,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -4510,6 +4538,12 @@ validated at admission instead.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>runner_termination_grace_period_seconds</code> <em>integer</em></td>
+<td>RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may<br />spend finishing running jobs. Defaults to 3600; 0 kills immediately.</td>
+<td></td>
+<td>Minimum: 0 <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>
 <td>CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and every runner<br />entry's own connection. Supply it inline (value) or from a Secret or<br />ConfigMap key.</td>
 <td></td>
@@ -5005,6 +5039,12 @@ used in managed mode.</p>
 <td>RunnerPriorityClassName protects the runner manager pod from preemption.<br />A manager killed mid-job loses the jobs it was tracking, so it wants a<br />higher priority than the workloads it shares a node with.</td>
 <td></td>
 <td>Optional: {} <br /></td>
+</tr>
+<tr>
+<td><code>runner_termination_grace_period_seconds</code> <em>integer</em></td>
+<td>RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may<br />spend finishing running jobs. Defaults to 3600; 0 kills immediately.</td>
+<td></td>
+<td>Minimum: 0 <br />Optional: {} <br /></td>
 </tr>
 <tr>
 <td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>

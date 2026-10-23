@@ -907,6 +907,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1337,11 +1365,12 @@ off spot explicitly rather than by luck:</p>
 <span class="w">  </span><span class="nt">runner_priority_class_name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">runner-manager</span>
 </code></pre></div>
 <p><code>runner_affinity</code> with <code>node-lifecycle NotIn [spot]</code> does the same thing where
-the on-demand nodes carry no positive label. Either way the manager still
-cannot drain gracefully on a rollout
-(<a href="https://github.com/alekc/gitlab-runner-operator/issues/84">#84</a>), so a
-voluntary disruption of the manager loses in-flight jobs even on stable
-capacity. See <a href="../node-placement/">node placement</a>.</p>
+the on-demand nodes carry no positive label. On stable capacity a voluntary
+disruption of the manager drains: it finishes its running jobs within
+<code>runner_termination_grace_period_seconds</code> (see
+<a href="../draining/">draining the runner manager</a>). On spot capacity the cloud's
+reclaim notice wins, so a reclaimed manager loses in-flight jobs no matter how
+long the grace period is. See <a href="../node-placement/">node placement</a>.</p>
 <h2 id="related">Related<a class="headerlink" href="#related" title="Permanent link">&para;</a></h2>
 <ul>
 <li><a href="../node-placement/">Node placement</a></li>

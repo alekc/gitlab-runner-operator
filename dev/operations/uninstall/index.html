@@ -814,6 +814,34 @@
 
               
             
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
           </ul>
         </nav>
       
@@ -1308,6 +1336,10 @@ actually go, before removing the operator.</p>
 RoleBindings the operator created in other namespaces. Only a running operator
 can complete it. Take the operator away first and the objects wedge in
 <code>Terminating</code>.</p>
+<p>The finalizer first lets each runner manager finish its running jobs, so a
+delete can take up to <code>runner_termination_grace_period_seconds</code> (3600 by
+default) plus a minute. To skip that, see
+<a href="../../guides/draining/">draining the runner manager</a>.</p>
 <div class="highlight"><pre><span></span><code>kubectl<span class="w"> </span>delete<span class="w"> </span>runners<span class="w"> </span>--all<span class="w"> </span>-A
 kubectl<span class="w"> </span>delete<span class="w"> </span>multirunners<span class="w"> </span>--all<span class="w"> </span>-A
 kubectl<span class="w"> </span>get<span class="w"> </span>runners,multirunners<span class="w"> </span>-A<span class="w">     </span><span class="c1"># confirm they are gone</span>
