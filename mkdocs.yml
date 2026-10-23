@@ -95,6 +95,7 @@ nav:
       - Service containers: guides/service-containers.md
       - Outbound proxy: guides/outbound-proxy.md
       - Watching a runner: guides/monitoring.md
+      - Draining the runner manager: guides/draining.md
   - Operations:
       - RBAC and namespaces: operations/rbac-and-namespaces.md
       - Uninstalling: operations/uninstall.md

@@ -99,6 +99,12 @@ type MultiRunnerSpec struct {
 	// +optional
 	RunnerPriorityClassName string `json:"runner_priority_class_name,omitempty"`
 
+	// RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may
+	// spend finishing running jobs. Defaults to 3600; 0 kills immediately.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	RunnerTerminationGracePeriodSeconds *int64 `json:"runner_termination_grace_period_seconds,omitempty"`
+
 	// CACertificate, when set, provides a PEM CA bundle used to verify the
 	// GitLab endpoint for both the operator's API calls and every runner
 	// entry's own connection. Supply it inline (value) or from a Secret or
@@ -284,6 +290,15 @@ func (r *MultiRunner) RunnerAffinity() *corev1.Affinity {
 // unset.
 func (r *MultiRunner) RunnerPriorityClassName() string {
 	return r.Spec.RunnerPriorityClassName
+}
+
+// RunnerTerminationGracePeriodSeconds returns the manager pod grace period,
+// DefaultRunnerTerminationGracePeriodSeconds when unset.
+func (r *MultiRunner) RunnerTerminationGracePeriodSeconds() int64 {
+	if r.Spec.RunnerTerminationGracePeriodSeconds == nil {
+		return DefaultRunnerTerminationGracePeriodSeconds
+	}
+	return *r.Spec.RunnerTerminationGracePeriodSeconds
 }
 
 func (r *MultiRunner) RegistrationConfig() []GitlabRegInfo {

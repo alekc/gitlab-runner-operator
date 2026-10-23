@@ -81,10 +81,9 @@ whole schema in a `last-applied-configuration` annotation.
     Otherwise, because `limit = 10` stops being rendered, the config hash changes
     for every existing `Runner` and `MultiRunner` even though their specs did
     not. The first reconcile after the upgrade restarts each runner manager, and
-    the manager does not drain
-    ([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)), so jobs
-    in flight at that moment may be lost. It happens once. Upgrade when the
-    pipeline queue is quiet.
+    the old pod stops with the 30s grace period it was created with (see
+    [draining](guides/draining.md)), so jobs in flight at that moment may be
+    lost. It happens once. Upgrade when the pipeline queue is quiet.
 
 !!! warning "Manager pod settings that were silently ignored start taking effect"
 
@@ -93,8 +92,7 @@ whole schema in a `last-applied-configuration` annotation.
     one of them did not roll the Deployment and did not apply. The reconcile now
     compares the manager pod's shape directly, so the value you set takes effect
     on the first reconcile after the upgrade, at the cost of one manager restart.
-    As above, the manager does not drain
-    ([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)).
+    As above, that restart does not drain.
 
     A runner that never set any of the three is unaffected: the operator's own
     defaults are stable, so its live pod already matches and nothing rolls.
@@ -109,6 +107,18 @@ whole schema in a `last-applied-configuration` annotation.
     `cleanup_grace_period_seconds` if you meant a grace period. The operator
     ignores a value already stored on an object. If that value was non-zero it was
     in the rendered config, so dropping it rolls that runner's manager once.
+
+!!! warning "The runner manager now drains, and deletes wait for it"
+
+    Manager pods get a 3600s grace period by default
+    (`runner_termination_grace_period_seconds`), so every manager rolls once on
+    upgrade. That roll still stops the old pod within its old 30s, so it does
+    not drain; later ones do. It happens even where a warning above says a
+    setting avoids the restart or that nothing rolls: those notes are about
+    their own change, not this one, so upgrade when the pipeline queue is quiet.
+    Deleting a `Runner` or `MultiRunner` now waits for
+    its running jobs before removing it from GitLab, so a delete can take as long
+    as the longest job. See [draining the runner manager](guides/draining.md).
 
 ## Kustomize
 

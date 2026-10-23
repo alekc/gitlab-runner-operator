@@ -112,6 +112,12 @@ type RunnerSpec struct {
 	// +optional
 	RunnerPriorityClassName string `json:"runner_priority_class_name,omitempty"`
 
+	// RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may
+	// spend finishing running jobs. Defaults to 3600; 0 kills immediately.
+	// +kubebuilder:validation:Minimum=0
+	// +optional
+	RunnerTerminationGracePeriodSeconds *int64 `json:"runner_termination_grace_period_seconds,omitempty"`
+
 	// CACertificate, when set, provides a PEM CA bundle used to verify the
 	// GitLab endpoint for both the operator's API calls and the runner's own
 	// connection. Supply it inline (value) or from a Secret/ConfigMap key.
@@ -122,6 +128,10 @@ type RunnerSpec struct {
 // DefaultRunnerImage is the gitlab-runner image used when the spec does not
 // set RunnerImage.
 const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.5.0"
+
+// DefaultRunnerTerminationGracePeriodSeconds is the manager pod's drain budget
+// when the spec does not set one, matching the upstream Helm chart.
+const DefaultRunnerTerminationGracePeriodSeconds int64 = 3600
 
 // RunnerStatus defines the observed state of Runner
 type RunnerStatus struct {
@@ -357,4 +367,13 @@ func (r *Runner) RunnerAffinity() *corev1.Affinity {
 // unset.
 func (r *Runner) RunnerPriorityClassName() string {
 	return r.Spec.RunnerPriorityClassName
+}
+
+// RunnerTerminationGracePeriodSeconds returns the manager pod grace period,
+// DefaultRunnerTerminationGracePeriodSeconds when unset.
+func (r *Runner) RunnerTerminationGracePeriodSeconds() int64 {
+	if r.Spec.RunnerTerminationGracePeriodSeconds == nil {
+		return DefaultRunnerTerminationGracePeriodSeconds
+	}
+	return *r.Spec.RunnerTerminationGracePeriodSeconds
 }

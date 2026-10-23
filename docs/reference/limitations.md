@@ -53,12 +53,9 @@ operator. See [RBAC and namespaces](../operations/rbac-and-namespaces.md).
 environment variables (`runner_env`, see [outbound proxy](../guides/outbound-proxy.md)),
 and its placement (`runner_node_selector`, `runner_tolerations`,
 `runner_affinity`, `runner_priority_class_name`, see
-[node placement](../guides/node-placement.md)). One thing production clusters
-ask for is still missing:
-
-| Missing | Consequence | Issue |
-| --- | --- | --- |
-| `terminationGracePeriodSeconds` and a drain hook | Stuck at Kubernetes' 30s default with no `preStop`, so a rollout or eviction kills in-flight jobs instead of draining. | [#84](https://github.com/alekc/gitlab-runner-operator/issues/84) |
+[node placement](../guides/node-placement.md)), and how long it may drain
+(`runner_termination_grace_period_seconds`, see
+[draining the runner manager](../guides/draining.md)).
 
 The Deployment is also fixed at one replica, which is correct (two managers would
 double the effective concurrency) but means throughput scales by adding runner

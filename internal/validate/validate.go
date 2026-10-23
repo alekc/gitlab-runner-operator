@@ -19,8 +19,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+// ManagerPodLabels are the selector labels of the runner manager Deployment.
+func ManagerPodLabels(runnerObj types.RunnerInfo) map[string]string {
+	return map[string]string{"deployment": runnerObj.GetName()}
+}
+
 func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInfo, logger logr.Logger) (*ctrl.Result, error) {
-	labels := map[string]string{"deployment": runnerObj.GetName()}
+	labels := ManagerPodLabels(runnerObj)
 	// gitlab-runner reads system_id only from a file next to config.toml, so it
 	// is carried as a pod annotation and projected into the config volume.
 	// Read-only is enough: the runner skips its save path, and the warning it
@@ -50,10 +55,13 @@ func Deployment(ctx context.Context, cl client.Client, runnerObj types.RunnerInf
 					},
 				},
 				Spec: corev1.PodSpec{
-					NodeSelector:      runnerObj.RunnerNodeSelector(),
-					Tolerations:       runnerObj.RunnerTolerations(),
-					Affinity:          runnerObj.RunnerAffinity(),
-					PriorityClassName: runnerObj.RunnerPriorityClassName(),
+					// The image's STOPSIGNAL is SIGQUIT, which drains: the runner stops
+					// taking jobs and finishes the running ones within this budget.
+					TerminationGracePeriodSeconds: ptr.To(runnerObj.RunnerTerminationGracePeriodSeconds()),
+					NodeSelector:                  runnerObj.RunnerNodeSelector(),
+					Tolerations:                   runnerObj.RunnerTolerations(),
+					Affinity:                      runnerObj.RunnerAffinity(),
+					PriorityClassName:             runnerObj.RunnerPriorityClassName(),
 					Volumes: []corev1.Volume{{
 						Name: "config",
 						VolumeSource: corev1.VolumeSource{

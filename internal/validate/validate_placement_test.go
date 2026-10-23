@@ -10,6 +10,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -147,6 +148,49 @@ func TestDeployment_PlacementChangeRolls(t *testing.T) {
 	}
 }
 
+// The grace period is what lets a SIGQUIT drain finish (#84): unset must mean
+// the 3600s default, and an explicit 0 must stay 0 rather than be defaulted.
+func TestDeployment_GracePeriod(t *testing.T) {
+	for name, tc := range map[string]struct {
+		set  *int64
+		want int64
+	}{
+		"unset":    {nil, v1beta2.DefaultRunnerTerminationGracePeriodSeconds},
+		"explicit": {ptr.To[int64](600), 600},
+		"zero":     {ptr.To[int64](0), 0},
+	} {
+		t.Run(name, func(t *testing.T) {
+			runner := placementRunner(v1beta2.RunnerSpec{RunnerTerminationGracePeriodSeconds: tc.set})
+			cl := fake.NewClientBuilder().WithScheme(systemIDScheme(t)).Build()
+			reconcile(t, cl, runner)
+			got := getDeployment(t, cl, runner).Spec.Template.Spec.TerminationGracePeriodSeconds
+			if got == nil || *got != tc.want {
+				t.Fatalf("terminationGracePeriodSeconds: got %v, want %d", got, tc.want)
+			}
+			if reconcile(t, cl, runner) {
+				t.Fatal("second reconcile rolled an unchanged deployment")
+			}
+		})
+	}
+}
+
+func TestDeployment_GracePeriodChangeRolls(t *testing.T) {
+	runner := placementRunner(v1beta2.RunnerSpec{})
+	cl := fake.NewClientBuilder().WithScheme(systemIDScheme(t)).Build()
+	reconcile(t, cl, runner)
+	if reconcile(t, cl, runner) {
+		t.Fatal("precondition: reconcile must be settled before the change")
+	}
+
+	runner.Spec.RunnerTerminationGracePeriodSeconds = ptr.To[int64](60)
+	if !reconcile(t, cl, runner) {
+		t.Fatal("a grace period change did not roll the deployment")
+	}
+	if reconcile(t, cl, runner) {
+		t.Fatal("a grace period change did not settle after rolling")
+	}
+}
+
 // runner_resources, runner_security_context and runner_env were silently inert
 // before this change: none is in config.toml, so none moved the config hash.
 func TestDeployment_ContainerFieldChangeRolls(t *testing.T) {
@@ -240,12 +284,13 @@ func TestDeployment_MultiRunnerPlacementProjection(t *testing.T) {
 		TypeMeta:   metav1.TypeMeta{APIVersion: "gitlab.k8s.alekc.dev/v1beta2", Kind: "MultiRunner"},
 		ObjectMeta: metav1.ObjectMeta{Name: "m1", Namespace: "ns", UID: "uid-m1"},
 		Spec: v1beta2.MultiRunnerSpec{
-			Entries:                 []v1beta2.MultiRunnerEntry{{Name: "e1"}},
-			RunnerNodeSelector:      spec.RunnerNodeSelector,
-			RunnerTolerations:       spec.RunnerTolerations,
-			RunnerAffinity:          spec.RunnerAffinity,
-			RunnerPriorityClassName: spec.RunnerPriorityClassName,
-			RunnerEnv:               []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy:3128"}},
+			Entries:                             []v1beta2.MultiRunnerEntry{{Name: "e1"}},
+			RunnerNodeSelector:                  spec.RunnerNodeSelector,
+			RunnerTolerations:                   spec.RunnerTolerations,
+			RunnerAffinity:                      spec.RunnerAffinity,
+			RunnerPriorityClassName:             spec.RunnerPriorityClassName,
+			RunnerEnv:                           []corev1.EnvVar{{Name: "HTTP_PROXY", Value: "http://proxy:3128"}},
+			RunnerTerminationGracePeriodSeconds: ptr.To[int64](120),
 		},
 	}
 
@@ -275,6 +320,7 @@ func TestDeployment_MultiRunnerPlacementProjection(t *testing.T) {
 		Tolerations:       spec.RunnerTolerations,
 		Affinity:          spec.RunnerAffinity,
 		PriorityClassName: spec.RunnerPriorityClassName,
+		GracePeriod:       ptr.To[int64](120),
 	}
 	if !apiequality.Semantic.DeepEqual(got, want) {
 		t.Fatalf("MultiRunner manager pod shape:\n got: %+v\nwant: %+v", got, want)

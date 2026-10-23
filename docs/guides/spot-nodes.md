@@ -93,11 +93,12 @@ spec:
 ```
 
 `runner_affinity` with `node-lifecycle NotIn [spot]` does the same thing where
-the on-demand nodes carry no positive label. Either way the manager still
-cannot drain gracefully on a rollout
-([#84](https://github.com/alekc/gitlab-runner-operator/issues/84)), so a
-voluntary disruption of the manager loses in-flight jobs even on stable
-capacity. See [node placement](node-placement.md).
+the on-demand nodes carry no positive label. On stable capacity a voluntary
+disruption of the manager drains: it finishes its running jobs within
+`runner_termination_grace_period_seconds` (see
+[draining the runner manager](draining.md)). On spot capacity the cloud's
+reclaim notice wins, so a reclaimed manager loses in-flight jobs no matter how
+long the grace period is. See [node placement](node-placement.md).
 
 ## Related
 
