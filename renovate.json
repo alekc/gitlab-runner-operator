@@ -1,0 +1,9 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "github>alekc/renovate-config:ci-automerge"
+  ],
+  "pre-commit": {
+    "enabled": true
+  }
+}
