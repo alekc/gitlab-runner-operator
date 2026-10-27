@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.x
+          go-version: 1.27.x
       # GOTOOLCHAIN=auto on each line, as in the govulncheck job below: setup-go
       # exports GOTOOLCHAIN=local via GITHUB_ENV, and whether a workflow-level
       # env key outranks that is not specified. Per-command is unambiguous.
@@ -41,11 +41,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.x
+          go-version: 1.27.x
       - name: golangci-lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
-          version: v2.12.2
+          version: v2.15.0
           # Gate only issues introduced by the PR. The tree lints clean as of
           # #91, so this no longer hides a backlog; it absorbs findings a future
           # linter bump adds on lines the PR did not touch. Not a full-tree
@@ -58,7 +58,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.x
+          go-version: 1.27.x
       - name: govulncheck
         # Required gate. Binary mode (see the Makefile) since source mode panics
         # on go 1.26. setup-go sets GOTOOLCHAIN=local, which ignores the go.mod
@@ -72,13 +72,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          go-version: 1.26.x
+          go-version: 1.27.x
       - name: Reference matches the API types
         # Regenerates docs/reference/api.md into a temp file and diffs. An API
         # change with a stale reference fails here rather than shipping wrong
         # field docs to the site.
         run: GOTOOLCHAIN=auto make docs-verify
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: 3.x
       - name: Install the docs toolchain
