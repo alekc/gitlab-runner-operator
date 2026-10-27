@@ -1,0 +1,17 @@
+# Tag a patch release whenever a Renovate CVE fix (label "security") is merged.
+name: security-release
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'security')
+    uses: alekc/renovate-config/.github/workflows/security-release.yml@main
+    with:
+      dispatch-workflow: "release.yml"
