@@ -15,6 +15,8 @@ jobs:
   # cut 27 minutes after a refactor that replaced the admission webhook.
   verify:
     runs-on: ubuntu-latest
+    # Room to wait out one e2e matrix still running on the tagged commit.
+    timeout-minutes: 90
     permissions:
       actions: read
     steps:
@@ -22,17 +24,30 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const { data } = await github.rest.actions.listWorkflowRuns({
+            const list = (status) => github.rest.actions.listWorkflowRuns({
               owner: context.repo.owner,
               repo: context.repo.repo,
               // Renaming e2e.yaml silently breaks this lookup and blocks every
               // release until the name is updated here too.
               workflow_id: 'e2e.yaml',
               head_sha: context.sha,
-              // Filters on conclusion, so a run whose jobs were skipped (the
-              // authorize gate said no) does not count as evidence.
-              status: 'success',
+              status,
             });
+            // A security release (security-release.yml) tags the merge commit
+            // seconds after the merge, while main's e2e on it is still running:
+            // wait for that run rather than failing, up to 80 minutes.
+            const deadline = Date.now() + 80 * 60 * 1000;
+            for (;;) {
+              const active = ['queued', 'in_progress', 'waiting', 'requested', 'pending'];
+              let running = 0;
+              for (const s of active) running += (await list(s)).data.total_count;
+              if (running === 0 || Date.now() > deadline) break;
+              core.info(`${running} e2e run(s) still running on ${context.sha}, waiting`);
+              await new Promise((r) => setTimeout(r, 60 * 1000));
+            }
+            // Filters on conclusion, so a run whose jobs were skipped (the
+            // authorize gate said no) does not count as evidence.
+            const { data } = await list('success');
             if (data.total_count === 0) {
               const tag = context.ref.replace('refs/tags/', '');
               core.setFailed(
