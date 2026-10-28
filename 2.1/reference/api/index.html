@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -801,6 +801,34 @@
     
   
     Watching a runner
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/draining/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Draining the runner manager
   
 
     
@@ -3028,12 +3056,6 @@ cannot use, so the constraints here are validated at admission instead.</p>
 <td></td>
 </tr>
 <tr>
-<td><code>terminationGracePeriodSeconds</code> <em>integer</em></td>
-<td>Deprecated: no effect since gitlab-runner v17.0.0, which removed the key.<br />A value set here is accepted, rendered into config.toml, then silently<br />dropped by the runner. Set pod_termination_grace_period_seconds and<br />cleanup_grace_period_seconds instead.</td>
-<td></td>
-<td></td>
-</tr>
-<tr>
 <td><code>pod_termination_grace_period_seconds</code> <em>integer</em></td>
 <td>PodTerminationGracePeriodSeconds is the build pod's grace period. Unset<br />means the Kubernetes default of 30s. Before gitlab-runner v17.0.0 an<br />unset grace period meant 0s, so a runner upgraded across that boundary<br />waits 30s where it used to terminate at once.</td>
 <td></td>
@@ -3312,6 +3334,12 @@ cannot use, so the constraints here are validated at admission instead.</p>
 <tr>
 <td><code>use_service_account_image_pull_secrets</code> <em>boolean</em></td>
 <td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><code>enable_service_links</code> <em>boolean</em></td>
+<td>Sets enableServiceLinks on build pods. Unset keeps the Kubernetes default<br />(true); false keeps per-Service environment variables out of jobs.</td>
 <td></td>
 <td></td>
 </tr>
@@ -4510,6 +4538,12 @@ validated at admission instead.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>runner_termination_grace_period_seconds</code> <em>integer</em></td>
+<td>RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may<br />spend finishing running jobs. Defaults to 3600; 0 kills immediately.</td>
+<td></td>
+<td>Minimum: 0 <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>
 <td>CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and every runner<br />entry's own connection. Supply it inline (value) or from a Secret or<br />ConfigMap key.</td>
 <td></td>
@@ -5007,6 +5041,12 @@ used in managed mode.</p>
 <td>Optional: {} <br /></td>
 </tr>
 <tr>
+<td><code>runner_termination_grace_period_seconds</code> <em>integer</em></td>
+<td>RunnerTerminationGracePeriodSeconds bounds how long a stopped manager may<br />spend finishing running jobs. Defaults to 3600; 0 kills immediately.</td>
+<td></td>
+<td>Minimum: 0 <br />Optional: {} <br /></td>
+</tr>
+<tr>
 <td><code>caCertificate</code> <em><a href="#casource">CASource</a></em></td>
 <td>CACertificate, when set, provides a PEM CA bundle used to verify the<br />GitLab endpoint for both the operator's API calls and the runner's own<br />connection. Supply it inline (value) or from a Secret/ConfigMap key.</td>
 <td></td>
@@ -5280,10 +5320,10 @@ the runner's namespace. Exactly one of Value / SecretKeyRef may be set.</p>
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.copy", "navigation.instant", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["content.action.edit", "content.code.copy", "navigation.instant", "navigation.sections", "navigation.top", "navigation.tracking", "search.highlight", "search.suggest", "toc.follow"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": {"default": "latest", "provider": "mike"}}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
