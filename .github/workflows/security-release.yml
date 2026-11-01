@@ -12,6 +12,6 @@ permissions:
 jobs:
   release:
     if: github.event.pull_request.merged && contains(github.event.pull_request.labels.*.name, 'security')
-    uses: alekc/renovate-config/.github/workflows/security-release.yml@main
+    uses: alekc/renovate-config/.github/workflows/security-release.yml@92f4c3e9bcb02ee5b000c25d2ecfa3db1cdc4c54 # main
     with:
       dispatch-workflow: "release.yml"
