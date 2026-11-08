@@ -243,8 +243,19 @@ func followManagerLogs(name string) {
 		return
 	}
 	DeferCleanup(func() {
-		_ = cmd.Process.Kill()
-		_ = cmd.Wait()
+		done := make(chan struct{})
+		go func() { _ = cmd.Wait(); close(done) }()
+		// On failure a still-draining manager gets a minute to log its shutdown.
+		grace := time.Duration(0)
+		if CurrentSpecReport().Failed() {
+			grace = time.Minute
+		}
+		select {
+		case <-done:
+		case <-time.After(grace):
+			_ = cmd.Process.Kill()
+			<-done
+		}
 		_ = f.Close()
 	})
 }
