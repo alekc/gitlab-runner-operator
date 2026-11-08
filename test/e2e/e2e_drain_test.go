@@ -3,6 +3,10 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -119,6 +123,132 @@ func managerPodName(name string) string {
 	return ""
 }
 
+// managerPodStates describes the Runner's manager pods, terminating ones too,
+// so a failure shows whether the manager outlived its job (#136).
+func managerPodStates(name string) string {
+	var pods corev1.PodList
+	if err := k8sClient.List(context.Background(), &pods, client.InNamespace(e2eNamespace),
+		client.MatchingLabels{"deployment": name}); err != nil {
+		return "pods: " + err.Error()
+	}
+	if len(pods.Items) == 0 {
+		return "pods: none"
+	}
+	var b strings.Builder
+	for _, p := range pods.Items {
+		fmt.Fprintf(&b, "pod %s phase=%s", p.Name, p.Status.Phase)
+		for _, o := range p.OwnerReferences {
+			fmt.Fprintf(&b, " owner=%s/%s", o.Kind, o.Name)
+		}
+		if p.DeletionTimestamp != nil {
+			fmt.Fprintf(&b, " kill-deadline=%s", p.DeletionTimestamp.UTC().Format(time.TimeOnly))
+		}
+		for _, cs := range p.Status.ContainerStatuses {
+			switch {
+			case cs.State.Terminated != nil:
+				t := cs.State.Terminated
+				fmt.Fprintf(&b, " %s=terminated(%s exit=%d at=%s)", cs.Name, t.Reason, t.ExitCode,
+					t.FinishedAt.UTC().Format(time.TimeOnly))
+			case cs.State.Running != nil:
+				fmt.Fprintf(&b, " %s=running", cs.Name)
+			}
+		}
+		b.WriteString("; ")
+	}
+	return b.String()
+}
+
+// describeJob renders the fields that tell a lost drain-job from a late one.
+func describeJob(j *gitlab.Job) string {
+	s := fmt.Sprintf("job %d status=%s", j.ID, j.Status)
+	if j.StartedAt != nil {
+		s += " started=" + j.StartedAt.UTC().Format(time.TimeOnly)
+	}
+	if j.FinishedAt != nil {
+		s += " finished=" + j.FinishedAt.UTC().Format(time.TimeOnly)
+	}
+	if j.FailureReason != "" {
+		s += " failure_reason=" + j.FailureReason
+	}
+	return s
+}
+
+var terminalJobStatus = map[string]bool{
+	"success": true, "failed": true, "canceled": true, "skipped": true,
+}
+
+// settleDrainJob polls drain-job for up to budget and says where it ended: a
+// late success means GitLab lagged, a failure means the job was lost mid-run.
+// The manager pods keep being sampled meanwhile, so the timeline does not stop.
+func settleDrainJob(pipelineID int64, name string, budget time.Duration) string {
+	deadline := time.Now().Add(budget)
+	last := ""
+	for {
+		if pods := managerPodStates(name); pods != last {
+			GinkgoWriter.Printf("%s settling | %s\n", time.Now().UTC().Format(time.TimeOnly), pods)
+			last = pods
+		}
+		job, err := drainJob(pipelineID)
+		if err == nil && terminalJobStatus[job.Status] {
+			return "settled: " + describeJob(job)
+		}
+		if time.Now().After(deadline) {
+			if err != nil {
+				return "unsettled: " + err.Error()
+			}
+			return fmt.Sprintf("unsettled after %s: %s", budget, describeJob(job))
+		}
+		time.Sleep(interval)
+	}
+}
+
+// followManagerLogs streams the live manager pod's log to $E2E_ARTIFACTS_DIR,
+// so a manager gone by the time the spec fails still leaves its shutdown log.
+// Best effort: nothing here can fail the spec.
+func followManagerLogs(name string) {
+	dir := os.Getenv("E2E_ARTIFACTS_DIR")
+	if dir == "" {
+		return
+	}
+	var pods corev1.PodList
+	if err := k8sClient.List(context.Background(), &pods, client.InNamespace(e2eNamespace),
+		client.MatchingLabels{"deployment": name}); err != nil {
+		GinkgoWriter.Printf("not streaming manager logs: %v\n", err)
+		return
+	}
+	pod := ""
+	for _, p := range pods.Items {
+		if p.DeletionTimestamp == nil {
+			pod = p.Name
+		}
+	}
+	if pod == "" {
+		GinkgoWriter.Printf("not streaming manager logs: no live pod for %s\n", name)
+		return
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		GinkgoWriter.Printf("not streaming %s logs: %v\n", pod, err)
+		return
+	}
+	f, err := os.Create(filepath.Join(dir, pod+".log"))
+	if err != nil {
+		GinkgoWriter.Printf("not streaming %s logs: %v\n", pod, err)
+		return
+	}
+	cmd := exec.Command("kubectl", "logs", "-f", "--timestamps", "-n", e2eNamespace, pod)
+	cmd.Stdout, cmd.Stderr = f, f
+	if err := cmd.Start(); err != nil {
+		GinkgoWriter.Printf("not streaming %s logs: %v\n", pod, err)
+		_ = f.Close()
+		return
+	}
+	DeferCleanup(func() {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		_ = f.Close()
+	})
+}
+
 var _ = Describe("Manager drain", func() {
 	It("finishes a running job across a manager roll and a Runner delete", func() {
 		ctx := context.Background()
@@ -176,17 +306,26 @@ var _ = Describe("Manager drain", func() {
 		pipeline = triggerDrainPipeline(branch)
 		waitDrainJob(pipeline, "running", dispatchTimeout)
 		expectDrainJobOn(pipeline, got.Status.RunnerID)
+		followManagerLogs(name)
 		Expect(k8sClient.Delete(ctx, &gitlabv1beta2.Runner{ObjectMeta: objMeta(name)})).To(Succeed())
+		// The timeline prints only on failure; it is the evidence #136 lacks.
+		var last string
 		Eventually(func(g Gomega) {
 			job, err := drainJob(pipeline)
 			g.Expect(err).NotTo(HaveOccurred())
+			if line := describeJob(job) + " | " + managerPodStates(name); line != last {
+				GinkgoWriter.Printf("%s %s\n", time.Now().UTC().Format(time.TimeOnly), line)
+				last = line
+			}
 			if job.Status == "running" {
 				var cur gitlabv1beta2.Runner
 				if err := k8sClient.Get(ctx, key(name), &cur); err != nil {
-					StopTrying("the Runner was removed while its job was still running").Wrap(err).Now()
+					StopTrying("the Runner was removed while its job was still running; " +
+						settleDrainJob(pipeline, name, 3*time.Minute) + " | " + managerPodStates(name)).Wrap(err).Now()
 				}
 				if _, _, err := glab.Runners.GetRunnerDetails(got.Status.RunnerID); err != nil {
-					StopTrying("the runner was deregistered from GitLab mid-job").Wrap(err).Now()
+					StopTrying("the runner was deregistered from GitLab mid-job; " +
+						settleDrainJob(pipeline, name, 3*time.Minute) + " | " + managerPodStates(name)).Wrap(err).Now()
 				}
 			}
 			g.Expect(job.Status).To(Equal("success"))
