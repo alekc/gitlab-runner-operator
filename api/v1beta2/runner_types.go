@@ -127,7 +127,7 @@ type RunnerSpec struct {
 
 // DefaultRunnerImage is the gitlab-runner image used when the spec does not
 // set RunnerImage.
-const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.5.0"
+const DefaultRunnerImage = "gitlab/gitlab-runner:alpine-v19.5.3"
 
 // DefaultRunnerTerminationGracePeriodSeconds is the manager pod's drain budget
 // when the spec does not set one, matching the upstream Helm chart.

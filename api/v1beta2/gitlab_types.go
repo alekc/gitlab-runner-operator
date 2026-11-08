@@ -105,7 +105,7 @@ type KubernetesConfig struct {
 	ContainerLifecycle                      *KubernetesContainerLifecyle        `toml:"container_lifecycle,omitempty" json:"container_lifecycle,omitempty" description:"Actions that the management system should take in response to container lifecycle events"`
 	PriorityClassName                       string                              `toml:"priority_class_name,omitempty" json:"priority_class_name,omitempty" long:"priority_class_name" env:"KUBERNETES_PRIORITY_CLASS_NAME" description:"If set, the Kubernetes Priority Class to be set to the Pods"`
 
-	// The field set below matches gitlab-runner v19.5.0.
+	// The field set below matches gitlab-runner v19.5.3.
 	// cleanup_resources_timeout is a string because the runner's toml decoder
 	// parses a duration string into time.Duration. The kubernetes autoscaler and
 	// suspend_* keys are left out on purpose; see runner-release-watch.suppress.
