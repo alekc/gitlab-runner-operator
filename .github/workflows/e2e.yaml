@@ -221,7 +221,40 @@ jobs:
           GITLAB_E2E_TOKEN: ${{ secrets.GITLAB_E2E_TOKEN }}
           GITLAB_E2E_PROJECT_ID: ${{ secrets.GITLAB_E2E_PROJECT_ID }}
           GITLAB_E2E_RUNNER_TAG: ${{ steps.tag.outputs.value }}
+          E2E_ARTIFACTS_DIR: ${{ runner.temp }}/e2e-artifacts
         run: make test-e2e
+
+      # Manager pods are gone by the time a drain spec fails, so their logs are
+      # streamed to the artifact dir during the run; this adds the rest (#136).
+      - name: Collect diagnostics
+        id: collect
+        if: failure()
+        env:
+          DIR: ${{ runner.temp }}/e2e-artifacts
+          E2E_TOKEN: ${{ secrets.GITLAB_E2E_TOKEN }}
+        run: |
+          mkdir -p "${DIR}"
+          kubectl -n gitlab-runner-operator-system logs \
+            deploy/gitlab-runner-operator-controller-manager --timestamps \
+            > "${DIR}/operator.log" 2>&1 || true
+          kubectl -n gitlab-runner-operator-system logs \
+            deploy/gitlab-runner-operator-controller-manager --previous \
+            > "${DIR}/operator-previous.log" 2>&1 || true
+          kubectl get events -A --sort-by=.lastTimestamp > "${DIR}/events.txt" 2>&1 || true
+          kubectl get pods -A -o wide > "${DIR}/pods.txt" 2>&1 || true
+          # Artifacts are public and unmasked: blank the e2e token itself and
+          # anything token-shaped. Upload is gated on this step succeeding.
+          find "${DIR}" -type f -exec perl -pi -e \
+            's/\Q$ENV{E2E_TOKEN}\E/REDACTED/g if length $ENV{E2E_TOKEN};
+             s/(glrt|glpat|glcbt|gloas|glptt|glft)-[A-Za-z0-9_.-]+/$1-REDACTED/g' {} +
+
+      - name: Upload diagnostics
+        if: failure() && steps.collect.outcome == 'success'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-diagnostics-${{ matrix.k8s_version }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/e2e-artifacts
+          retention-days: 14
 
   # The one context worth marking required. Its name never changes, unlike the
   # per-version e2e legs whose matrix comes from endoflife.date, and it reports
